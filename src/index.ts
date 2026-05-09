@@ -21,7 +21,7 @@ export {
   encodeMessage,
   decodeMessage,
   splitWirePayload,
-  extractSootheThreadID,
+  extractSootheLoopID,
   newRequestID,
   newInputMessage,
   newSubscribeThreadMessage,
@@ -31,6 +31,7 @@ export {
 export type {
   BaseMessage,
   InputMessage,
+  LoopInputMessage,
   CommandMessage,
   SubscribeThreadMessage,
   NewThreadMessage,
@@ -118,8 +119,7 @@ export {
 
 // Session
 export {
-  bootstrapNewThreadSession,
-  bootstrapResumeThreadSession,
+  bootstrapLoopSession,
   waitDaemonReady,
   waitThreadStatusWithID,
   waitSubscriptionConfirmed,

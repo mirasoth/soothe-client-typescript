@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Client } from '../src/client.js';
 import {
-  bootstrapNewThreadSession,
-  bootstrapResumeThreadSession,
+  bootstrapLoopSession,
   waitDaemonReady,
   waitThreadStatusWithID,
   waitSubscriptionConfirmed,
@@ -13,33 +12,29 @@ import {
   createTestServer, fullBootstrapHandler, echoHandler,
 } from './helpers/ws-server.js';
 
-describe('bootstrapNewThreadSession', () => {
+describe('bootstrapLoopSession', () => {
   it('runs full 3-step handshake', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url, defaultConfig());
       await client.connect();
 
-      const eventStream = client.receiveMessages();
-      const threadID = await bootstrapNewThreadSession(client, eventStream, '/tmp/ws', defaultConfig());
-      expect(threadID).toBe('test-thread-123');
+      const loopID = await bootstrapLoopSession(client, null, defaultConfig());
+      expect(loopID).toBe('test-loop-123');
       client.close();
     } finally {
       await server.close();
     }
   });
-});
 
-describe('bootstrapResumeThreadSession', () => {
-  it('runs full 3-step handshake with resume', async () => {
+  it('resumes with existing loop id', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url, defaultConfig());
       await client.connect();
 
-      const eventStream = client.receiveMessages();
-      const threadID = await bootstrapResumeThreadSession(client, eventStream, 'existing-thread', '/tmp/ws', defaultConfig());
-      expect(threadID).toBe('existing-thread');
+      const loopID = await bootstrapLoopSession(client, 'existing-thread', defaultConfig());
+      expect(loopID).toBe('existing-thread');
       client.close();
     } finally {
       await server.close();
@@ -101,14 +96,14 @@ describe('waitDaemonReady', () => {
 });
 
 describe('waitThreadStatusWithID', () => {
-  it('returns status with thread_id', async () => {
+  it('returns status with loop_id', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
       await client.sendNewThread('/tmp/ws');
       const status = await waitThreadStatusWithID(client, 3000);
-      expect(status.thread_id).toBe('test-thread-123');
+      expect(status.loop_id ?? status.thread_id).toBe('test-thread-123');
       client.close();
     } finally {
       await server.close();
@@ -134,7 +129,7 @@ describe('waitThreadStatusWithID', () => {
 });
 
 describe('waitSubscriptionConfirmed', () => {
-  it('succeeds when thread_id matches', async () => {
+  it('succeeds when loop_id matches (subscribe_thread handshake)', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);
@@ -147,7 +142,7 @@ describe('waitSubscriptionConfirmed', () => {
     }
   });
 
-  it('times out when thread_id mismatches', async () => {
+  it('times out when loop_id mismatches (subscribe_thread handshake)', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);

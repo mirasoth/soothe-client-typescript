@@ -151,12 +151,24 @@ describe('Client', () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendInput('hello', { threadID: 't1', model: 'openai:gpt-4' });
+      await client.sendInput('hello', { loopID: 't1', model: 'openai:gpt-4' });
       const ev = await client.readEvent();
-      expect(ev!.type).toBe('input');
-      expect(ev!.text).toBe('hello');
-      expect(ev!.thread_id).toBe('t1');
+      expect(ev!.type).toBe('loop_input');
+      expect(ev!.content).toBe('hello');
+      expect(ev!.loop_id).toBe('t1');
       expect(ev!.model).toBe('openai:gpt-4');
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('sendInput rejects without loop id', async () => {
+    const server = createTestServer(echoHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      await expect(client.sendInput('hello')).rejects.toThrow('loopID');
       client.close();
     } finally {
       await server.close();
@@ -168,7 +180,7 @@ describe('Client', () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendInput('do stuff', { autonomous: true, maxIterations: 5 });
+      await client.sendInput('do stuff', { loopID: 'L1', autonomous: true, maxIterations: 5 });
       const ev = await client.readEvent();
       expect(ev!.autonomous).toBe(true);
       expect(ev!.max_iterations).toBe(5);

@@ -5,74 +5,42 @@
 import type { Client } from './client.js';
 import type { Config } from './config.js';
 import { defaultConfig } from './config.js';
-import {
-  newNewThreadMessage,
-  newResumeThreadMessage,
-  newSubscribeThreadMessage,
-  type DecodedMessage,
-  type StatusResponse,
-  type ErrorResponse,
-} from './protocol.js';
+import type { DecodedMessage, StatusResponse, ErrorResponse } from './protocol.js';
 
 // ---------------------------------------------------------------------------
-// Bootstrap flows
+// Bootstrap flows (loop-first, mirrors soothe-sdk bootstrap_loop_session)
 // ---------------------------------------------------------------------------
 
-/** Runs the daemon ready → new_thread → subscribe_thread flow, returning the thread ID. */
-export async function bootstrapNewThreadSession(
+/** Daemon ready → loop_new (or reuse id) → loop_subscribe; returns loop id. */
+export async function bootstrapLoopSession(
   client: Client,
-  _eventStream: AsyncIterable<DecodedMessage>,
-  workspace: string,
+  resumeLoopId: string | null | undefined,
   config?: Config,
 ): Promise<string> {
   const cfg = config ?? defaultConfig();
 
-  // Step 1: daemon_ready handshake
   await client.sendMessage({ type: 'daemon_ready' });
   await waitDaemonReady(client, cfg.daemonReadyTimeout);
 
-  // Step 2: new_thread
-  await client.sendMessage(newNewThreadMessage(workspace));
-  const status = await waitThreadStatusWithID(client, cfg.threadStatusTimeout);
-  const tid = status.thread_id;
-  if (!tid) {
-    throw new Error('empty thread_id in status response');
+  let loopId = (resumeLoopId ?? '').trim();
+  if (!loopId) {
+    const newResp = await client.requestResponse({ type: 'loop_new' }, 'loop_new_response', cfg.threadStatusTimeout);
+    loopId = String(newResp.loop_id ?? '').trim();
+    if (!loopId) {
+      throw new Error('loop_new_response missing loop_id');
+    }
   }
 
-  // Step 3: subscribe_thread
-  await client.sendMessage(newSubscribeThreadMessage(tid, cfg.verbosityLevel));
-  await waitSubscriptionConfirmed(client, tid, cfg.verbosityLevel, cfg.subscriptionTimeout);
-
-  return tid;
-}
-
-/** Runs the daemon ready → resume_thread → subscribe_thread flow, returning the thread ID. */
-export async function bootstrapResumeThreadSession(
-  client: Client,
-  _eventStream: AsyncIterable<DecodedMessage>,
-  threadID: string,
-  workspace: string,
-  config?: Config,
-): Promise<string> {
-  const cfg = config ?? defaultConfig();
-
-  // Step 1: daemon_ready handshake
-  await client.sendMessage({ type: 'daemon_ready' });
-  await waitDaemonReady(client, cfg.daemonReadyTimeout);
-
-  // Step 2: resume_thread
-  await client.sendMessage(newResumeThreadMessage(threadID, workspace));
-  const status = await waitThreadStatusWithID(client, cfg.threadStatusTimeout);
-  const tid = status.thread_id;
-  if (!tid) {
-    throw new Error('empty thread_id in status response');
+  const subResp = await client.requestResponse(
+    { type: 'loop_subscribe', loop_id: loopId, verbosity: cfg.verbosityLevel },
+    'loop_subscribe_response',
+    cfg.subscriptionTimeout,
+  );
+  if (subResp.success === false) {
+    throw new Error(String(subResp.message ?? 'loop_subscribe failed'));
   }
 
-  // Step 3: subscribe_thread
-  await client.sendMessage(newSubscribeThreadMessage(tid, cfg.verbosityLevel));
-  await waitSubscriptionConfirmed(client, tid, cfg.verbosityLevel, cfg.subscriptionTimeout);
-
-  return tid;
+  return loopId;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,17 +56,19 @@ export async function waitDaemonReady(
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = await client.readEventWithTimeout(remaining) as Record<string, unknown> | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
     if (ev === null) break;
     if (ev.type === 'daemon_ready') {
       if (ev.state === 'ready') return;
-      throw new Error(`daemon not ready: state=${JSON.stringify(ev.state)} message=${JSON.stringify(ev.message ?? '')}`);
+      throw new Error(
+        `daemon not ready: state=${JSON.stringify(ev.state)} message=${JSON.stringify(ev.message ?? '')}`,
+      );
     }
   }
   throw new Error(`timeout after ${timeout}ms waiting for daemon_ready (state=ready)`);
 }
 
-/** Also supports consuming from an AsyncIterable<DecodedMessage> for backward compatibility. */
+/** Waits for daemon_ready using messages from an ``AsyncIterable`` (e.g. ``receiveMessages()``). */
 export async function waitDaemonReadyFromStream(
   eventStream: AsyncIterable<DecodedMessage>,
   timeout: number,
@@ -109,7 +79,9 @@ export async function waitDaemonReadyFromStream(
       const m = msg as Record<string, unknown>;
       if (m.type === 'daemon_ready') {
         if (m.state === 'ready') return;
-        throw new Error(`daemon not ready: state=${JSON.stringify(m.state)} message=${JSON.stringify(m.message ?? '')}`);
+        throw new Error(
+          `daemon not ready: state=${JSON.stringify(m.state)} message=${JSON.stringify(m.message ?? '')}`,
+        );
       }
     }
     if (Date.now() >= deadline) break;
@@ -117,7 +89,7 @@ export async function waitDaemonReadyFromStream(
   throw new Error(`timeout after ${timeout}ms waiting for daemon_ready (state=ready)`);
 }
 
-/** Waits for type status with non-empty thread_id. */
+/** Waits for a status message with a non-empty ``loop_id`` or ``thread_id`` (checkpoint id). */
 export async function waitThreadStatusWithID(
   client: Client,
   timeout: number,
@@ -126,30 +98,29 @@ export async function waitThreadStatusWithID(
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = await client.readEventWithTimeout(remaining) as Record<string, unknown> | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
     if (ev === null) break;
 
-    // Check for error response
     if (ev.type === 'error') {
       const errResp = ev as unknown as ErrorResponse;
       throw new Error(`daemon error: ${errResp.code}: ${errResp.message}`);
     }
 
-    // Check for status response
     if (ev.type === 'status') {
       const status = ev as unknown as StatusResponse;
-      if (status.thread_id && status.thread_id !== '') {
+      const lid = (status as unknown as { loop_id?: string }).loop_id ?? status.thread_id;
+      if (lid && lid !== '') {
         return status;
       }
     }
   }
-  throw new Error(`timeout after ${timeout}ms waiting for status with thread_id`);
+  throw new Error(`timeout after ${timeout}ms waiting for status with loop_id`);
 }
 
-/** Waits for subscription_confirmed matching thread_id. */
+/** Waits for subscription_confirmed or loop_subscribe_response matching loop id. */
 export async function waitSubscriptionConfirmed(
   client: Client,
-  wantThreadID: string,
+  wantLoopID: string,
   _wantVerbosity: string,
   timeout: number,
 ): Promise<void> {
@@ -157,10 +128,15 @@ export async function waitSubscriptionConfirmed(
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = await client.readEventWithTimeout(remaining) as Record<string, unknown> | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
     if (ev === null) break;
-    if (ev.type === 'subscription_confirmed' && ev.thread_id === wantThreadID) {
-      return;
+    if (ev.type === 'loop_subscribe_response' && ev.success === true) {
+      if (String(ev.loop_id ?? '') === wantLoopID) return;
+    }
+    if (ev.type === 'subscription_confirmed') {
+      const lid = String((ev as { loop_id?: string }).loop_id ?? '');
+      const tid = String(ev.thread_id ?? '');
+      if (lid === wantLoopID || tid === wantLoopID) return;
     }
   }
   throw new Error(`timeout after ${timeout}ms waiting for subscription_confirmed`);

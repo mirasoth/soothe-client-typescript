@@ -7,13 +7,12 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { Client } from '../src/client.js';
 import { defaultConfig, loadConfigFromEnv } from '../src/config.js';
 import {
-  bootstrapNewThreadSession,
+  bootstrapLoopSession,
   checkDaemonStatus,
   fetchSkillsCatalog,
   fetchConfigSection,
   isDaemonLive,
 } from '../src/index.js';
-import { newInputMessage } from '../src/protocol.js';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
@@ -49,10 +48,9 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const wsDir = mkdtempSync(join(tmpdir(), 'soothe-test-'));
-    const eventStream = client.receiveMessages();
-    const threadID = await bootstrapNewThreadSession(client, eventStream, wsDir, cfg);
-    expect(threadID).toBeTruthy();
+    mkdtempSync(join(tmpdir(), 'soothe-test-'));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+    expect(loopID).toBeTruthy();
     client.close();
   });
 
@@ -60,13 +58,11 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const wsDir = mkdtempSync(join(tmpdir(), 'soothe-test-'));
-    const eventStream = client.receiveMessages();
-    const threadID = await bootstrapNewThreadSession(client, eventStream, wsDir, cfg);
-    expect(threadID).toBeTruthy();
+    mkdtempSync(join(tmpdir(), 'soothe-test-'));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+    expect(loopID).toBeTruthy();
 
-    const inputMsg = newInputMessage('Hello, this is a test message from TypeScript client', threadID);
-    await client.sendMessage(inputMsg);
+    await client.sendInput('Hello, this is a test message from TypeScript client', { loopID });
 
     // Read some events for a short time
     let eventCount = 0;
@@ -183,12 +179,10 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const wsDir = mkdtempSync(join(tmpdir(), 'soothe-test-'));
-    const eventStream = client.receiveMessages();
-    const threadID = await bootstrapNewThreadSession(client, eventStream, wsDir, cfg);
+    mkdtempSync(join(tmpdir(), 'soothe-test-'));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
 
-    const inputMsg = newInputMessage('List all files in the current directory', threadID);
-    await client.sendMessage(inputMsg);
+    await client.sendInput('List all files in the current directory', { loopID });
 
     // Stream events for a few seconds
     const eventTypes = new Map<string, number>();

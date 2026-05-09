@@ -18,7 +18,8 @@ import {
 } from './protocol.js';
 
 export interface InputOptions {
-  threadID?: string;
+  /** Subscribed AgentLoop id (required for loop_input). */
+  loopID?: string;
   autonomous?: boolean;
   maxIterations?: number;
   subagent?: string;
@@ -200,16 +201,20 @@ export class Client extends EventEmitter {
   // High-level API methods
   // ---------------------------------------------------------------------------
 
-  /** Sends user input to the daemon. */
+  /** Sends user input to the daemon (loop_input; requires loopID). */
   sendInput(text: string, options?: InputOptions): Promise<void> {
+    const loopId = (options?.loopID ?? '').trim();
+    if (!loopId) {
+      return Promise.reject(new Error('sendInput requires options.loopID'));
+    }
     const payload: Record<string, unknown> = {
-      type: 'input',
-      text,
+      type: 'loop_input',
+      loop_id: loopId,
+      content: text,
       autonomous: options?.autonomous ?? false,
     };
-    if (options?.threadID) payload.thread_id = options.threadID;
     if (options?.maxIterations !== undefined) payload.max_iterations = options.maxIterations;
-    if (options?.subagent) payload.subagent = options.subagent;
+    if (options?.subagent) payload.preferred_subagent = options.subagent;
     if (options?.interactive) payload.interactive = true;
     if (options?.model) payload.model = options.model;
     if (options?.modelParams) payload.model_params = options.modelParams;
@@ -361,11 +366,11 @@ export class Client extends EventEmitter {
     });
   }
 
-  /** Sends interactive continuation payload for a paused thread. */
-  sendResumeInterrupts(threadID: string, resumePayload: Record<string, unknown>, requestID?: string): Promise<void> {
+  /** Sends interactive continuation payload for a paused loop (resume_interrupts). */
+  sendResumeInterrupts(loopID: string, resumePayload: Record<string, unknown>, requestID?: string): Promise<void> {
     return this.sendMessage({
       type: 'resume_interrupts',
-      thread_id: threadID,
+      loop_id: loopID,
       resume_payload: resumePayload,
       request_id: requestID ?? newRequestID(),
     });
@@ -479,8 +484,8 @@ export class Client extends EventEmitter {
     throw new Error(`timeout after ${t}ms waiting for daemon_ready`);
   }
 
-  /** Waits for a subscription_confirmed matching the thread_id. */
-  async waitForSubscriptionConfirmed(threadID: string, _verbosity: string, timeout?: number): Promise<void> {
+  /** Waits for subscription confirmation matching loop id. */
+  async waitForSubscriptionConfirmed(loopID: string, _verbosity: string, timeout?: number): Promise<void> {
     const t = timeout ?? 5_000;
     const deadline = Date.now() + t;
     while (Date.now() < deadline) {
@@ -488,8 +493,13 @@ export class Client extends EventEmitter {
       if (remaining <= 0) break;
       const ev = await this.readEventWithTimeout(remaining);
       if (ev === null) break;
+      if (ev.type === 'loop_subscribe_response' && ev.success === true) {
+        if (String(ev.loop_id ?? '') === loopID) return;
+        continue;
+      }
       if (ev.type !== 'subscription_confirmed') continue;
-      if (ev.thread_id === threadID) return;
+      const lid = String((ev as { loop_id?: string }).loop_id ?? '');
+      if (lid === loopID || ev.thread_id === loopID) return;
     }
     throw new Error(`timeout after ${t}ms waiting for subscription_confirmed`);
   }

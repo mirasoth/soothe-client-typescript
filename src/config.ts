@@ -17,9 +17,9 @@ export interface Config {
   heartbeatInterval: number;
   /** Handshake: wait for daemon_ready in ms */
   daemonReadyTimeout: number;
-  /** After new_thread: wait for status with thread_id in ms */
+  /** Bootstrap: wait for status with loop or checkpoint id in ms */
   threadStatusTimeout: number;
-  /** After subscribe_thread: wait for subscription_confirmed in ms */
+  /** After loop_subscribe: wait for confirmation in ms */
   subscriptionTimeout: number;
 }
 

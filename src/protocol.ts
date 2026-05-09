@@ -30,6 +30,19 @@ export interface InputMessage extends BaseMessage {
   model_params?: Record<string, unknown>;
 }
 
+/** Loop-scoped user input (replaces legacy `input` for AgentLoop runs). */
+export interface LoopInputMessage extends BaseMessage {
+  type: 'loop_input';
+  loop_id: string;
+  content: string;
+  autonomous?: boolean;
+  max_iterations?: number;
+  preferred_subagent?: string;
+  interactive?: boolean;
+  model?: string;
+  model_params?: Record<string, unknown>;
+}
+
 export interface CommandMessage extends BaseMessage {
   type: 'command';
   cmd: string;
@@ -118,7 +131,7 @@ export interface ThreadArtifactsMessage extends BaseMessage {
 
 export interface ResumeInterruptsMessage extends BaseMessage {
   type: 'resume_interrupts';
-  thread_id: string;
+  loop_id: string;
   resume_payload: Record<string, unknown>;
 }
 
@@ -146,6 +159,7 @@ export interface DetachMessage extends BaseMessage {
 
 export interface EventMessage extends BaseMessage {
   type: 'event';
+  loop_id?: string;
   thread_id?: string;
   namespace: string;
   data: Record<string, unknown>;
@@ -155,7 +169,8 @@ export interface EventMessage extends BaseMessage {
 export interface StatusResponse extends BaseMessage {
   type: 'status';
   state: string;
-  thread_id: string;
+  loop_id?: string;
+  thread_id?: string;
   workspace: string;
   input_history?: string[];
   conversation_history?: unknown[];
@@ -165,7 +180,8 @@ export interface StatusResponse extends BaseMessage {
 
 export interface SubscriptionConfirmedResponse extends BaseMessage {
   type: 'subscription_confirmed';
-  thread_id: string;
+  loop_id?: string;
+  thread_id?: string;
   client_id: string;
   verbosity: string;
 }
@@ -212,6 +228,7 @@ export interface ModelsListResponse extends BaseMessage {
 // Discriminated union for all decoded messages
 export type DecodedMessage =
   | InputMessage
+  | LoopInputMessage
   | CommandMessage
   | SubscribeThreadMessage
   | NewThreadMessage
@@ -271,6 +288,7 @@ export function decodeMessage(data: string): DecodedMessage | null {
   switch (type) {
     // Client → Daemon
     case 'input': return { ...parsed } as unknown as InputMessage;
+    case 'loop_input': return { ...parsed } as unknown as LoopInputMessage;
     case 'command': return { ...parsed } as unknown as CommandMessage;
     case 'subscribe_thread': return { ...parsed } as unknown as SubscribeThreadMessage;
     case 'new_thread': return { ...parsed } as unknown as NewThreadMessage;
@@ -287,7 +305,8 @@ export function decodeMessage(data: string): DecodedMessage | null {
     case 'thread_delete': return { ...parsed } as unknown as ThreadDeleteMessage;
     case 'thread_create': return { ...parsed } as unknown as ThreadCreateMessage;
     case 'thread_artifacts': return { ...parsed } as unknown as ThreadArtifactsMessage;
-    case 'resume_interrupts': return { ...parsed } as unknown as ResumeInterruptsMessage;
+    case 'resume_interrupts':
+      return { ...parsed } as unknown as ResumeInterruptsMessage;
     case 'skills_list': return { ...parsed } as unknown as SkillsListMessage;
     case 'models_list': return { ...parsed } as unknown as ModelsListMessage;
     case 'invoke_skill': return { ...parsed } as unknown as InvokeSkillMessage;
@@ -297,7 +316,9 @@ export function decodeMessage(data: string): DecodedMessage | null {
     case 'event': return { ...parsed } as unknown as EventMessage;
     case 'status': {
       const msg = { ...parsed } as unknown as StatusResponse;
-      // camelCase fallback for thread_id
+      if (!msg.loop_id && parsed.loopId && typeof parsed.loopId === 'string') {
+        msg.loop_id = parsed.loopId;
+      }
       if (!msg.thread_id && parsed.threadId && typeof parsed.threadId === 'string') {
         msg.thread_id = parsed.threadId;
       }
@@ -333,37 +354,35 @@ export function splitWirePayload(data: string): string[] {
   return lines.length > 0 ? lines : [data];
 }
 
-// ---------------------------------------------------------------------------
-// ExtractSootheThreadID
-// ---------------------------------------------------------------------------
+/**
+ * Returns a non-empty AgentLoop id when present (`loop_id` preferred, then `thread_id` on
+ * daemon payloads that still use the checkpoint field name).
+ */
+export function extractSootheLoopID(msg: unknown): [string, boolean] {
+  if (!msg || typeof msg !== 'object') return ['', false];
+  const m = msg as Record<string, unknown>;
 
-/** Returns a non-empty Soothe thread ID when present in a daemon message. */
-export function extractSootheThreadID(msg: unknown): [string, boolean] {
-  if (msg && typeof msg === 'object') {
-    const m = msg as Record<string, unknown>;
-
-    // StatusResponse - check thread_id at top level
-    if (m.type === 'status') {
-      const tid = m.thread_id as string | undefined;
-      if (tid && tid !== '') return [tid, true];
-    }
-
-    // EventMessage - check thread_id at top level, then in data
-    if (m.type === 'event') {
-      const tid = m.thread_id as string | undefined;
-      if (tid && tid !== '') return [tid, true];
-
-      const data = m.data as Record<string, unknown> | undefined;
-      if (data && typeof data === 'object') {
-        const dataTid = (data['thread_id'] ?? data['threadId']) as string | undefined;
-        if (dataTid && dataTid !== '') return [dataTid, true];
-      }
-    }
-
-    // Generic map - check both snake_case and camelCase
-    const tid = (m['thread_id'] ?? m['threadId']) as string | undefined;
-    if (tid && tid !== '') return [tid, true];
+  if (m.type === 'status') {
+    const id = (m.loop_id ?? m.thread_id) as string | undefined;
+    if (id && id !== '') return [id, true];
+    return ['', false];
   }
+
+  if (m.type === 'event') {
+    const top = (m.loop_id ?? m.thread_id) as string | undefined;
+    if (top && top !== '') return [top, true];
+
+    const data = m.data as Record<string, unknown> | undefined;
+    if (data && typeof data === 'object') {
+      const dataId = (data['loop_id'] ?? data['loopId'] ?? data['thread_id'] ?? data['threadId']) as
+        | string
+        | undefined;
+      if (dataId && dataId !== '') return [dataId, true];
+    }
+  }
+
+  const generic = (m['loop_id'] ?? m['loopId'] ?? m['thread_id'] ?? m['threadId']) as string | undefined;
+  if (generic && generic !== '') return [generic, true];
 
   return ['', false];
 }

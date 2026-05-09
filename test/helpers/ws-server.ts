@@ -43,11 +43,36 @@ export function fullBootstrapHandler(ws: WebSocket): void {
       case 'daemon_ready':
         ws.send(JSON.stringify({ type: 'daemon_ready', state: 'ready' }));
         break;
+      case 'loop_new': {
+        const rid = m.request_id as string | undefined;
+        ws.send(
+          JSON.stringify({
+            type: 'loop_new_response',
+            request_id: rid,
+            loop_id: 'test-loop-123',
+          }),
+        );
+        break;
+      }
+      case 'loop_subscribe': {
+        const rid = m.request_id as string | undefined;
+        const loopId = m.loop_id as string | undefined;
+        ws.send(
+          JSON.stringify({
+            type: 'loop_subscribe_response',
+            request_id: rid,
+            success: true,
+            loop_id: loopId ?? '',
+          }),
+        );
+        break;
+      }
       case 'new_thread':
         ws.send(
           JSON.stringify({
             type: 'status',
             state: 'idle',
+            loop_id: 'test-thread-123',
             thread_id: 'test-thread-123',
             workspace: '/tmp',
             new_thread: true,
@@ -69,6 +94,7 @@ export function fullBootstrapHandler(ws: WebSocket): void {
         ws.send(
           JSON.stringify({
             type: 'subscription_confirmed',
+            loop_id: m.thread_id,
             thread_id: m.thread_id,
             client_id: 'c1',
             verbosity: 'normal',
@@ -86,7 +112,7 @@ export function ndjsonHandler(ws: WebSocket): void {
   ws.once('message', () => {
     ws.send(
       `{"type":"event","namespace":"soothe.output.chitchat.responded","data":{"text":"hello"}}\n` +
-        `{"type":"status","state":"idle","thread_id":"ndjson-thread"}`,
+        `{"type":"status","state":"idle","loop_id":"ndjson-thread","thread_id":"ndjson-thread"}`,
     );
   });
 }
