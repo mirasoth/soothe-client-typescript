@@ -22,7 +22,6 @@ describe('loadConfigFromEnv', () => {
     'SOOTHE_MAX_RETRIES',
     'SOOTHE_DAEMON_READY_TIMEOUT_SEC',
     'SOOTHE_LOOP_STATUS_TIMEOUT_SEC',
-    'SOOTHE_THREAD_STATUS_TIMEOUT_SEC', // legacy support
     'SOOTHE_SUBSCRIPTION_TIMEOUT_SEC',
   ];
 
@@ -59,15 +58,6 @@ describe('loadConfigFromEnv', () => {
     expect(cfg.daemonReadyTimeout).toBe(30000);
     expect(cfg.loopStatusTimeout).toBe(45000);
     expect(cfg.subscriptionTimeout).toBe(15000);
-  });
-
-  it('supports legacy env var SOOTHE_THREAD_STATUS_TIMEOUT_SEC', () => {
-    process.env.SOOTHE_LOOP_STATUS_TIMEOUT_SEC = undefined;
-    delete process.env.SOOTHE_LOOP_STATUS_TIMEOUT_SEC;
-    process.env.SOOTHE_THREAD_STATUS_TIMEOUT_SEC = '60';
-
-    const cfg = loadConfigFromEnv();
-    expect(cfg.loopStatusTimeout).toBe(60000);
   });
 
   it('falls back to defaults for invalid values', () => {

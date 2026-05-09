@@ -66,12 +66,6 @@ export function loadConfigFromEnv(): Config {
     const val = parseInt(statusTimeout, 10);
     if (val > 0) config.loopStatusTimeout = val * 1000;
   }
-  // Support legacy env var name for backwards compatibility
-  const legacyStatusTimeout = process.env.SOOTHE_THREAD_STATUS_TIMEOUT_SEC;
-  if (legacyStatusTimeout) {
-    const val = parseInt(legacyStatusTimeout, 10);
-    if (val > 0) config.loopStatusTimeout = val * 1000;
-  }
 
   const subTimeout = process.env.SOOTHE_SUBSCRIPTION_TIMEOUT_SEC;
   if (subTimeout) {

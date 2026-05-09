@@ -16,12 +16,12 @@ describe('ConnectionError', () => {
 
 describe('DaemonError', () => {
   it('has correct properties', () => {
-    const err = new DaemonError('not_found', 'thread not found');
+    const err = new DaemonError('not_found', 'loop not found');
     expect(err.code).toBe('not_found');
-    expect(err.daemonMessage).toBe('thread not found');
+    expect(err.daemonMessage).toBe('loop not found');
     expect(err.name).toBe('DaemonError');
     expect(err.message).toContain('not_found');
-    expect(err.message).toContain('thread not found');
+    expect(err.message).toContain('loop not found');
   });
 });
 

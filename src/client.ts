@@ -311,7 +311,7 @@ export class Client extends EventEmitter {
     return this.sendMessage(msg);
   }
 
-  /** Requests checkpoint tree visualization. */
+  /** Requests loop tree visualization. */
   sendLoopTree(loopID: string, format?: string, requestID?: string): Promise<void> {
     const msg: Record<string, unknown> = {
       type: 'loop_tree',
