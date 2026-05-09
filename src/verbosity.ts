@@ -3,7 +3,7 @@
  */
 
 /** User-configurable verbosity setting. */
-export type VerbosityLevel = 'quiet' | 'minimal' | 'normal' | 'detailed' | 'debug';
+export type VerbosityLevel = 'quiet' | 'normal' | 'debug';
 
 /** Minimum verbosity level at which content is visible. */
 export enum VerbosityTier {
@@ -21,9 +21,7 @@ export enum VerbosityTier {
 
 const verbosityLevelValues: Record<VerbosityLevel, number> = {
   quiet: 0,
-  minimal: 1,
   normal: 1,
-  detailed: 2,
   debug: 3,
 };
 

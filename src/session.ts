@@ -8,7 +8,7 @@ import { defaultConfig } from './config.js';
 import type { DecodedMessage, StatusResponse, ErrorResponse } from './protocol.js';
 
 // ---------------------------------------------------------------------------
-// Bootstrap flows (loop-first, mirrors soothe-sdk bootstrap_loop_session)
+// Bootstrap flows (loop-first, RFC-503)
 // ---------------------------------------------------------------------------
 
 /** Daemon ready → loop_new (or reuse id) → loop_subscribe; returns loop id. */
@@ -24,7 +24,7 @@ export async function bootstrapLoopSession(
 
   let loopId = (resumeLoopId ?? '').trim();
   if (!loopId) {
-    const newResp = await client.requestResponse({ type: 'loop_new' }, 'loop_new_response', cfg.threadStatusTimeout);
+    const newResp = await client.requestResponse({ type: 'loop_new' }, 'loop_new_response', cfg.loopStatusTimeout);
     loopId = String(newResp.loop_id ?? '').trim();
     if (!loopId) {
       throw new Error('loop_new_response missing loop_id');
@@ -89,8 +89,8 @@ export async function waitDaemonReadyFromStream(
   throw new Error(`timeout after ${timeout}ms waiting for daemon_ready (state=ready)`);
 }
 
-/** Waits for a status message with a non-empty ``loop_id`` or ``thread_id`` (checkpoint id). */
-export async function waitThreadStatusWithID(
+/** Waits for a status message with a non-empty ``loop_id``. */
+export async function waitLoopStatusWithID(
   client: Client,
   timeout: number,
 ): Promise<StatusResponse> {
@@ -108,7 +108,7 @@ export async function waitThreadStatusWithID(
 
     if (ev.type === 'status') {
       const status = ev as unknown as StatusResponse;
-      const lid = (status as unknown as { loop_id?: string }).loop_id ?? status.thread_id;
+      const lid = status.loop_id;
       if (lid && lid !== '') {
         return status;
       }
@@ -135,8 +135,7 @@ export async function waitSubscriptionConfirmed(
     }
     if (ev.type === 'subscription_confirmed') {
       const lid = String((ev as { loop_id?: string }).loop_id ?? '');
-      const tid = String(ev.thread_id ?? '');
-      if (lid === wantLoopID || tid === wantLoopID) return;
+      if (lid === wantLoopID) return;
     }
   }
   throw new Error(`timeout after ${timeout}ms waiting for subscription_confirmed`);

@@ -6,7 +6,7 @@ import {
   EventBrowserStarted, EventBrowserCompleted, EventBrowserStepRunning, EventBrowserCDPConnecting,
   EventClaudeStarted, EventClaudeTextRunning, EventClaudeToolRunning, EventClaudeCompleted,
   EventResearchStarted, EventResearchCompleted, EventResearchJudgementReporting,
-  EventThreadStarted, EventThreadResumed, EventThreadCompleted, EventThreadError,
+  EventLoopStarted, EventLoopResumed, EventLoopCompleted, EventLoopError,
   EventToolStarted,
   EventChitchatResponse, EventFinalReport,
   EventAgentLoopCompleted,
@@ -19,9 +19,9 @@ describe('parseNamespace', () => {
     expect(result).toEqual({ domain: 'cognition', component: 'plan', action: 'created' });
   });
 
-  it('lifecycle namespace', () => {
-    const result = parseNamespace('soothe.lifecycle.thread.completed');
-    expect(result).toEqual({ domain: 'lifecycle', component: 'thread', action: 'completed' });
+  it('loop namespace', () => {
+    const result = parseNamespace('soothe.loop.completed');
+    expect(result).toEqual({ domain: 'loop', component: 'loop', action: 'completed' });
   });
 
   it('invalid namespace', () => {
@@ -57,8 +57,8 @@ describe('classifyEventVerbosity', () => {
   });
 
   it('detailed tier', () => {
-    expect(classifyEventVerbosity(EventThreadStarted)).toBe(VerbosityTier.Detailed);
-    expect(classifyEventVerbosity(EventThreadResumed)).toBe(VerbosityTier.Detailed);
+    expect(classifyEventVerbosity(EventLoopStarted)).toBe(VerbosityTier.Detailed);
+    expect(classifyEventVerbosity(EventLoopResumed)).toBe(VerbosityTier.Detailed);
     expect(classifyEventVerbosity(EventBrowserStepRunning)).toBe(VerbosityTier.Detailed);
     expect(classifyEventVerbosity(EventBrowserCDPConnecting)).toBe(VerbosityTier.Detailed);
     expect(classifyEventVerbosity(EventClaudeTextRunning)).toBe(VerbosityTier.Detailed);
@@ -72,7 +72,7 @@ describe('classifyEventVerbosity', () => {
 
 describe('isCompletionEvent', () => {
   it('completed actions', () => {
-    expect(isCompletionEvent(EventThreadCompleted)).toBe(true);
+    expect(isCompletionEvent(EventLoopCompleted)).toBe(true);
     expect(isCompletionEvent('soothe.capability.browser.completed')).toBe(true);
     expect(isCompletionEvent('soothe.cognition.plan.completed')).toBe(true);
   });
@@ -104,7 +104,7 @@ describe('isSubagentProgressEvent', () => {
 describe('ESSENTIAL_EVENT_TYPES', () => {
   it('contains essential events', () => {
     const essential = [
-      EventThreadCompleted, EventThreadError, EventChitchatResponse, EventFinalReport,
+      EventLoopCompleted, EventLoopError, EventChitchatResponse, EventFinalReport,
       EventPlanCreated, EventBrowserStarted, EventClaudeStarted, EventResearchStarted,
     ];
     for (const ev of essential) {

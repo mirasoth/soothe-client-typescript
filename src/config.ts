@@ -17,8 +17,8 @@ export interface Config {
   heartbeatInterval: number;
   /** Handshake: wait for daemon_ready in ms */
   daemonReadyTimeout: number;
-  /** Bootstrap: wait for status with loop or checkpoint id in ms */
-  threadStatusTimeout: number;
+  /** Bootstrap: wait for status with loop_id in ms */
+  loopStatusTimeout: number;
   /** After loop_subscribe: wait for confirmation in ms */
   subscriptionTimeout: number;
 }
@@ -32,7 +32,7 @@ export function defaultConfig(): Config {
     reconnectDelay: 2000,
     heartbeatInterval: 30000,
     daemonReadyTimeout: 20000,
-    threadStatusTimeout: 60000,
+    loopStatusTimeout: 60000,
     subscriptionTimeout: 10000,
   };
 }
@@ -61,10 +61,16 @@ export function loadConfigFromEnv(): Config {
     if (val > 0) config.daemonReadyTimeout = val * 1000;
   }
 
-  const statusTimeout = process.env.SOOTHE_THREAD_STATUS_TIMEOUT_SEC;
+  const statusTimeout = process.env.SOOTHE_LOOP_STATUS_TIMEOUT_SEC;
   if (statusTimeout) {
     const val = parseInt(statusTimeout, 10);
-    if (val > 0) config.threadStatusTimeout = val * 1000;
+    if (val > 0) config.loopStatusTimeout = val * 1000;
+  }
+  // Support legacy env var name for backwards compatibility
+  const legacyStatusTimeout = process.env.SOOTHE_THREAD_STATUS_TIMEOUT_SEC;
+  if (legacyStatusTimeout) {
+    const val = parseInt(legacyStatusTimeout, 10);
+    if (val > 0) config.loopStatusTimeout = val * 1000;
   }
 
   const subTimeout = process.env.SOOTHE_SUBSCRIPTION_TIMEOUT_SEC;

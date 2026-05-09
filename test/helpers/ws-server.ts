@@ -28,7 +28,7 @@ export function echoHandler(ws: WebSocket): void {
   });
 }
 
-/** Full bootstrap handler: simulates the daemon handshake. */
+/** Full bootstrap handler: simulates the daemon handshake (loop-first, RFC-503). */
 export function fullBootstrapHandler(ws: WebSocket): void {
   ws.on('message', raw => {
     let m: Record<string, unknown>;
@@ -50,6 +50,7 @@ export function fullBootstrapHandler(ws: WebSocket): void {
             type: 'loop_new_response',
             request_id: rid,
             loop_id: 'test-loop-123',
+            success: true,
           }),
         );
         break;
@@ -65,42 +66,75 @@ export function fullBootstrapHandler(ws: WebSocket): void {
             loop_id: loopId ?? '',
           }),
         );
-        break;
-      }
-      case 'new_thread':
-        ws.send(
-          JSON.stringify({
-            type: 'status',
-            state: 'idle',
-            loop_id: 'test-thread-123',
-            thread_id: 'test-thread-123',
-            workspace: '/tmp',
-            new_thread: true,
-          }),
-        );
-        break;
-      case 'resume_thread':
-        ws.send(
-          JSON.stringify({
-            type: 'status',
-            state: 'idle',
-            thread_id: m.thread_id,
-            workspace: '/tmp',
-            thread_resumed: true,
-          }),
-        );
-        break;
-      case 'subscribe_thread':
         ws.send(
           JSON.stringify({
             type: 'subscription_confirmed',
-            loop_id: m.thread_id,
-            thread_id: m.thread_id,
+            loop_id: loopId ?? '',
             client_id: 'c1',
             verbosity: 'normal',
           }),
         );
         break;
+      }
+      case 'loop_detach': {
+        const rid = m.request_id as string | undefined;
+        ws.send(
+          JSON.stringify({
+            type: 'loop_detach_response',
+            request_id: rid,
+            success: true,
+            loop_id: m.loop_id,
+          }),
+        );
+        break;
+      }
+      case 'loop_list': {
+        const rid = m.request_id as string | undefined;
+        ws.send(
+          JSON.stringify({
+            type: 'loop_list_response',
+            request_id: rid,
+            loops: [{ loop_id: 'loop-1', status: 'idle' }],
+            total: 1,
+          }),
+        );
+        break;
+      }
+      case 'loop_get': {
+        const rid = m.request_id as string | undefined;
+        ws.send(
+          JSON.stringify({
+            type: 'loop_get_response',
+            request_id: rid,
+            loop: { loop_id: m.loop_id, status: 'running' },
+          }),
+        );
+        break;
+      }
+      case 'loop_delete': {
+        const rid = m.request_id as string | undefined;
+        ws.send(
+          JSON.stringify({
+            type: 'loop_delete_response',
+            request_id: rid,
+            success: true,
+            message: 'deleted',
+          }),
+        );
+        break;
+      }
+      case 'loop_input': {
+        // Simulate input acceptance and send status
+        ws.send(
+          JSON.stringify({
+            type: 'status',
+            state: 'running',
+            loop_id: m.loop_id,
+            workspace: '/tmp',
+          }),
+        );
+        break;
+      }
       default:
         ws.send(raw);
     }
@@ -112,7 +146,7 @@ export function ndjsonHandler(ws: WebSocket): void {
   ws.once('message', () => {
     ws.send(
       `{"type":"event","namespace":"soothe.output.chitchat.responded","data":{"text":"hello"}}\n` +
-        `{"type":"status","state":"idle","loop_id":"ndjson-thread","thread_id":"ndjson-thread"}`,
+        `{"type":"status","state":"idle","loop_id":"ndjson-loop-123"}`,
     );
   });
 }
@@ -137,7 +171,7 @@ export function requestResponseHandler(ws: WebSocket): void {
             request_id: rid,
             running: true,
             port_live: true,
-            active_threads: 2,
+            active_loops: 2,
           }),
         );
         break;
@@ -175,12 +209,32 @@ export function requestResponseHandler(ws: WebSocket): void {
           JSON.stringify({ type: 'shutdown_ack', request_id: rid, status: 'acknowledged' }),
         );
         break;
-      case 'thread_list':
+      case 'loop_list':
         ws.send(
           JSON.stringify({
-            type: 'thread_list_response',
+            type: 'loop_list_response',
             request_id: rid,
-            threads: [{ thread_id: 't1' }, { thread_id: 't2' }],
+            loops: [{ loop_id: 'l1' }, { loop_id: 'l2' }],
+            total: 2,
+          }),
+        );
+        break;
+      case 'loop_get':
+        ws.send(
+          JSON.stringify({
+            type: 'loop_get_response',
+            request_id: rid,
+            loop: { loop_id: m.loop_id, status: 'idle' },
+          }),
+        );
+        break;
+      case 'loop_delete':
+        ws.send(
+          JSON.stringify({
+            type: 'loop_delete_response',
+            request_id: rid,
+            success: true,
+            message: 'deleted',
           }),
         );
         break;

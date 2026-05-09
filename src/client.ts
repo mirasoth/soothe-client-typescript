@@ -11,9 +11,8 @@ import {
   decodeMessage,
   splitWirePayload,
   newRequestID,
-  newNewThreadMessage,
-  newResumeThreadMessage,
-  newSubscribeThreadMessage,
+  newLoopNewMessage,
+  newLoopSubscribeMessage,
   type DecodedMessage,
 } from './protocol.js';
 
@@ -26,6 +25,7 @@ export interface InputOptions {
   interactive?: boolean;
   model?: string;
   modelParams?: Record<string, unknown>;
+  attachments?: Record<string, unknown>[];
 }
 
 export class Client extends EventEmitter {
@@ -198,7 +198,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // High-level API methods
+  // High-level API methods (Loop-first, RFC-503)
   // ---------------------------------------------------------------------------
 
   /** Sends user input to the daemon (loop_input; requires loopID). */
@@ -218,6 +218,7 @@ export class Client extends EventEmitter {
     if (options?.interactive) payload.interactive = true;
     if (options?.model) payload.model = options.model;
     if (options?.modelParams) payload.model_params = options.modelParams;
+    if (options?.attachments) payload.attachments = options.attachments;
     return this.sendMessage(payload);
   }
 
@@ -226,19 +227,27 @@ export class Client extends EventEmitter {
     return this.sendMessage({ type: 'command', cmd });
   }
 
-  /** Requests the daemon to start a new thread. */
-  sendNewThread(workspace: string): Promise<void> {
-    return this.sendMessage(newNewThreadMessage(workspace));
+  // ---------------------------------------------------------------------------
+  // Loop lifecycle methods (RFC-503)
+  // ---------------------------------------------------------------------------
+
+  /** Requests the daemon to create a new AgentLoop. */
+  sendLoopNew(workspace?: string): Promise<void> {
+    return this.sendMessage(newLoopNewMessage(workspace));
   }
 
-  /** Requests the daemon to resume a specific thread. */
-  sendResumeThread(threadID: string, workspace?: string): Promise<void> {
-    return this.sendMessage(newResumeThreadMessage(threadID, workspace ?? ''));
+  /** Subscribes to events for a loop. */
+  sendLoopSubscribe(loopID: string, verbosity: string): Promise<void> {
+    return this.sendMessage(newLoopSubscribeMessage(loopID, verbosity));
   }
 
-  /** Subscribes to events for a thread. */
-  sendSubscribeThread(threadID: string, verbosity: string): Promise<void> {
-    return this.sendMessage(newSubscribeThreadMessage(threadID, verbosity));
+  /** Detaches from a loop (keeps loop running). */
+  sendLoopDetach(loopID: string, requestID?: string): Promise<void> {
+    return this.sendMessage({
+      type: 'loop_detach',
+      loop_id: loopID,
+      request_id: requestID ?? newRequestID(),
+    });
   }
 
   /** Notifies the daemon that this client is detaching. */
@@ -276,95 +285,76 @@ export class Client extends EventEmitter {
     });
   }
 
-  /** Requests the persisted thread list. */
-  sendThreadList(filter?: Record<string, unknown>, includeStats?: boolean, includeLastMessage?: boolean, requestID?: string): Promise<void> {
+  // ---------------------------------------------------------------------------
+  // Loop management RPC methods (RFC-504)
+  // ---------------------------------------------------------------------------
+
+  /** Requests the persisted loop list. */
+  sendLoopList(filter?: Record<string, unknown>, limit?: number, requestID?: string): Promise<void> {
     const msg: Record<string, unknown> = {
-      type: 'thread_list',
+      type: 'loop_list',
       request_id: requestID ?? newRequestID(),
     };
     if (filter) msg.filter = filter;
-    if (includeStats) msg.include_stats = includeStats;
-    if (includeLastMessage) msg.include_last_message = includeLastMessage;
-    return this.sendMessage(msg);
-  }
-
-  /** Requests metadata for a specific thread. */
-  sendThreadGet(threadID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'thread_get',
-      thread_id: threadID,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Requests paginated thread messages. */
-  sendThreadMessages(threadID: string, limit?: number, offset?: number, requestID?: string): Promise<void> {
-    const msg: Record<string, unknown> = {
-      type: 'thread_messages',
-      thread_id: threadID,
-      request_id: requestID ?? newRequestID(),
-    };
     if (limit !== undefined) msg.limit = limit;
-    if (offset !== undefined) msg.offset = offset;
     return this.sendMessage(msg);
   }
 
-  /** Requests raw checkpoint state for a thread. */
-  sendThreadState(threadID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'thread_state',
-      thread_id: threadID,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Persists partial state values for a thread. */
-  sendThreadUpdateState(threadID: string, values: Record<string, unknown>, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'thread_update_state',
-      thread_id: threadID,
-      values,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Requests thread archival. */
-  sendThreadArchive(threadID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'thread_archive',
-      thread_id: threadID,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Requests thread deletion. */
-  sendThreadDelete(threadID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'thread_delete',
-      thread_id: threadID,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Requests creation of a persisted thread (RFC-402). */
-  sendThreadCreate(initialMessage?: string, metadata?: Record<string, unknown>, requestID?: string): Promise<void> {
+  /** Requests detailed loop metadata. */
+  sendLoopGet(loopID: string, verbose?: boolean, requestID?: string): Promise<void> {
     const msg: Record<string, unknown> = {
-      type: 'thread_create',
+      type: 'loop_get',
+      loop_id: loopID,
       request_id: requestID ?? newRequestID(),
     };
-    if (initialMessage) msg.initial_message = initialMessage;
-    if (metadata) msg.metadata = metadata;
+    if (verbose) msg.verbose = verbose;
     return this.sendMessage(msg);
   }
 
-  /** Requests thread artifacts (RFC-402). */
-  sendThreadArtifacts(threadID: string, requestID?: string): Promise<void> {
+  /** Requests checkpoint tree visualization. */
+  sendLoopTree(loopID: string, format?: string, requestID?: string): Promise<void> {
+    const msg: Record<string, unknown> = {
+      type: 'loop_tree',
+      loop_id: loopID,
+      request_id: requestID ?? newRequestID(),
+    };
+    if (format) msg.format = format;
+    return this.sendMessage(msg);
+  }
+
+  /** Requests pruning of old failed branches. */
+  sendLoopPrune(loopID: string, retentionDays?: number, dryRun?: boolean, requestID?: string): Promise<void> {
+    const msg: Record<string, unknown> = {
+      type: 'loop_prune',
+      loop_id: loopID,
+      request_id: requestID ?? newRequestID(),
+    };
+    if (retentionDays !== undefined) msg.retention_days = retentionDays;
+    if (dryRun !== undefined) msg.dry_run = dryRun;
+    return this.sendMessage(msg);
+  }
+
+  /** Requests loop deletion. */
+  sendLoopDelete(loopID: string, requestID?: string): Promise<void> {
     return this.sendMessage({
-      type: 'thread_artifacts',
-      thread_id: threadID,
+      type: 'loop_delete',
+      loop_id: loopID,
       request_id: requestID ?? newRequestID(),
     });
   }
+
+  /** Requests reattachment to a loop with history replay. */
+  sendLoopReattach(loopID: string, requestID?: string): Promise<void> {
+    return this.sendMessage({
+      type: 'loop_reattach',
+      loop_id: loopID,
+      request_id: requestID ?? newRequestID(),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Interrupt handling
+  // ---------------------------------------------------------------------------
 
   /** Sends interactive continuation payload for a paused loop (resume_interrupts). */
   sendResumeInterrupts(loopID: string, resumePayload: Record<string, unknown>, requestID?: string): Promise<void> {
@@ -375,6 +365,10 @@ export class Client extends EventEmitter {
       request_id: requestID ?? newRequestID(),
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Skills and models
+  // ---------------------------------------------------------------------------
 
   /** Requests the skills catalog (RFC-400). */
   sendSkillsList(requestID?: string): Promise<void> {
@@ -463,6 +457,26 @@ export class Client extends EventEmitter {
     return this.requestResponse({ type: 'invoke_skill', skill, args }, 'invoke_skill_response', timeout ?? 120_000);
   }
 
+  /** Requests loop list and waits for response. */
+  listLoops(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'loop_list' }, 'loop_list_response', timeout ?? 15_000);
+  }
+
+  /** Requests loop details and waits for response. */
+  getLoop(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'loop_get', loop_id: loopID }, 'loop_get_response', timeout ?? 15_000);
+  }
+
+  /** Requests loop tree and waits for response. */
+  getLoopTree(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'loop_tree', loop_id: loopID }, 'loop_tree_response', timeout ?? 15_000);
+  }
+
+  /** Requests loop deletion and waits for response. */
+  deleteLoop(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'loop_delete', loop_id: loopID }, 'loop_delete_response', timeout ?? 15_000);
+  }
+
   // ---------------------------------------------------------------------------
   // Wait helpers
   // ---------------------------------------------------------------------------
@@ -499,7 +513,7 @@ export class Client extends EventEmitter {
       }
       if (ev.type !== 'subscription_confirmed') continue;
       const lid = String((ev as { loop_id?: string }).loop_id ?? '');
-      if (lid === loopID || ev.thread_id === loopID) return;
+      if (lid === loopID) return;
     }
     throw new Error(`timeout after ${t}ms waiting for subscription_confirmed`);
   }

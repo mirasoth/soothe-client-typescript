@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   encodeMessage, decodeMessage, splitWirePayload, extractSootheLoopID,
-  newInputMessage, newSubscribeThreadMessage, newNewThreadMessage, newResumeThreadMessage,
+  newLoopInputMessage, newLoopNewMessage, newLoopSubscribeMessage,
   newRequestID,
-  type InputMessage, type LoopInputMessage, type CommandMessage, type SubscribeThreadMessage,
-  type NewThreadMessage, type ResumeThreadMessage, type EventMessage,
+  type LoopInputMessage, type CommandMessage, type LoopSubscribeMessage,
+  type LoopNewMessage, type EventMessage,
   type StatusResponse, type DaemonReadyResponse, type ErrorResponse,
-  type DaemonStatusResponse, type ShutdownAckResponse, type ThreadListResponse,
+  type DaemonStatusResponse, type ShutdownAckResponse, type LoopListResponse,
   type SkillsListResponse, type ModelsListResponse, type ResumeInterruptsMessage,
 } from '../src/protocol.js';
 
@@ -16,7 +16,7 @@ import {
 
 describe('encodeMessage', () => {
   it('appends newline', () => {
-    const encoded = encodeMessage({ type: 'input', text: 'hello' });
+    const encoded = encodeMessage({ type: 'loop_input', content: 'hello' });
     expect(encoded.endsWith('\n')).toBe(true);
   });
 });
@@ -36,13 +36,6 @@ describe('decodeMessage', () => {
 // ---------------------------------------------------------------------------
 
 describe('round-trip', () => {
-  it('InputMessage', () => {
-    const msg: InputMessage = { request_id: 'r1', type: 'input', text: 'hello world', thread_id: 'thread-abc', autonomous: true };
-    const encoded = encodeMessage(msg);
-    const decoded = decodeMessage(encoded.slice(0, -1));
-    expect(decoded).toMatchObject({ type: 'input', text: 'hello world', thread_id: 'thread-abc', autonomous: true });
-  });
-
   it('LoopInputMessage', () => {
     const msg: LoopInputMessage = {
       request_id: 'r2',
@@ -64,25 +57,18 @@ describe('round-trip', () => {
     expect(decoded).toMatchObject({ type: 'command', cmd: '/help' });
   });
 
-  it('SubscribeThreadMessage', () => {
-    const msg: SubscribeThreadMessage = { request_id: 's1', type: 'subscribe_thread', thread_id: 'tid-1', verbosity: 'detailed' };
+  it('LoopSubscribeMessage (factory)', () => {
+    const msg = newLoopSubscribeMessage('loop-1', 'debug');
     const encoded = encodeMessage(msg);
     const decoded = decodeMessage(encoded.slice(0, -1));
-    expect(decoded).toMatchObject({ type: 'subscribe_thread', thread_id: 'tid-1', verbosity: 'detailed' });
+    expect(decoded).toMatchObject({ type: 'loop_subscribe', loop_id: 'loop-1', verbosity: 'debug' });
   });
 
-  it('NewThreadMessage (factory)', () => {
-    const msg = newNewThreadMessage('/tmp/workspace');
+  it('LoopNewMessage (factory)', () => {
+    const msg = newLoopNewMessage('/tmp/workspace');
     const encoded = encodeMessage(msg);
     const decoded = decodeMessage(encoded.slice(0, -1));
-    expect(decoded).toMatchObject({ type: 'new_thread', workspace: '/tmp/workspace' });
-  });
-
-  it('ResumeThreadMessage (factory)', () => {
-    const msg = newResumeThreadMessage('tid-2', '/tmp/ws2');
-    const encoded = encodeMessage(msg);
-    const decoded = decodeMessage(encoded.slice(0, -1));
-    expect(decoded).toMatchObject({ type: 'resume_thread', thread_id: 'tid-2', workspace: '/tmp/ws2' });
+    expect(decoded).toMatchObject({ type: 'loop_new', workspace: '/tmp/workspace' });
   });
 
   it('EventMessage', () => {
@@ -93,16 +79,10 @@ describe('round-trip', () => {
   });
 
   it('StatusResponse', () => {
-    const msg: StatusResponse = { type: 'status', state: 'idle', thread_id: 'thread-xyz', workspace: '/tmp/ws' };
+    const msg: StatusResponse = { type: 'status', state: 'idle', loop_id: 'loop-xyz', workspace: '/tmp/ws' };
     const encoded = encodeMessage(msg);
     const decoded = decodeMessage(encoded.slice(0, -1));
-    expect(decoded).toMatchObject({ type: 'status', thread_id: 'thread-xyz' });
-  });
-
-  it('StatusResponse with camelCase threadId fallback', () => {
-    const raw = `{"type":"status","state":"idle","threadId":"camel-case-id"}`;
-    const decoded = decodeMessage(raw) as StatusResponse;
-    expect(decoded.thread_id).toBe('camel-case-id');
+    expect(decoded).toMatchObject({ type: 'status', loop_id: 'loop-xyz' });
   });
 
   it('StatusResponse with camelCase loopId fallback', () => {
@@ -126,11 +106,11 @@ describe('round-trip', () => {
   });
 
   it('DaemonStatusResponse', () => {
-    const raw = `{"type":"daemon_status_response","running":true,"port_live":true,"active_threads":3}`;
+    const raw = `{"type":"daemon_status_response","running":true,"port_live":true,"active_loops":3}`;
     const decoded = decodeMessage(raw) as DaemonStatusResponse;
     expect(decoded.running).toBe(true);
     expect(decoded.port_live).toBe(true);
-    expect(decoded.active_threads).toBe(3);
+    expect(decoded.active_loops).toBe(3);
   });
 
   it('ShutdownAckResponse', () => {
@@ -139,10 +119,11 @@ describe('round-trip', () => {
     expect(decoded.status).toBe('acknowledged');
   });
 
-  it('ThreadListResponse', () => {
-    const raw = `{"type":"thread_list_response","threads":[{"thread_id":"t1"},{"thread_id":"t2"}]}`;
-    const decoded = decodeMessage(raw) as ThreadListResponse;
-    expect(decoded.threads).toHaveLength(2);
+  it('LoopListResponse', () => {
+    const raw = `{"type":"loop_list_response","loops":[{"loop_id":"l1"},{"loop_id":"l2"}],"total":2}`;
+    const decoded = decodeMessage(raw) as LoopListResponse;
+    expect(decoded.loops).toHaveLength(2);
+    expect(decoded.total).toBe(2);
   });
 
   it('SkillsListResponse', () => {
@@ -182,28 +163,24 @@ describe('round-trip', () => {
 
 describe('decode all client message types', () => {
   const tests = [
-    { name: 'input', json: `{"type":"input","text":"hi","thread_id":"t1"}`, wantType: 'input' },
     {
       name: 'loop_input',
       json: `{"type":"loop_input","loop_id":"L1","content":"hi","autonomous":false}`,
       wantType: 'loop_input',
     },
     { name: 'command', json: `{"type":"command","cmd":"/help"}`, wantType: 'command' },
-    { name: 'subscribe_thread', json: `{"type":"subscribe_thread","thread_id":"t1","verbosity":"normal"}`, wantType: 'subscribe_thread' },
-    { name: 'new_thread', json: `{"type":"new_thread","workspace":"/tmp"}`, wantType: 'new_thread' },
-    { name: 'resume_thread', json: `{"type":"resume_thread","thread_id":"t1","workspace":"/tmp"}`, wantType: 'resume_thread' },
+    { name: 'loop_subscribe', json: `{"type":"loop_subscribe","loop_id":"l1","verbosity":"normal"}`, wantType: 'loop_subscribe' },
+    { name: 'loop_new', json: `{"type":"loop_new","workspace":"/tmp"}`, wantType: 'loop_new' },
+    { name: 'loop_detach', json: `{"type":"loop_detach","loop_id":"l1"}`, wantType: 'loop_detach' },
+    { name: 'loop_list', json: `{"type":"loop_list"}`, wantType: 'loop_list' },
+    { name: 'loop_get', json: `{"type":"loop_get","loop_id":"l1"}`, wantType: 'loop_get' },
+    { name: 'loop_tree', json: `{"type":"loop_tree","loop_id":"l1"}`, wantType: 'loop_tree' },
+    { name: 'loop_prune', json: `{"type":"loop_prune","loop_id":"l1"}`, wantType: 'loop_prune' },
+    { name: 'loop_delete', json: `{"type":"loop_delete","loop_id":"l1"}`, wantType: 'loop_delete' },
+    { name: 'loop_reattach', json: `{"type":"loop_reattach","loop_id":"l1"}`, wantType: 'loop_reattach' },
     { name: 'daemon_status', json: `{"type":"daemon_status"}`, wantType: 'daemon_status' },
     { name: 'daemon_shutdown', json: `{"type":"daemon_shutdown"}`, wantType: 'daemon_shutdown' },
     { name: 'config_get', json: `{"type":"config_get","section":"providers"}`, wantType: 'config_get' },
-    { name: 'thread_list', json: `{"type":"thread_list"}`, wantType: 'thread_list' },
-    { name: 'thread_get', json: `{"type":"thread_get","thread_id":"t1"}`, wantType: 'thread_get' },
-    { name: 'thread_messages', json: `{"type":"thread_messages","thread_id":"t1","limit":50,"offset":0}`, wantType: 'thread_messages' },
-    { name: 'thread_state', json: `{"type":"thread_state","thread_id":"t1"}`, wantType: 'thread_state' },
-    { name: 'thread_update_state', json: `{"type":"thread_update_state","thread_id":"t1","values":{}}`, wantType: 'thread_update_state' },
-    { name: 'thread_archive', json: `{"type":"thread_archive","thread_id":"t1"}`, wantType: 'thread_archive' },
-    { name: 'thread_delete', json: `{"type":"thread_delete","thread_id":"t1"}`, wantType: 'thread_delete' },
-    { name: 'thread_create', json: `{"type":"thread_create"}`, wantType: 'thread_create' },
-    { name: 'thread_artifacts', json: `{"type":"thread_artifacts","thread_id":"t1"}`, wantType: 'thread_artifacts' },
     { name: 'resume_interrupts', json: `{"type":"resume_interrupts","loop_id":"L1","resume_payload":{}}`, wantType: 'resume_interrupts' },
     { name: 'skills_list', json: `{"type":"skills_list"}`, wantType: 'skills_list' },
     { name: 'models_list', json: `{"type":"models_list"}`, wantType: 'models_list' },
@@ -264,18 +241,6 @@ describe('extractSootheLoopID', () => {
     expect(id).toBe('loop-1');
   });
 
-  it('prefers loop_id over thread_id on StatusResponse', () => {
-    const [id, ok] = extractSootheLoopID({ type: 'status', loop_id: 'L-pref', thread_id: 'T-legacy' });
-    expect(ok).toBe(true);
-    expect(id).toBe('L-pref');
-  });
-
-  it('from StatusResponse legacy thread_id', () => {
-    const [id, ok] = extractSootheLoopID({ type: 'status', thread_id: 'abc' });
-    expect(ok).toBe(true);
-    expect(id).toBe('abc');
-  });
-
   it('from StatusResponse empty', () => {
     const [, ok] = extractSootheLoopID({ type: 'status' });
     expect(ok).toBe(false);
@@ -287,28 +252,16 @@ describe('extractSootheLoopID', () => {
     expect(id).toBe('evt-loop');
   });
 
-  it('from EventMessage top-level thread_id', () => {
-    const [id, ok] = extractSootheLoopID({ type: 'event', thread_id: 'evt-thread' });
-    expect(ok).toBe(true);
-    expect(id).toBe('evt-thread');
-  });
-
   it('from EventMessage data.loop_id', () => {
     const [id, ok] = extractSootheLoopID({ type: 'event', data: { loop_id: 'data-loop' } });
     expect(ok).toBe(true);
     expect(id).toBe('data-loop');
   });
 
-  it('from EventMessage data.thread_id', () => {
-    const [id, ok] = extractSootheLoopID({ type: 'event', data: { thread_id: 'data-thread' } });
+  it('from EventMessage data.loopId (camelCase)', () => {
+    const [id, ok] = extractSootheLoopID({ type: 'event', data: { loopId: 'camel-loop' } });
     expect(ok).toBe(true);
-    expect(id).toBe('data-thread');
-  });
-
-  it('from EventMessage data.threadId (camelCase)', () => {
-    const [id, ok] = extractSootheLoopID({ type: 'event', data: { threadId: 'camel-thread' } });
-    expect(ok).toBe(true);
-    expect(id).toBe('camel-thread');
+    expect(id).toBe('camel-loop');
   });
 
   it('from generic map with loop_id', () => {
@@ -337,32 +290,31 @@ describe('resume_interrupts decode', () => {
 // ---------------------------------------------------------------------------
 
 describe('factory functions', () => {
-  it('newInputMessage', () => {
-    const msg = newInputMessage('hello', 'thread-1');
-    expect(msg.type).toBe('input');
-    expect(msg.text).toBe('hello');
-    expect(msg.thread_id).toBe('thread-1');
+  it('newLoopInputMessage', () => {
+    const msg = newLoopInputMessage('loop-1', 'hello');
+    expect(msg.type).toBe('loop_input');
+    expect(msg.content).toBe('hello');
+    expect(msg.loop_id).toBe('loop-1');
     expect(msg.request_id).toBeTruthy();
   });
 
-  it('newSubscribeThreadMessage', () => {
-    const msg = newSubscribeThreadMessage('tid', 'detailed');
-    expect(msg.type).toBe('subscribe_thread');
-    expect(msg.thread_id).toBe('tid');
-    expect(msg.verbosity).toBe('detailed');
+  it('newLoopSubscribeMessage', () => {
+    const msg = newLoopSubscribeMessage('loop-1', 'debug');
+    expect(msg.type).toBe('loop_subscribe');
+    expect(msg.loop_id).toBe('loop-1');
+    expect(msg.verbosity).toBe('debug');
   });
 
-  it('newNewThreadMessage', () => {
-    const msg = newNewThreadMessage('/tmp/ws');
-    expect(msg.type).toBe('new_thread');
+  it('newLoopNewMessage', () => {
+    const msg = newLoopNewMessage('/tmp/ws');
+    expect(msg.type).toBe('loop_new');
     expect(msg.workspace).toBe('/tmp/ws');
   });
 
-  it('newResumeThreadMessage', () => {
-    const msg = newResumeThreadMessage('tid', '/tmp/ws');
-    expect(msg.type).toBe('resume_thread');
-    expect(msg.thread_id).toBe('tid');
-    expect(msg.workspace).toBe('/tmp/ws');
+  it('newLoopNewMessage without workspace', () => {
+    const msg = newLoopNewMessage();
+    expect(msg.type).toBe('loop_new');
+    expect(msg.workspace).toBeUndefined();
   });
 
   it('newRequestID generates UUID', () => {

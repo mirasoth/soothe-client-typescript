@@ -28,18 +28,20 @@ export const EventResearchCompleted = 'soothe.capability.research.completed';
 export const EventResearchJudgementReporting = 'soothe.capability.research.judgement.reporting';
 export const EventResearchInternalLLM = 'soothe.capability.research.internal_llm.run';
 
-// Thread lifecycle events
-export const EventThreadStarted = 'soothe.lifecycle.thread.started';
-export const EventThreadResumed = 'soothe.lifecycle.thread.resumed';
-export const EventThreadCompleted = 'soothe.lifecycle.thread.completed';
-export const EventThreadError = 'soothe.lifecycle.thread.error';
+// Loop lifecycle events (RFC-503)
+export const EventLoopCreated = 'soothe.loop.created';
+export const EventLoopStarted = 'soothe.loop.started';
+export const EventLoopResumed = 'soothe.loop.resumed';
+export const EventLoopCompleted = 'soothe.loop.completed';
+export const EventLoopError = 'soothe.loop.error';
+export const EventLoopReattached = 'soothe.loop.reattached';
 
 // Tool events
 export const EventToolStarted = 'soothe.tool.execution.started';
 export const EventToolCompleted = 'soothe.tool.execution.completed';
 export const EventToolError = 'soothe.tool.execution.error';
 
-// Agent loop events
+// Agent loop events (cognition domain)
 export const EventAgentLoopStarted = 'soothe.cognition.agent_loop.started';
 export const EventAgentLoopIterated = 'soothe.cognition.agent_loop.iterated';
 export const EventAgentLoopCompleted = 'soothe.cognition.agent_loop.completed';
@@ -56,11 +58,16 @@ export const EventFinalReport = 'soothe.output.autonomous.final_report.reported'
 // Namespace parsing
 // ---------------------------------------------------------------------------
 
-/** Splits a 4-segment event namespace into its components. */
+/** Splits an event namespace into its components. Handles both 3 and 4-segment namespaces. */
 export function parseNamespace(ns: string): { domain: string; component: string; action: string } | null {
   const parts = splitNamespace(ns);
-  if (parts.length < 4 || parts[0] !== 'soothe') {
+  if (parts.length < 3 || parts[0] !== 'soothe') {
     return null;
+  }
+  // 3-segment: soothe.loop.completed -> domain=loop, component=loop, action=completed
+  // 4-segment: soothe.cognition.plan.created -> domain=cognition, component=plan, action=created
+  if (parts.length === 3) {
+    return { domain: parts[1], component: parts[1], action: parts[2] };
   }
   return { domain: parts[1], component: parts[2], action: parts[3] };
 }
@@ -93,7 +100,7 @@ export function classifyEventVerbosity(eventTypeOrNamespace: string): VerbosityT
 
 function classifyByDomainAndComponent(domain: string, _component: string, full: string): VerbosityTier {
   switch (domain) {
-    case 'lifecycle': return VerbosityTier.Detailed;
+    case 'loop': return VerbosityTier.Detailed;
     case 'protocol': return VerbosityTier.Detailed;
     case 'cognition': return VerbosityTier.Normal;
     case 'tool': return VerbosityTier.Internal;
@@ -116,7 +123,7 @@ function classifyByEventTypeString(s: string): VerbosityTier {
   switch (s) {
     case EventChitchatResponse:
     case EventFinalReport:
-    case EventThreadError:
+    case EventLoopError:
       return VerbosityTier.Quiet;
     case EventPlanCreated:
     case EventPlanStepStarted:
@@ -130,6 +137,11 @@ function classifyByEventTypeString(s: string): VerbosityTier {
     case EventResearchStarted:
     case EventResearchCompleted:
     case EventResearchJudgementReporting:
+    case EventLoopCreated:
+    case EventLoopStarted:
+    case EventLoopResumed:
+    case EventLoopCompleted:
+    case EventLoopReattached:
       return VerbosityTier.Normal;
     case EventAgentLoopCompleted:
       return VerbosityTier.Quiet;
@@ -138,11 +150,11 @@ function classifyByEventTypeString(s: string): VerbosityTier {
   }
 }
 
-/** Checks if an event namespace signals thread completion. */
+/** Checks if an event namespace signals loop completion. */
 export function isCompletionEvent(namespace: string): boolean {
   const parsed = parseNamespace(namespace);
   if (!parsed) return false;
-  return parsed.action === 'completed' || namespace === EventThreadCompleted;
+  return parsed.action === 'completed' || namespace === EventLoopCompleted;
 }
 
 /** Checks if an event is a subagent progress event. */
@@ -163,8 +175,8 @@ export function isSubagentProgressEvent(namespace: string): boolean {
 
 /** Essential event types that are always processed regardless of verbosity. */
 export const ESSENTIAL_EVENT_TYPES: ReadonlySet<string> = new Set([
-  EventThreadCompleted,
-  EventThreadError,
+  EventLoopCompleted,
+  EventLoopError,
   EventChitchatResponse,
   EventFinalReport,
   EventPlanCreated,

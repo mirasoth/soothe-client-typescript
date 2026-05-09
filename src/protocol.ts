@@ -15,22 +15,10 @@ export interface BaseMessage {
 }
 
 // ---------------------------------------------------------------------------
-// Client → Daemon messages
+// Client → Daemon messages (Loop-first architecture, RFC-503)
 // ---------------------------------------------------------------------------
 
-export interface InputMessage extends BaseMessage {
-  type: 'input';
-  text: string;
-  thread_id?: string;
-  autonomous?: boolean;
-  max_iterations?: number;
-  subagent?: string;
-  interactive?: boolean;
-  model?: string;
-  model_params?: Record<string, unknown>;
-}
-
-/** Loop-scoped user input (replaces legacy `input` for AgentLoop runs). */
+/** Loop-scoped user input. */
 export interface LoopInputMessage extends BaseMessage {
   type: 'loop_input';
   loop_id: string;
@@ -41,28 +29,12 @@ export interface LoopInputMessage extends BaseMessage {
   interactive?: boolean;
   model?: string;
   model_params?: Record<string, unknown>;
+  attachments?: Record<string, unknown>[];
 }
 
 export interface CommandMessage extends BaseMessage {
   type: 'command';
   cmd: string;
-}
-
-export interface SubscribeThreadMessage extends BaseMessage {
-  type: 'subscribe_thread';
-  thread_id: string;
-  verbosity: string;
-}
-
-export interface NewThreadMessage extends BaseMessage {
-  type: 'new_thread';
-  workspace: string;
-}
-
-export interface ResumeThreadMessage extends BaseMessage {
-  type: 'resume_thread';
-  thread_id: string;
-  workspace?: string;
 }
 
 export interface DaemonStatusMessage extends BaseMessage {
@@ -78,56 +50,62 @@ export interface ConfigGetMessage extends BaseMessage {
   section: string;
 }
 
-export interface ThreadListMessage extends BaseMessage {
-  type: 'thread_list';
+// Loop lifecycle messages (RFC-503)
+
+export interface LoopNewMessage extends BaseMessage {
+  type: 'loop_new';
+  workspace?: string;
+}
+
+export interface LoopSubscribeMessage extends BaseMessage {
+  type: 'loop_subscribe';
+  loop_id: string;
+  verbosity: string;
+}
+
+export interface LoopDetachMessage extends BaseMessage {
+  type: 'loop_detach';
+  loop_id: string;
+}
+
+// Loop management RPC messages (RFC-504)
+
+export interface LoopListMessage extends BaseMessage {
+  type: 'loop_list';
   filter?: Record<string, unknown>;
-  include_stats?: boolean;
-  include_last_message?: boolean;
-}
-
-export interface ThreadGetMessage extends BaseMessage {
-  type: 'thread_get';
-  thread_id: string;
-}
-
-export interface ThreadMessagesMessage extends BaseMessage {
-  type: 'thread_messages';
-  thread_id: string;
   limit?: number;
-  offset?: number;
 }
 
-export interface ThreadStateMessage extends BaseMessage {
-  type: 'thread_state';
-  thread_id: string;
+export interface LoopGetMessage extends BaseMessage {
+  type: 'loop_get';
+  loop_id: string;
+  verbose?: boolean;
 }
 
-export interface ThreadUpdateStateMessage extends BaseMessage {
-  type: 'thread_update_state';
-  thread_id: string;
-  values: Record<string, unknown>;
+export interface LoopTreeMessage extends BaseMessage {
+  type: 'loop_tree';
+  loop_id: string;
+  format?: string;
 }
 
-export interface ThreadArchiveMessage extends BaseMessage {
-  type: 'thread_archive';
-  thread_id: string;
+export interface LoopPruneMessage extends BaseMessage {
+  type: 'loop_prune';
+  loop_id: string;
+  retention_days?: number;
+  dry_run?: boolean;
 }
 
-export interface ThreadDeleteMessage extends BaseMessage {
-  type: 'thread_delete';
-  thread_id: string;
+export interface LoopDeleteMessage extends BaseMessage {
+  type: 'loop_delete';
+  loop_id: string;
 }
 
-export interface ThreadCreateMessage extends BaseMessage {
-  type: 'thread_create';
-  initial_message?: string;
-  metadata?: Record<string, unknown>;
+export interface LoopReattachMessage extends BaseMessage {
+  type: 'loop_reattach';
+  loop_id: string;
 }
 
-export interface ThreadArtifactsMessage extends BaseMessage {
-  type: 'thread_artifacts';
-  thread_id: string;
-}
+// Other messages
 
 export interface ResumeInterruptsMessage extends BaseMessage {
   type: 'resume_interrupts';
@@ -160,7 +138,6 @@ export interface DetachMessage extends BaseMessage {
 export interface EventMessage extends BaseMessage {
   type: 'event';
   loop_id?: string;
-  thread_id?: string;
   namespace: string;
   data: Record<string, unknown>;
   timestamp?: string;
@@ -170,18 +147,14 @@ export interface StatusResponse extends BaseMessage {
   type: 'status';
   state: string;
   loop_id?: string;
-  thread_id?: string;
   workspace: string;
   input_history?: string[];
   conversation_history?: unknown[];
-  thread_resumed?: boolean;
-  new_thread?: boolean;
 }
 
 export interface SubscriptionConfirmedResponse extends BaseMessage {
   type: 'subscription_confirmed';
   loop_id?: string;
-  thread_id?: string;
   client_id: string;
   verbosity: string;
 }
@@ -202,7 +175,7 @@ export interface DaemonStatusResponse extends BaseMessage {
   type: 'daemon_status_response';
   running: boolean;
   port_live: boolean;
-  active_threads: number;
+  active_loops: number;
 }
 
 export interface ShutdownAckResponse extends BaseMessage {
@@ -210,10 +183,77 @@ export interface ShutdownAckResponse extends BaseMessage {
   status: string;
 }
 
-export interface ThreadListResponse extends BaseMessage {
-  type: 'thread_list_response';
-  threads?: Record<string, unknown>[];
+// Loop lifecycle responses (RFC-503)
+
+export interface LoopNewResponse extends BaseMessage {
+  type: 'loop_new_response';
+  loop_id: string;
+  success?: boolean;
 }
+
+export interface LoopSubscribeResponse extends BaseMessage {
+  type: 'loop_subscribe_response';
+  loop_id?: string;
+  success: boolean;
+  message?: string;
+}
+
+export interface LoopDetachResponse extends BaseMessage {
+  type: 'loop_detach_response';
+  loop_id?: string;
+  success: boolean;
+}
+
+// Loop management responses (RFC-504)
+
+export interface LoopListResponse extends BaseMessage {
+  type: 'loop_list_response';
+  loops?: Record<string, unknown>[];
+  total?: number;
+}
+
+export interface LoopGetResponse extends BaseMessage {
+  type: 'loop_get_response';
+  loop?: Record<string, unknown>;
+}
+
+export interface LoopTreeResponse extends BaseMessage {
+  type: 'loop_tree_response';
+  tree?: Record<string, unknown>;
+}
+
+export interface LoopPruneResponse extends BaseMessage {
+  type: 'loop_prune_response';
+  result?: Record<string, unknown>;
+}
+
+export interface LoopDeleteResponse extends BaseMessage {
+  type: 'loop_delete_response';
+  success: boolean;
+  message?: string;
+}
+
+export interface LoopReattachResponse extends BaseMessage {
+  type: 'loop_reattach_response';
+  loop_id?: string;
+  success?: boolean;
+}
+
+// History replay messages (RFC-411)
+
+export interface HistoryReplayMessage extends BaseMessage {
+  type: 'history_replay';
+  loop_id?: string;
+  events?: Record<string, unknown>[];
+  total_events?: number;
+}
+
+export interface HistoryReplayCompleteMessage extends BaseMessage {
+  type: 'history_replay_complete';
+  loop_id?: string;
+}
+
+// Other responses
 
 export interface SkillsListResponse extends BaseMessage {
   type: 'skills_list_response';
@@ -227,24 +267,20 @@ export interface ModelsListResponse extends BaseMessage {
 
 // Discriminated union for all decoded messages
 export type DecodedMessage =
-  | InputMessage
   | LoopInputMessage
   | CommandMessage
-  | SubscribeThreadMessage
-  | NewThreadMessage
-  | ResumeThreadMessage
   | DaemonStatusMessage
   | DaemonShutdownMessage
   | ConfigGetMessage
-  | ThreadListMessage
-  | ThreadGetMessage
-  | ThreadMessagesMessage
-  | ThreadStateMessage
-  | ThreadUpdateStateMessage
-  | ThreadArchiveMessage
-  | ThreadDeleteMessage
-  | ThreadCreateMessage
-  | ThreadArtifactsMessage
+  | LoopNewMessage
+  | LoopSubscribeMessage
+  | LoopDetachMessage
+  | LoopListMessage
+  | LoopGetMessage
+  | LoopTreeMessage
+  | LoopPruneMessage
+  | LoopDeleteMessage
+  | LoopReattachMessage
   | ResumeInterruptsMessage
   | SkillsListMessage
   | ModelsListMessage
@@ -257,7 +293,17 @@ export type DecodedMessage =
   | DaemonReadyResponse
   | DaemonStatusResponse
   | ShutdownAckResponse
-  | ThreadListResponse
+  | LoopNewResponse
+  | LoopSubscribeResponse
+  | LoopDetachResponse
+  | LoopListResponse
+  | LoopGetResponse
+  | LoopTreeResponse
+  | LoopPruneResponse
+  | LoopDeleteResponse
+  | LoopReattachResponse
+  | HistoryReplayMessage
+  | HistoryReplayCompleteMessage
   | SkillsListResponse
   | ModelsListResponse
   | Record<string, unknown>;
@@ -286,27 +332,22 @@ export function decodeMessage(data: string): DecodedMessage | null {
   if (!type) return parsed;
 
   switch (type) {
-    // Client → Daemon
-    case 'input': return { ...parsed } as unknown as InputMessage;
+    // Client → Daemon (loop-first)
     case 'loop_input': return { ...parsed } as unknown as LoopInputMessage;
     case 'command': return { ...parsed } as unknown as CommandMessage;
-    case 'subscribe_thread': return { ...parsed } as unknown as SubscribeThreadMessage;
-    case 'new_thread': return { ...parsed } as unknown as NewThreadMessage;
-    case 'resume_thread': return { ...parsed } as unknown as ResumeThreadMessage;
     case 'daemon_status': return { ...parsed } as unknown as DaemonStatusMessage;
     case 'daemon_shutdown': return { ...parsed } as unknown as DaemonShutdownMessage;
     case 'config_get': return { ...parsed } as unknown as ConfigGetMessage;
-    case 'thread_list': return { ...parsed } as unknown as ThreadListMessage;
-    case 'thread_get': return { ...parsed } as unknown as ThreadGetMessage;
-    case 'thread_messages': return { ...parsed } as unknown as ThreadMessagesMessage;
-    case 'thread_state': return { ...parsed } as unknown as ThreadStateMessage;
-    case 'thread_update_state': return { ...parsed } as unknown as ThreadUpdateStateMessage;
-    case 'thread_archive': return { ...parsed } as unknown as ThreadArchiveMessage;
-    case 'thread_delete': return { ...parsed } as unknown as ThreadDeleteMessage;
-    case 'thread_create': return { ...parsed } as unknown as ThreadCreateMessage;
-    case 'thread_artifacts': return { ...parsed } as unknown as ThreadArtifactsMessage;
-    case 'resume_interrupts':
-      return { ...parsed } as unknown as ResumeInterruptsMessage;
+    case 'loop_new': return { ...parsed } as unknown as LoopNewMessage;
+    case 'loop_subscribe': return { ...parsed } as unknown as LoopSubscribeMessage;
+    case 'loop_detach': return { ...parsed } as unknown as LoopDetachMessage;
+    case 'loop_list': return { ...parsed } as unknown as LoopListMessage;
+    case 'loop_get': return { ...parsed } as unknown as LoopGetMessage;
+    case 'loop_tree': return { ...parsed } as unknown as LoopTreeMessage;
+    case 'loop_prune': return { ...parsed } as unknown as LoopPruneMessage;
+    case 'loop_delete': return { ...parsed } as unknown as LoopDeleteMessage;
+    case 'loop_reattach': return { ...parsed } as unknown as LoopReattachMessage;
+    case 'resume_interrupts': return { ...parsed } as unknown as ResumeInterruptsMessage;
     case 'skills_list': return { ...parsed } as unknown as SkillsListMessage;
     case 'models_list': return { ...parsed } as unknown as ModelsListMessage;
     case 'invoke_skill': return { ...parsed } as unknown as InvokeSkillMessage;
@@ -319,9 +360,6 @@ export function decodeMessage(data: string): DecodedMessage | null {
       if (!msg.loop_id && parsed.loopId && typeof parsed.loopId === 'string') {
         msg.loop_id = parsed.loopId;
       }
-      if (!msg.thread_id && parsed.threadId && typeof parsed.threadId === 'string') {
-        msg.thread_id = parsed.threadId;
-      }
       return msg;
     }
     case 'subscription_confirmed': return { ...parsed } as unknown as SubscriptionConfirmedResponse;
@@ -329,10 +367,20 @@ export function decodeMessage(data: string): DecodedMessage | null {
     case 'daemon_ready': return { ...parsed } as unknown as DaemonReadyResponse;
     case 'daemon_status_response': return { ...parsed } as unknown as DaemonStatusResponse;
     case 'shutdown_ack': return { ...parsed } as unknown as ShutdownAckResponse;
+    case 'loop_new_response': return { ...parsed } as unknown as LoopNewResponse;
+    case 'loop_subscribe_response': return { ...parsed } as unknown as LoopSubscribeResponse;
+    case 'loop_detach_response': return { ...parsed } as unknown as LoopDetachResponse;
+    case 'loop_list_response': return { ...parsed } as unknown as LoopListResponse;
+    case 'loop_get_response': return { ...parsed } as unknown as LoopGetResponse;
+    case 'loop_tree_response': return { ...parsed } as unknown as LoopTreeResponse;
+    case 'loop_prune_response': return { ...parsed } as unknown as LoopPruneResponse;
+    case 'loop_delete_response': return { ...parsed } as unknown as LoopDeleteResponse;
+    case 'loop_reattach_response': return { ...parsed } as unknown as LoopReattachResponse;
+    case 'history_replay': return { ...parsed } as unknown as HistoryReplayMessage;
+    case 'history_replay_complete': return { ...parsed } as unknown as HistoryReplayCompleteMessage;
     case 'config_get_response':
     case 'invoke_skill_response':
       return parsed;
-    case 'thread_list_response': return { ...parsed } as unknown as ThreadListResponse;
     case 'skills_list_response': return { ...parsed } as unknown as SkillsListResponse;
     case 'models_list_response': return { ...parsed } as unknown as ModelsListResponse;
 
@@ -355,33 +403,31 @@ export function splitWirePayload(data: string): string[] {
 }
 
 /**
- * Returns a non-empty AgentLoop id when present (`loop_id` preferred, then `thread_id` on
- * daemon payloads that still use the checkpoint field name).
+ * Returns the AgentLoop id when present in a message.
+ * Prefers loop_id field.
  */
 export function extractSootheLoopID(msg: unknown): [string, boolean] {
   if (!msg || typeof msg !== 'object') return ['', false];
   const m = msg as Record<string, unknown>;
 
   if (m.type === 'status') {
-    const id = (m.loop_id ?? m.thread_id) as string | undefined;
+    const id = m.loop_id as string | undefined;
     if (id && id !== '') return [id, true];
     return ['', false];
   }
 
   if (m.type === 'event') {
-    const top = (m.loop_id ?? m.thread_id) as string | undefined;
+    const top = m.loop_id as string | undefined;
     if (top && top !== '') return [top, true];
 
     const data = m.data as Record<string, unknown> | undefined;
     if (data && typeof data === 'object') {
-      const dataId = (data['loop_id'] ?? data['loopId'] ?? data['thread_id'] ?? data['threadId']) as
-        | string
-        | undefined;
+      const dataId = (data['loop_id'] ?? data['loopId']) as string | undefined;
       if (dataId && dataId !== '') return [dataId, true];
     }
   }
 
-  const generic = (m['loop_id'] ?? m['loopId'] ?? m['thread_id'] ?? m['threadId']) as string | undefined;
+  const generic = (m['loop_id'] ?? m['loopId']) as string | undefined;
   if (generic && generic !== '') return [generic, true];
 
   return ['', false];
@@ -396,41 +442,32 @@ export function newRequestID(): string {
   return randomUUID();
 }
 
-/** Creates a new input message with required fields. */
-export function newInputMessage(text: string, threadID: string): InputMessage {
+/** Creates a loop_input message with required fields. */
+export function newLoopInputMessage(loopID: string, content: string): LoopInputMessage {
   return {
     request_id: newRequestID(),
-    type: 'input',
-    text,
-    thread_id: threadID,
+    type: 'loop_input',
+    loop_id: loopID,
+    content,
+    autonomous: false,
   };
 }
 
-/** Creates a new subscription message. */
-export function newSubscribeThreadMessage(threadID: string, verbosity: string): SubscribeThreadMessage {
+/** Creates a loop_new message. */
+export function newLoopNewMessage(workspace?: string): LoopNewMessage {
   return {
     request_id: newRequestID(),
-    type: 'subscribe_thread',
-    thread_id: threadID,
+    type: 'loop_new',
+    workspace,
+  };
+}
+
+/** Creates a loop_subscribe message. */
+export function newLoopSubscribeMessage(loopID: string, verbosity: string): LoopSubscribeMessage {
+  return {
+    request_id: newRequestID(),
+    type: 'loop_subscribe',
+    loop_id: loopID,
     verbosity,
-  };
-}
-
-/** Creates a new thread message. */
-export function newNewThreadMessage(workspace: string): NewThreadMessage {
-  return {
-    request_id: newRequestID(),
-    type: 'new_thread',
-    workspace,
-  };
-}
-
-/** Creates a resume thread message. */
-export function newResumeThreadMessage(threadID: string, workspace: string): ResumeThreadMessage {
-  return {
-    request_id: newRequestID(),
-    type: 'resume_thread',
-    thread_id: threadID,
-    workspace,
   };
 }

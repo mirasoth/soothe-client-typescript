@@ -8,7 +8,7 @@ describe('defaultConfig', () => {
     expect(cfg.verbosityLevel).toBe('normal');
     expect(cfg.maxRetries).toBe(5);
     expect(cfg.daemonReadyTimeout).toBe(20000);
-    expect(cfg.threadStatusTimeout).toBe(60000);
+    expect(cfg.loopStatusTimeout).toBe(60000);
     expect(cfg.subscriptionTimeout).toBe(10000);
     expect(cfg.reconnectDelay).toBe(2000);
     expect(cfg.heartbeatInterval).toBe(30000);
@@ -21,7 +21,8 @@ describe('loadConfigFromEnv', () => {
     'SOOTHE_VERBOSITY',
     'SOOTHE_MAX_RETRIES',
     'SOOTHE_DAEMON_READY_TIMEOUT_SEC',
-    'SOOTHE_THREAD_STATUS_TIMEOUT_SEC',
+    'SOOTHE_LOOP_STATUS_TIMEOUT_SEC',
+    'SOOTHE_THREAD_STATUS_TIMEOUT_SEC', // legacy support
     'SOOTHE_SUBSCRIPTION_TIMEOUT_SEC',
   ];
 
@@ -48,7 +49,7 @@ describe('loadConfigFromEnv', () => {
     process.env.SOOTHE_VERBOSITY = 'debug';
     process.env.SOOTHE_MAX_RETRIES = '10';
     process.env.SOOTHE_DAEMON_READY_TIMEOUT_SEC = '30';
-    process.env.SOOTHE_THREAD_STATUS_TIMEOUT_SEC = '45';
+    process.env.SOOTHE_LOOP_STATUS_TIMEOUT_SEC = '45';
     process.env.SOOTHE_SUBSCRIPTION_TIMEOUT_SEC = '15';
 
     const cfg = loadConfigFromEnv();
@@ -56,8 +57,17 @@ describe('loadConfigFromEnv', () => {
     expect(cfg.verbosityLevel).toBe('debug');
     expect(cfg.maxRetries).toBe(10);
     expect(cfg.daemonReadyTimeout).toBe(30000);
-    expect(cfg.threadStatusTimeout).toBe(45000);
+    expect(cfg.loopStatusTimeout).toBe(45000);
     expect(cfg.subscriptionTimeout).toBe(15000);
+  });
+
+  it('supports legacy env var SOOTHE_THREAD_STATUS_TIMEOUT_SEC', () => {
+    process.env.SOOTHE_LOOP_STATUS_TIMEOUT_SEC = undefined;
+    delete process.env.SOOTHE_LOOP_STATUS_TIMEOUT_SEC;
+    process.env.SOOTHE_THREAD_STATUS_TIMEOUT_SEC = '60';
+
+    const cfg = loadConfigFromEnv();
+    expect(cfg.loopStatusTimeout).toBe(60000);
   });
 
   it('falls back to defaults for invalid values', () => {

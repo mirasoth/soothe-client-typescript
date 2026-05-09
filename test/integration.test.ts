@@ -44,7 +44,7 @@ describe.skipIf(skip())('Integration', () => {
     client.close();
   });
 
-  it('new thread creation', async () => {
+  it('new loop creation', async () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
@@ -108,6 +108,18 @@ describe.skipIf(skip())('Integration', () => {
 
     const resp = await client.listModels(15_000);
     expect(resp.type).toBe('models_list_response');
+    client.close();
+  });
+
+  it('loop list', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    const resp = await client.listLoops(15_000);
+    expect(resp.type).toBe('loop_list_response');
     client.close();
   });
 

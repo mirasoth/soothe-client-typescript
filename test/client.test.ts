@@ -143,7 +143,7 @@ describe('Client', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // High-level API method tests
+  // High-level API method tests (Loop-first, RFC-503)
   // ---------------------------------------------------------------------------
 
   it('sendInput', async () => {
@@ -151,11 +151,11 @@ describe('Client', () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendInput('hello', { loopID: 't1', model: 'openai:gpt-4' });
+      await client.sendInput('hello', { loopID: 'l1', model: 'openai:gpt-4' });
       const ev = await client.readEvent();
       expect(ev!.type).toBe('loop_input');
       expect(ev!.content).toBe('hello');
-      expect(ev!.loop_id).toBe('t1');
+      expect(ev!.loop_id).toBe('l1');
       expect(ev!.model).toBe('openai:gpt-4');
       client.close();
     } finally {
@@ -205,14 +205,44 @@ describe('Client', () => {
     }
   });
 
-  it('sendNewThread', async () => {
+  it('sendLoopNew', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendNewThread('/tmp/workspace');
+      await client.sendLoopNew('/tmp/workspace');
       const ev = await client.readEvent();
-      expect(ev!.type).toBe('status');
+      expect(ev!.type).toBe('loop_new_response');
+      expect(ev!.loop_id).toBe('test-loop-123');
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('sendLoopSubscribe', async () => {
+    const server = createTestServer(fullBootstrapHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      await client.sendLoopSubscribe('loop-abc', 'normal');
+      const ev = await client.readEvent();
+      expect(ev!.type).toBe('loop_subscribe_response');
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('sendLoopDetach', async () => {
+    const server = createTestServer(fullBootstrapHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      await client.sendLoopDetach('loop-abc');
+      const ev = await client.readEvent();
+      expect(ev!.type).toBe('loop_detach_response');
+      expect(ev!.success).toBe(true);
       client.close();
     } finally {
       await server.close();
@@ -234,7 +264,52 @@ describe('Client', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // RPC convenience method tests
+  // Loop management RPC tests (RFC-504)
+  // ---------------------------------------------------------------------------
+
+  it('sendLoopList', async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.requestResponse({ type: 'loop_list' }, 'loop_list_response', 3000);
+      expect(resp.type).toBe('loop_list_response');
+      expect(resp.loops).toHaveLength(2);
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('sendLoopGet', async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.requestResponse({ type: 'loop_get', loop_id: 'l1' }, 'loop_get_response', 3000);
+      expect(resp.type).toBe('loop_get_response');
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('sendLoopDelete', async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.requestResponse({ type: 'loop_delete', loop_id: 'l1' }, 'loop_delete_response', 3000);
+      expect(resp.type).toBe('loop_delete_response');
+      expect(resp.success).toBe(true);
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Convenience RPC method tests
   // ---------------------------------------------------------------------------
 
   it('listSkills', async () => {
@@ -270,6 +345,46 @@ describe('Client', () => {
       await client.connect();
       const resp = await client.invokeSkill('research', 'search for X', 3000);
       expect(resp.type).toBe('invoke_skill_response');
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('listLoops', async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.listLoops(3000);
+      expect(resp.type).toBe('loop_list_response');
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('getLoop', async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.getLoop('l1', 3000);
+      expect(resp.type).toBe('loop_get_response');
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('deleteLoop', async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.deleteLoop('l1', 3000);
+      expect(resp.type).toBe('loop_delete_response');
+      expect(resp.success).toBe(true);
       client.close();
     } finally {
       await server.close();
