@@ -51,7 +51,6 @@ export const EventMessageReceived = 'soothe.protocol.message.received';
 export const EventMessageSent = 'soothe.protocol.message.sent';
 
 // Output events
-export const EventChitchatResponse = 'soothe.output.chitchat.responded';
 export const EventFinalReport = 'soothe.output.autonomous.final_report.reported';
 
 // ---------------------------------------------------------------------------
@@ -121,7 +120,6 @@ function classifyCapabilityEvent(full: string): VerbosityTier {
 
 function classifyByEventTypeString(s: string): VerbosityTier {
   switch (s) {
-    case EventChitchatResponse:
     case EventFinalReport:
     case EventLoopError:
       return VerbosityTier.Quiet;
@@ -177,7 +175,6 @@ export function isSubagentProgressEvent(namespace: string): boolean {
 export const ESSENTIAL_EVENT_TYPES: ReadonlySet<string> = new Set([
   EventLoopCompleted,
   EventLoopError,
-  EventChitchatResponse,
   EventFinalReport,
   EventPlanCreated,
   EventPlanStepStarted,

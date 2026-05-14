@@ -72,10 +72,10 @@ describe('round-trip', () => {
   });
 
   it('EventMessage', () => {
-    const msg: EventMessage = { type: 'event', namespace: 'soothe.output.chitchat.responded', data: { text: 'Hello' } };
+    const msg: EventMessage = { type: 'event', namespace: 'soothe.output.autonomous.final_report.reported', data: { text: 'Hello' } };
     const encoded = encodeMessage(msg);
     const decoded = decodeMessage(encoded.slice(0, -1));
-    expect(decoded).toMatchObject({ type: 'event', namespace: 'soothe.output.chitchat.responded' });
+    expect(decoded).toMatchObject({ type: 'event', namespace: 'soothe.output.autonomous.final_report.reported' });
   });
 
   it('StatusResponse', () => {

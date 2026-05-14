@@ -102,7 +102,6 @@ export {
   EventAgentLoopCompleted,
   EventMessageReceived,
   EventMessageSent,
-  EventChitchatResponse,
   EventFinalReport,
   parseNamespace,
   classifyEventVerbosity,

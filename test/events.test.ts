@@ -8,7 +8,7 @@ import {
   EventResearchStarted, EventResearchCompleted, EventResearchJudgementReporting,
   EventLoopStarted, EventLoopResumed, EventLoopCompleted, EventLoopError,
   EventToolStarted,
-  EventChitchatResponse, EventFinalReport,
+  EventFinalReport,
   EventAgentLoopCompleted,
 } from '../src/events.js';
 import { VerbosityTier } from '../src/verbosity.js';
@@ -40,7 +40,6 @@ describe('parseNamespace', () => {
 
 describe('classifyEventVerbosity', () => {
   it('quiet tier', () => {
-    expect(classifyEventVerbosity(EventChitchatResponse)).toBe(VerbosityTier.Quiet);
     expect(classifyEventVerbosity(EventFinalReport)).toBe(VerbosityTier.Quiet);
   });
 
@@ -104,7 +103,7 @@ describe('isSubagentProgressEvent', () => {
 describe('ESSENTIAL_EVENT_TYPES', () => {
   it('contains essential events', () => {
     const essential = [
-      EventLoopCompleted, EventLoopError, EventChitchatResponse, EventFinalReport,
+      EventLoopCompleted, EventLoopError, EventFinalReport,
       EventPlanCreated, EventBrowserStarted, EventClaudeStarted, EventResearchStarted,
     ];
     for (const ev of essential) {

@@ -145,7 +145,7 @@ export function fullBootstrapHandler(ws: WebSocket): void {
 export function ndjsonHandler(ws: WebSocket): void {
   ws.once('message', () => {
     ws.send(
-      `{"type":"event","namespace":"soothe.output.chitchat.responded","data":{"text":"hello"}}\n` +
+      `{"type":"event","namespace":"soothe.output.autonomous.final_report.reported","data":{"text":"hello"}}\n` +
         `{"type":"status","state":"idle","loop_id":"ndjson-loop-123"}`,
     );
   });
