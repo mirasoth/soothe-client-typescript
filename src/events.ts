@@ -41,6 +41,9 @@ export const EventToolStarted = 'soothe.tool.execution.started';
 export const EventToolCompleted = 'soothe.tool.execution.completed';
 export const EventToolError = 'soothe.tool.execution.error';
 
+// Stream tool call events (RFC-450, IG-416)
+export const EventStreamToolCallUpdate = 'soothe.stream.tool_call.update';
+
 // Agent loop events (cognition domain)
 export const EventAgentLoopStarted = 'soothe.cognition.agent_loop.started';
 export const EventAgentLoopIterated = 'soothe.cognition.agent_loop.iterated';

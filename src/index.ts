@@ -97,6 +97,7 @@ export {
   EventToolStarted,
   EventToolCompleted,
   EventToolError,
+  EventStreamToolCallUpdate,
   EventAgentLoopStarted,
   EventAgentLoopIterated,
   EventAgentLoopCompleted,
