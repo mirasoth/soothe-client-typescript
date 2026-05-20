@@ -237,8 +237,12 @@ export class Client extends EventEmitter {
   }
 
   /** Subscribes to events for a loop. */
-  sendLoopSubscribe(loopID: string, verbosity: string): Promise<void> {
-    return this.sendMessage(newLoopSubscribeMessage(loopID, verbosity));
+  sendLoopSubscribe(loopID: string, verbosity: string, streamDelivery?: 'batch' | 'streaming'): Promise<void> {
+    const msg = newLoopSubscribeMessage(loopID, verbosity);
+    if (streamDelivery) {
+      (msg as Record<string, unknown>).stream_delivery = streamDelivery;
+    }
+    return this.sendMessage(msg);
   }
 
   /** Detaches from a loop (keeps loop running). */

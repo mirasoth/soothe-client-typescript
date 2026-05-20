@@ -62,6 +62,7 @@ export interface LoopSubscribeMessage extends BaseMessage {
   type: 'loop_subscribe';
   loop_id: string;
   verbosity: string;
+  stream_delivery?: 'batch' | 'streaming'; // RFC-614 stream shaping
 }
 
 export interface LoopDetachMessage extends BaseMessage {
@@ -464,11 +465,15 @@ export function newLoopNewMessage(workspace?: string): LoopNewMessage {
 }
 
 /** Creates a loop_subscribe message. */
-export function newLoopSubscribeMessage(loopID: string, verbosity: string): LoopSubscribeMessage {
-  return {
+export function newLoopSubscribeMessage(loopID: string, verbosity: string, streamDelivery?: 'batch' | 'streaming'): LoopSubscribeMessage {
+  const msg: LoopSubscribeMessage = {
     request_id: newRequestID(),
     type: 'loop_subscribe',
     loop_id: loopID,
     verbosity,
   };
+  if (streamDelivery) {
+    msg.stream_delivery = streamDelivery;
+  }
+  return msg;
 }
