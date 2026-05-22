@@ -55,7 +55,7 @@ export interface ConfigGetMessage extends BaseMessage {
 export interface LoopNewMessage extends BaseMessage {
   type: 'loop_new';
   workspace?: string;
-  user?: string;  // User identifier for workspace isolation
+  user_id?: string;  // User identifier for workspace isolation
 }
 
 export interface LoopSubscribeMessage extends BaseMessage {
