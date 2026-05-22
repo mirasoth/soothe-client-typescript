@@ -54,8 +54,25 @@ export interface ConfigGetMessage extends BaseMessage {
 
 export interface LoopNewMessage extends BaseMessage {
   type: 'loop_new';
+  /** Project directory; runner uses this path directly when set. */
+  client_workspace?: string;
+  /** Stable scope for persisted sandbox when client_workspace is unset. */
+  client_workspace_id?: string;
+  /** User segment under $SOOTHE_HOME/workspaces/ (empty → anonymous). */
+  user_id?: string;
+  /**
+   * @deprecated Use `client_workspace`. Still accepted by the daemon as an alias.
+   */
   workspace?: string;
-  user_id?: string;  // User identifier for workspace isolation
+}
+
+/** Options for `loop_new` workspace fields. */
+export interface LoopNewOptions {
+  client_workspace?: string;
+  client_workspace_id?: string;
+  user_id?: string;
+  /** @deprecated Use `client_workspace`. */
+  workspace?: string;
 }
 
 export interface LoopSubscribeMessage extends BaseMessage {
@@ -456,12 +473,24 @@ export function newLoopInputMessage(loopID: string, content: string): LoopInputM
 }
 
 /** Creates a loop_new message. */
-export function newLoopNewMessage(workspace?: string): LoopNewMessage {
-  return {
+export function newLoopNewMessage(opts?: LoopNewOptions | string): LoopNewMessage {
+  const options: LoopNewOptions =
+    typeof opts === 'string' ? { client_workspace: opts } : opts ?? {};
+  const clientWorkspace = options.client_workspace ?? options.workspace;
+  const msg: LoopNewMessage = {
     request_id: newRequestID(),
     type: 'loop_new',
-    workspace,
   };
+  if (clientWorkspace?.trim()) {
+    msg.client_workspace = clientWorkspace.trim();
+  }
+  if (options.user_id?.trim()) {
+    msg.user_id = options.user_id.trim();
+  }
+  if (options.client_workspace_id?.trim()) {
+    msg.client_workspace_id = options.client_workspace_id.trim();
+  }
+  return msg;
 }
 
 /** Creates a loop_subscribe message. */

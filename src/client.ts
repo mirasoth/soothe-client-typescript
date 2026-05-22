@@ -14,6 +14,7 @@ import {
   newLoopNewMessage,
   newLoopSubscribeMessage,
   type DecodedMessage,
+  type LoopNewOptions,
 } from './protocol.js';
 
 export interface InputOptions {
@@ -232,8 +233,8 @@ export class Client extends EventEmitter {
   // ---------------------------------------------------------------------------
 
   /** Requests the daemon to create a new AgentLoop. */
-  sendLoopNew(workspace?: string): Promise<void> {
-    return this.sendMessage(newLoopNewMessage(workspace));
+  sendLoopNew(opts?: LoopNewOptions | string): Promise<void> {
+    return this.sendMessage(newLoopNewMessage(opts));
   }
 
   /** Subscribes to events for a loop. */

@@ -5,7 +5,8 @@
 import type { Client } from './client.js';
 import type { Config } from './config.js';
 import { defaultConfig } from './config.js';
-import type { DecodedMessage, StatusResponse, ErrorResponse } from './protocol.js';
+import type { DecodedMessage, LoopNewOptions, StatusResponse, ErrorResponse } from './protocol.js';
+import { newLoopNewMessage } from './protocol.js';
 
 // ---------------------------------------------------------------------------
 // Bootstrap flows (loop-first, RFC-503)
@@ -16,6 +17,7 @@ export async function bootstrapLoopSession(
   client: Client,
   resumeLoopId: string | null | undefined,
   config?: Config,
+  loopNew?: LoopNewOptions,
 ): Promise<string> {
   const cfg = config ?? defaultConfig();
 
@@ -24,7 +26,11 @@ export async function bootstrapLoopSession(
 
   let loopId = (resumeLoopId ?? '').trim();
   if (!loopId) {
-    const newResp = await client.requestResponse({ type: 'loop_new' }, 'loop_new_response', cfg.loopStatusTimeout);
+    const newResp = await client.requestResponse(
+      newLoopNewMessage(loopNew),
+      'loop_new_response',
+      cfg.loopStatusTimeout,
+    );
     loopId = String(newResp.loop_id ?? '').trim();
     if (!loopId) {
       throw new Error('loop_new_response missing loop_id');

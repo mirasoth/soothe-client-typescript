@@ -68,7 +68,7 @@ describe('round-trip', () => {
     const msg = newLoopNewMessage('/tmp/workspace');
     const encoded = encodeMessage(msg);
     const decoded = decodeMessage(encoded.slice(0, -1));
-    expect(decoded).toMatchObject({ type: 'loop_new', workspace: '/tmp/workspace' });
+    expect(decoded).toMatchObject({ type: 'loop_new', client_workspace: '/tmp/workspace' });
   });
 
   it('EventMessage', () => {
@@ -308,13 +308,24 @@ describe('factory functions', () => {
   it('newLoopNewMessage', () => {
     const msg = newLoopNewMessage('/tmp/ws');
     expect(msg.type).toBe('loop_new');
-    expect(msg.workspace).toBe('/tmp/ws');
+    expect(msg.client_workspace).toBe('/tmp/ws');
+  });
+
+  it('newLoopNewMessage with options', () => {
+    const msg = newLoopNewMessage({
+      client_workspace: '/tmp/proj',
+      user_id: 'alice',
+      client_workspace_id: 'app-1',
+    });
+    expect(msg.client_workspace).toBe('/tmp/proj');
+    expect(msg.user_id).toBe('alice');
+    expect(msg.client_workspace_id).toBe('app-1');
   });
 
   it('newLoopNewMessage without workspace', () => {
     const msg = newLoopNewMessage();
     expect(msg.type).toBe('loop_new');
-    expect(msg.workspace).toBeUndefined();
+    expect(msg.client_workspace).toBeUndefined();
   });
 
   it('newRequestID generates UUID', () => {
