@@ -99,6 +99,7 @@ export {
   EventToolCompleted,
   EventToolError,
   EventStreamToolCallUpdate,
+  EventToolCallUpdatesBatch,
   EventAgentLoopStarted,
   EventAgentLoopIterated,
   EventAgentLoopCompleted,
