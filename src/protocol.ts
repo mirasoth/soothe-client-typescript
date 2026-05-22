@@ -60,6 +60,8 @@ export interface LoopNewMessage extends BaseMessage {
   client_workspace_id?: string;
   /** User segment under $SOOTHE_HOME/workspaces/ (empty → anonymous). */
   user_id?: string;
+  /** When true, loop execution data is GC'd after idle period (workspace retained). */
+  is_ephemeral?: boolean;
   /**
    * @deprecated Use `client_workspace`. Still accepted by the daemon as an alias.
    */
@@ -71,6 +73,7 @@ export interface LoopNewOptions {
   client_workspace?: string;
   client_workspace_id?: string;
   user_id?: string;
+  is_ephemeral?: boolean;
   /** @deprecated Use `client_workspace`. */
   workspace?: string;
 }
@@ -208,6 +211,7 @@ export interface LoopNewResponse extends BaseMessage {
   type: 'loop_new_response';
   loop_id: string;
   success?: boolean;
+  is_ephemeral?: boolean;
 }
 
 export interface LoopSubscribeResponse extends BaseMessage {
@@ -489,6 +493,9 @@ export function newLoopNewMessage(opts?: LoopNewOptions | string): LoopNewMessag
   }
   if (options.client_workspace_id?.trim()) {
     msg.client_workspace_id = options.client_workspace_id.trim();
+  }
+  if (options.is_ephemeral) {
+    msg.is_ephemeral = true;
   }
   return msg;
 }
