@@ -10,31 +10,24 @@ export const EventPlanCreated = 'soothe.cognition.plan.created';
 export const EventPlanStepStarted = 'soothe.cognition.plan.step.started';
 export const EventPlanStepCompleted = 'soothe.cognition.plan.step.completed';
 
-// Browser subagent events
-export const EventBrowserStarted = 'soothe.capability.browser.started';
-export const EventBrowserCompleted = 'soothe.capability.browser.completed';
-export const EventBrowserStepRunning = 'soothe.capability.browser.step.running';
-export const EventBrowserCDPConnecting = 'soothe.capability.browser.cdp.connecting';
+// Explore subagent events (built-in wire, IG-339)
+export const EventExploreStarted = 'soothe.subagent.explore.started';
+export const EventExploreMilestone = 'soothe.subagent.explore.milestone';
+export const EventExploreStepCompleted = 'soothe.subagent.explore.step.completed';
+export const EventExploreCompleted = 'soothe.subagent.explore.completed';
 
-// Claude subagent events
-export const EventClaudeStarted = 'soothe.capability.claude.started';
-export const EventClaudeTextRunning = 'soothe.capability.claude.text.running';
-export const EventClaudeToolRunning = 'soothe.capability.claude.tool.running';
-export const EventClaudeCompleted = 'soothe.capability.claude.completed';
-
-// Research subagent events
-export const EventResearchStarted = 'soothe.capability.research.started';
-export const EventResearchCompleted = 'soothe.capability.research.completed';
-export const EventResearchJudgementReporting = 'soothe.capability.research.judgement.reporting';
-export const EventResearchInternalLLM = 'soothe.capability.research.internal_llm.run';
+// Tacitus subagent events (built-in wire, IG-339)
+export const EventTacitusStarted = 'soothe.subagent.tacitus.started';
+export const EventTacitusGatherSummary = 'soothe.subagent.tacitus.gather.summary';
+export const EventTacitusCompleted = 'soothe.subagent.tacitus.completed';
 
 // Loop lifecycle events (RFC-503)
-export const EventLoopCreated = 'soothe.loop.created';
-export const EventLoopStarted = 'soothe.loop.started';
-export const EventLoopResumed = 'soothe.loop.resumed';
-export const EventLoopCompleted = 'soothe.loop.completed';
-export const EventLoopError = 'soothe.loop.error';
-export const EventLoopReattached = 'soothe.loop.reattached';
+export const EventLoopCreated = 'soothe.lifecycle.loop.created';
+export const EventLoopStarted = 'soothe.lifecycle.loop.started';
+export const EventLoopDetached = 'soothe.lifecycle.loop.detached';
+export const EventLoopReattached = 'soothe.lifecycle.loop.reattached';
+export const EventLoopCompleted = 'soothe.lifecycle.loop.completed';
+export const EventLoopHistoryReplayed = 'soothe.lifecycle.loop.history.replayed';
 
 // Tool events
 export const EventToolStarted = 'soothe.tool.execution.started';
@@ -57,20 +50,18 @@ export const EventMessageSent = 'soothe.protocol.message.sent';
 // Output events
 export const EventFinalReport = 'soothe.output.autonomous.final_report.reported';
 
+// Error events
+export const EventGeneralFailed = 'soothe.error.general.failed';
+
 // ---------------------------------------------------------------------------
 // Namespace parsing
 // ---------------------------------------------------------------------------
 
-/** Splits an event namespace into its components. Handles both 3 and 4-segment namespaces. */
+/** Splits a 4-segment event namespace into domain, component, and action. */
 export function parseNamespace(ns: string): { domain: string; component: string; action: string } | null {
   const parts = splitNamespace(ns);
-  if (parts.length < 3 || parts[0] !== 'soothe') {
+  if (parts.length < 4 || parts[0] !== 'soothe') {
     return null;
-  }
-  // 3-segment: soothe.loop.completed -> domain=loop, component=loop, action=completed
-  // 4-segment: soothe.cognition.plan.created -> domain=cognition, component=plan, action=created
-  if (parts.length === 3) {
-    return { domain: parts[1], component: parts[1], action: parts[2] };
   }
   return { domain: parts[1], component: parts[2], action: parts[3] };
 }
@@ -103,46 +94,68 @@ export function classifyEventVerbosity(eventTypeOrNamespace: string): VerbosityT
 
 function classifyByDomainAndComponent(domain: string, _component: string, full: string): VerbosityTier {
   switch (domain) {
-    case 'loop': return VerbosityTier.Detailed;
-    case 'protocol': return VerbosityTier.Detailed;
-    case 'cognition': return VerbosityTier.Normal;
-    case 'tool': return VerbosityTier.Internal;
-    case 'capability': return classifyCapabilityEvent(full);
-    case 'output': return VerbosityTier.Quiet;
-    default: return VerbosityTier.Normal;
+    case 'lifecycle':
+      return classifyLifecycleEvent(full);
+    case 'protocol':
+      return VerbosityTier.Detailed;
+    case 'cognition':
+      return VerbosityTier.Normal;
+    case 'tool':
+      return VerbosityTier.Internal;
+    case 'subagent':
+      return classifySubagentEvent(full);
+    case 'output':
+    case 'error':
+      return VerbosityTier.Quiet;
+    default:
+      return VerbosityTier.Normal;
   }
 }
 
-function classifyCapabilityEvent(full: string): VerbosityTier {
+function classifyLifecycleEvent(full: string): VerbosityTier {
+  const parsed = parseNamespace(full);
+  if (!parsed) return VerbosityTier.Detailed;
+  switch (parsed.action) {
+    case 'completed':
+    case 'ended':
+    case 'error':
+      return VerbosityTier.Quiet;
+    case 'started':
+    case 'reattached':
+      return VerbosityTier.Normal;
+    default:
+      return VerbosityTier.Detailed;
+  }
+}
+
+function classifySubagentEvent(full: string): VerbosityTier {
   const parsed = parseNamespace(full);
   if (!parsed) return VerbosityTier.Normal;
   switch (parsed.action) {
-    case 'started': case 'completed': return VerbosityTier.Normal;
-    default: return VerbosityTier.Detailed;
+    case 'started':
+    case 'completed':
+      return VerbosityTier.Normal;
+    default:
+      return VerbosityTier.Detailed;
   }
 }
 
 function classifyByEventTypeString(s: string): VerbosityTier {
   switch (s) {
     case EventFinalReport:
-    case EventLoopError:
+    case EventGeneralFailed:
       return VerbosityTier.Quiet;
     case EventPlanCreated:
     case EventPlanStepStarted:
     case EventPlanStepCompleted:
     case EventAgentLoopStarted:
     case EventAgentLoopIterated:
-    case EventBrowserStarted:
-    case EventBrowserCompleted:
-    case EventClaudeStarted:
-    case EventClaudeCompleted:
-    case EventResearchStarted:
-    case EventResearchCompleted:
-    case EventResearchJudgementReporting:
+    case EventExploreStarted:
+    case EventExploreCompleted:
+    case EventTacitusStarted:
+    case EventTacitusCompleted:
     case EventLoopCreated:
     case EventLoopStarted:
-    case EventLoopResumed:
-    case EventLoopCompleted:
     case EventLoopReattached:
       return VerbosityTier.Normal;
     case EventAgentLoopCompleted:
@@ -152,7 +165,7 @@ function classifyByEventTypeString(s: string): VerbosityTier {
   }
 }
 
-/** Checks if an event namespace signals loop completion. */
+/** Checks if an event namespace signals loop/run completion. */
 export function isCompletionEvent(namespace: string): boolean {
   const parsed = parseNamespace(namespace);
   if (!parsed) return false;
@@ -162,13 +175,10 @@ export function isCompletionEvent(namespace: string): boolean {
 /** Checks if an event is a subagent progress event. */
 export function isSubagentProgressEvent(namespace: string): boolean {
   switch (namespace) {
-    case EventBrowserStarted:
-    case EventBrowserCompleted:
-    case EventClaudeStarted:
-    case EventClaudeCompleted:
-    case EventResearchStarted:
-    case EventResearchCompleted:
-    case EventResearchJudgementReporting:
+    case EventExploreStarted:
+    case EventExploreCompleted:
+    case EventTacitusStarted:
+    case EventTacitusCompleted:
       return true;
     default:
       return false;
@@ -178,7 +188,7 @@ export function isSubagentProgressEvent(namespace: string): boolean {
 /** Essential event types that are always processed regardless of verbosity. */
 export const ESSENTIAL_EVENT_TYPES: ReadonlySet<string> = new Set([
   EventLoopCompleted,
-  EventLoopError,
+  EventGeneralFailed,
   EventFinalReport,
   EventPlanCreated,
   EventPlanStepStarted,
@@ -186,11 +196,8 @@ export const ESSENTIAL_EVENT_TYPES: ReadonlySet<string> = new Set([
   EventAgentLoopStarted,
   EventAgentLoopIterated,
   EventAgentLoopCompleted,
-  EventBrowserStarted,
-  EventBrowserCompleted,
-  EventClaudeStarted,
-  EventClaudeCompleted,
-  EventResearchStarted,
-  EventResearchCompleted,
-  EventResearchJudgementReporting,
+  EventExploreStarted,
+  EventExploreCompleted,
+  EventTacitusStarted,
+  EventTacitusCompleted,
 ]);
