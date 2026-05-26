@@ -276,6 +276,18 @@ export interface HistoryReplayCompleteMessage extends BaseMessage {
   loop_id?: string;
 }
 
+export interface ReplayCompleteMessage extends BaseMessage {
+  type: 'replay_complete';
+  loop_id?: string;
+  event_count?: number;
+}
+
+export interface LoopReattachedWireMessage extends BaseMessage {
+  type: 'loop_reattached';
+  loop_id?: string;
+  timestamp?: string;
+}
+
 // Other responses
 
 export interface SkillsListResponse extends BaseMessage {
@@ -400,7 +412,11 @@ export function decodeMessage(data: string): DecodedMessage | null {
     case 'loop_delete_response': return { ...parsed } as unknown as LoopDeleteResponse;
     case 'loop_reattach_response': return { ...parsed } as unknown as LoopReattachResponse;
     case 'history_replay': return { ...parsed } as unknown as HistoryReplayMessage;
-    case 'history_replay_complete': return { ...parsed } as unknown as HistoryReplayCompleteMessage;
+    case 'history_replay_complete':
+    case 'replay_complete':
+      return { ...parsed } as unknown as ReplayCompleteMessage;
+    case 'loop_reattached':
+      return { ...parsed } as unknown as LoopReattachedWireMessage;
     case 'config_get_response':
     case 'invoke_skill_response':
       return parsed;

@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   parseNamespace, classifyEventVerbosity, isCompletionEvent, isSubagentProgressEvent,
   ESSENTIAL_EVENT_TYPES,
-  EventPlanCreated, EventPlanStepStarted, EventPlanStepCompleted,
+  EventPlanCreated,
   EventExploreStarted, EventExploreCompleted, EventExploreStepCompleted,
   EventTacitusStarted, EventTacitusCompleted,
-  EventLoopCompleted,
   EventToolStarted,
   EventFinalReport,
   EventGeneralFailed,
   EventAgentLoopCompleted,
+  EventAgentLoopReasoned,
 } from '../src/events.js';
 import { VerbosityTier } from '../src/verbosity.js';
 
@@ -19,9 +19,8 @@ describe('parseNamespace', () => {
     expect(result).toEqual({ domain: 'cognition', component: 'plan', action: 'created' });
   });
 
-  it('loop lifecycle namespace', () => {
-    const result = parseNamespace('soothe.lifecycle.loop.completed');
-    expect(result).toEqual({ domain: 'lifecycle', component: 'loop', action: 'completed' });
+  it('rejects internal namespaces (not exposed to clients)', () => {
+    expect(parseNamespace('soothe.internal.loop.completed')).toBeNull();
   });
 
   it('invalid namespace', () => {
@@ -45,8 +44,7 @@ describe('classifyEventVerbosity', () => {
 
   it('normal tier', () => {
     expect(classifyEventVerbosity(EventPlanCreated)).toBe(VerbosityTier.Normal);
-    expect(classifyEventVerbosity(EventPlanStepStarted)).toBe(VerbosityTier.Normal);
-    expect(classifyEventVerbosity(EventPlanStepCompleted)).toBe(VerbosityTier.Normal);
+    expect(classifyEventVerbosity(EventAgentLoopReasoned)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventExploreStarted)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventExploreCompleted)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventTacitusStarted)).toBe(VerbosityTier.Normal);
@@ -55,7 +53,6 @@ describe('classifyEventVerbosity', () => {
 
   it('detailed tier', () => {
     expect(classifyEventVerbosity(EventExploreStepCompleted)).toBe(VerbosityTier.Detailed);
-    expect(classifyEventVerbosity('soothe.lifecycle.loop.created')).toBe(VerbosityTier.Detailed);
   });
 
   it('internal tier', () => {
@@ -65,7 +62,7 @@ describe('classifyEventVerbosity', () => {
 
 describe('isCompletionEvent', () => {
   it('completed actions', () => {
-    expect(isCompletionEvent(EventLoopCompleted)).toBe(true);
+    expect(isCompletionEvent(EventAgentLoopCompleted)).toBe(true);
     expect(isCompletionEvent('soothe.subagent.explore.completed')).toBe(true);
     expect(isCompletionEvent('soothe.cognition.plan.completed')).toBe(true);
   });
@@ -94,8 +91,11 @@ describe('isSubagentProgressEvent', () => {
 describe('ESSENTIAL_EVENT_TYPES', () => {
   it('contains essential events', () => {
     const essential = [
-      EventLoopCompleted, EventGeneralFailed, EventFinalReport,
-      EventPlanCreated, EventExploreStarted, EventTacitusStarted,
+      EventAgentLoopReasoned,
+      EventGeneralFailed,
+      EventPlanCreated,
+      EventExploreStarted,
+      EventTacitusStarted,
     ];
     for (const ev of essential) {
       expect(ESSENTIAL_EVENT_TYPES.has(ev)).toBe(true);

@@ -1,14 +1,16 @@
 /**
- * Event namespace constants matching the Soothe daemon wire protocol.
+ * Client-facing event namespace constants for the Soothe daemon wire protocol.
+ *
+ * Internal catalog types (`soothe.internal.*`) are server-only and are never
+ * broadcast to WebSocket clients. Do not add them here.
+ *
  * Format: soothe.<domain>.<component>.<action>
  */
 
 import { VerbosityTier } from './verbosity.js';
 
-// Plan events
+// Plan events (client UX)
 export const EventPlanCreated = 'soothe.cognition.plan.created';
-export const EventPlanStepStarted = 'soothe.cognition.plan.step.started';
-export const EventPlanStepCompleted = 'soothe.cognition.plan.step.completed';
 
 // Explore subagent events (built-in wire, IG-339)
 export const EventExploreStarted = 'soothe.subagent.explore.started';
@@ -21,13 +23,9 @@ export const EventTacitusStarted = 'soothe.subagent.tacitus.started';
 export const EventTacitusGatherSummary = 'soothe.subagent.tacitus.gather.summary';
 export const EventTacitusCompleted = 'soothe.subagent.tacitus.completed';
 
-// Loop lifecycle events (RFC-503)
-export const EventLoopCreated = 'soothe.lifecycle.loop.created';
-export const EventLoopStarted = 'soothe.lifecycle.loop.started';
-export const EventLoopDetached = 'soothe.lifecycle.loop.detached';
-export const EventLoopReattached = 'soothe.lifecycle.loop.reattached';
-export const EventLoopCompleted = 'soothe.lifecycle.loop.completed';
-export const EventLoopHistoryReplayed = 'soothe.lifecycle.loop.history.replayed';
+// Control-plane wire envelopes (not soothe.* catalog events)
+export const EventReplayComplete = 'replay_complete';
+export const EventLoopReattachedWire = 'loop_reattached';
 
 // Tool events
 export const EventToolStarted = 'soothe.tool.execution.started';
@@ -42,8 +40,9 @@ export const EventToolCallUpdatesBatch = 'tool_call_updates_batch';
 export const EventAgentLoopStarted = 'soothe.cognition.agent_loop.started';
 export const EventAgentLoopIterated = 'soothe.cognition.agent_loop.iterated';
 export const EventAgentLoopCompleted = 'soothe.cognition.agent_loop.completed';
+export const EventAgentLoopReasoned = 'soothe.cognition.agent_loop.reasoned';
 
-// Message protocol events
+// Message protocol events (client stream metadata)
 export const EventMessageReceived = 'soothe.protocol.message.received';
 export const EventMessageSent = 'soothe.protocol.message.sent';
 
@@ -94,12 +93,10 @@ export function classifyEventVerbosity(eventTypeOrNamespace: string): VerbosityT
 
 function classifyByDomainAndComponent(domain: string, _component: string, full: string): VerbosityTier {
   switch (domain) {
-    case 'lifecycle':
-      return classifyLifecycleEvent(full);
-    case 'protocol':
-      return VerbosityTier.Detailed;
     case 'cognition':
       return VerbosityTier.Normal;
+    case 'protocol':
+      return VerbosityTier.Detailed;
     case 'tool':
       return VerbosityTier.Internal;
     case 'subagent':
@@ -109,22 +106,6 @@ function classifyByDomainAndComponent(domain: string, _component: string, full: 
       return VerbosityTier.Quiet;
     default:
       return VerbosityTier.Normal;
-  }
-}
-
-function classifyLifecycleEvent(full: string): VerbosityTier {
-  const parsed = parseNamespace(full);
-  if (!parsed) return VerbosityTier.Detailed;
-  switch (parsed.action) {
-    case 'completed':
-    case 'ended':
-    case 'error':
-      return VerbosityTier.Quiet;
-    case 'started':
-    case 'reattached':
-      return VerbosityTier.Normal;
-    default:
-      return VerbosityTier.Detailed;
   }
 }
 
@@ -140,64 +121,43 @@ function classifySubagentEvent(full: string): VerbosityTier {
   }
 }
 
-function classifyByEventTypeString(s: string): VerbosityTier {
-  switch (s) {
-    case EventFinalReport:
-    case EventGeneralFailed:
-      return VerbosityTier.Quiet;
-    case EventPlanCreated:
-    case EventPlanStepStarted:
-    case EventPlanStepCompleted:
-    case EventAgentLoopStarted:
-    case EventAgentLoopIterated:
-    case EventExploreStarted:
-    case EventExploreCompleted:
-    case EventTacitusStarted:
-    case EventTacitusCompleted:
-    case EventLoopCreated:
-    case EventLoopStarted:
-    case EventLoopReattached:
-      return VerbosityTier.Normal;
-    case EventAgentLoopCompleted:
-      return VerbosityTier.Quiet;
-    default:
-      return VerbosityTier.Normal;
+function classifyByEventTypeString(eventType: string): VerbosityTier {
+  if (eventType === EventFinalReport || eventType === EventGeneralFailed) {
+    return VerbosityTier.Quiet;
   }
-}
-
-/** Checks if an event namespace signals loop/run completion. */
-export function isCompletionEvent(namespace: string): boolean {
-  const parsed = parseNamespace(namespace);
-  if (!parsed) return false;
-  return parsed.action === 'completed' || namespace === EventLoopCompleted;
-}
-
-/** Checks if an event is a subagent progress event. */
-export function isSubagentProgressEvent(namespace: string): boolean {
-  switch (namespace) {
-    case EventExploreStarted:
-    case EventExploreCompleted:
-    case EventTacitusStarted:
-    case EventTacitusCompleted:
-      return true;
-    default:
-      return false;
+  if (eventType === EventToolStarted) {
+    return VerbosityTier.Internal;
   }
+  return VerbosityTier.Normal;
 }
 
-/** Essential event types that are always processed regardless of verbosity. */
+// ---------------------------------------------------------------------------
+// Event classification helpers
+// ---------------------------------------------------------------------------
+
+/** Event types that represent completion milestones. */
+export function isCompletionEvent(eventType: string): boolean {
+  return (
+    eventType.endsWith('.completed') ||
+    eventType.endsWith('.failed') ||
+    eventType === EventGeneralFailed
+  );
+}
+
+/** Event types for subagent progress (milestones). */
+export function isSubagentProgressEvent(eventType: string): boolean {
+  return eventType.startsWith('soothe.subagent.');
+}
+
+/** Essential progress event types for minimal UI surfaces. */
 export const ESSENTIAL_EVENT_TYPES: ReadonlySet<string> = new Set([
-  EventLoopCompleted,
-  EventGeneralFailed,
-  EventFinalReport,
-  EventPlanCreated,
-  EventPlanStepStarted,
-  EventPlanStepCompleted,
   EventAgentLoopStarted,
-  EventAgentLoopIterated,
   EventAgentLoopCompleted,
+  EventAgentLoopReasoned,
+  EventPlanCreated,
   EventExploreStarted,
   EventExploreCompleted,
   EventTacitusStarted,
   EventTacitusCompleted,
+  EventGeneralFailed,
 ]);
