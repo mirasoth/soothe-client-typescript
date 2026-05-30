@@ -44,7 +44,6 @@ export type {
   LoopPruneMessage,
   LoopDeleteMessage,
   LoopReattachMessage,
-  ResumeInterruptsMessage,
   SkillsListMessage,
   ModelsListMessage,
   InvokeSkillMessage,

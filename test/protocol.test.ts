@@ -7,7 +7,7 @@ import {
   type LoopNewMessage, type EventMessage,
   type StatusResponse, type DaemonReadyResponse, type ErrorResponse,
   type DaemonStatusResponse, type ShutdownAckResponse, type LoopListResponse,
-  type SkillsListResponse, type ModelsListResponse, type ResumeInterruptsMessage,
+  type SkillsListResponse, type ModelsListResponse,
 } from '../src/protocol.js';
 
 // ---------------------------------------------------------------------------
@@ -181,7 +181,6 @@ describe('decode all client message types', () => {
     { name: 'daemon_status', json: `{"type":"daemon_status"}`, wantType: 'daemon_status' },
     { name: 'daemon_shutdown', json: `{"type":"daemon_shutdown"}`, wantType: 'daemon_shutdown' },
     { name: 'config_get', json: `{"type":"config_get","section":"providers"}`, wantType: 'config_get' },
-    { name: 'resume_interrupts', json: `{"type":"resume_interrupts","loop_id":"L1","resume_payload":{}}`, wantType: 'resume_interrupts' },
     { name: 'skills_list', json: `{"type":"skills_list"}`, wantType: 'skills_list' },
     { name: 'models_list', json: `{"type":"models_list"}`, wantType: 'models_list' },
     { name: 'invoke_skill', json: `{"type":"invoke_skill","skill":"test","args":""}`, wantType: 'invoke_skill' },
@@ -273,15 +272,6 @@ describe('extractSootheLoopID', () => {
   it('returns false for unsupported type', () => {
     const [, ok] = extractSootheLoopID('not a message');
     expect(ok).toBe(false);
-  });
-});
-
-describe('resume_interrupts decode', () => {
-  it('preserves loop_id', () => {
-    const decoded = decodeMessage(
-      `{"type":"resume_interrupts","loop_id":"L1","resume_payload":{}}`,
-    ) as ResumeInterruptsMessage;
-    expect(decoded.loop_id).toBe('L1');
   });
 });
 

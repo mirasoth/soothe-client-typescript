@@ -129,12 +129,6 @@ export interface LoopReattachMessage extends BaseMessage {
 
 // Other messages
 
-export interface ResumeInterruptsMessage extends BaseMessage {
-  type: 'resume_interrupts';
-  loop_id: string;
-  resume_payload: Record<string, unknown>;
-}
-
 export interface SkillsListMessage extends BaseMessage {
   type: 'skills_list';
 }
@@ -316,7 +310,6 @@ export type DecodedMessage =
   | LoopPruneMessage
   | LoopDeleteMessage
   | LoopReattachMessage
-  | ResumeInterruptsMessage
   | SkillsListMessage
   | ModelsListMessage
   | InvokeSkillMessage
@@ -382,7 +375,6 @@ export function decodeMessage(data: string): DecodedMessage | null {
     case 'loop_prune': return { ...parsed } as unknown as LoopPruneMessage;
     case 'loop_delete': return { ...parsed } as unknown as LoopDeleteMessage;
     case 'loop_reattach': return { ...parsed } as unknown as LoopReattachMessage;
-    case 'resume_interrupts': return { ...parsed } as unknown as ResumeInterruptsMessage;
     case 'skills_list': return { ...parsed } as unknown as SkillsListMessage;
     case 'models_list': return { ...parsed } as unknown as ModelsListMessage;
     case 'invoke_skill': return { ...parsed } as unknown as InvokeSkillMessage;

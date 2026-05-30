@@ -358,20 +358,6 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // Interrupt handling
-  // ---------------------------------------------------------------------------
-
-  /** Sends interactive continuation payload for a paused loop (resume_interrupts). */
-  sendResumeInterrupts(loopID: string, resumePayload: Record<string, unknown>, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'resume_interrupts',
-      loop_id: loopID,
-      resume_payload: resumePayload,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  // ---------------------------------------------------------------------------
   // Skills and models
   // ---------------------------------------------------------------------------
 
