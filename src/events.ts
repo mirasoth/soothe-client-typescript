@@ -62,6 +62,9 @@ export function parseNamespace(ns: string): { domain: string; component: string;
   if (parts.length < 4 || parts[0] !== 'soothe') {
     return null;
   }
+  if (parts[1] === 'internal') {
+    return null;
+  }
   return { domain: parts[1], component: parts[2], action: parts[3] };
 }
 
@@ -144,9 +147,13 @@ export function isCompletionEvent(eventType: string): boolean {
   );
 }
 
-/** Event types for subagent progress (milestones). */
+/** Lifecycle subagent events (started/completed) for progress UI. */
 export function isSubagentProgressEvent(eventType: string): boolean {
-  return eventType.startsWith('soothe.subagent.');
+  const parsed = parseNamespace(eventType);
+  if (!parsed || parsed.domain !== 'subagent') {
+    return false;
+  }
+  return parsed.action === 'started' || parsed.action === 'completed';
 }
 
 /** Essential progress event types for minimal UI surfaces. */
