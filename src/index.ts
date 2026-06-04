@@ -35,7 +35,7 @@ export type {
   DaemonShutdownMessage,
   ConfigGetMessage,
   LoopNewMessage,
-  type LoopNewOptions,
+  LoopNewOptions,
   LoopSubscribeMessage,
   LoopDetachMessage,
   LoopListMessage,

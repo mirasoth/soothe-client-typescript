@@ -27,7 +27,7 @@ export async function bootstrapLoopSession(
   let loopId = (resumeLoopId ?? '').trim();
   if (!loopId) {
     const newResp = await client.requestResponse(
-      newLoopNewMessage(loopNew),
+      newLoopNewMessage(loopNew) as unknown as Record<string, unknown>,
       'loop_new_response',
       cfg.loopStatusTimeout,
     );

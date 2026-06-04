@@ -241,7 +241,7 @@ export class Client extends EventEmitter {
   sendLoopSubscribe(loopID: string, verbosity: string, streamDelivery?: 'batch' | 'streaming'): Promise<void> {
     const msg = newLoopSubscribeMessage(loopID, verbosity);
     if (streamDelivery) {
-      (msg as Record<string, unknown>).stream_delivery = streamDelivery;
+      (msg as unknown as Record<string, unknown>).stream_delivery = streamDelivery;
     }
     return this.sendMessage(msg);
   }

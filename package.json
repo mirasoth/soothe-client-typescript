@@ -1,7 +1,10 @@
 {
-  "name": "soothe-client-typescript",
+  "name": "@mirasoth/soothe-client",
   "version": "0.1.0",
   "description": "WebSocket client in TypeScript for soothe-daemon",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",

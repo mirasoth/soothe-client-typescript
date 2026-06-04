@@ -332,6 +332,8 @@ export type DecodedMessage =
   | LoopReattachResponse
   | HistoryReplayMessage
   | HistoryReplayCompleteMessage
+  | ReplayCompleteMessage
+  | LoopReattachedWireMessage
   | SkillsListResponse
   | ModelsListResponse
   | Record<string, unknown>;
