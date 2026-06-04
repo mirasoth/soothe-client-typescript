@@ -27,6 +27,11 @@ export const EventTacitusCompleted = 'soothe.subagent.tacitus.completed';
 export const EventReplayComplete = 'replay_complete';
 export const EventLoopReattachedWire = 'loop_reattached';
 
+// Card ledger replay frames (RFC-413, card_binder design)
+export const EventCardReplayBegin = 'card.replay_begin';
+export const EventCardCreated = 'card.created';
+export const EventCardReplayEnd = 'card.replay_end';
+
 // Tool events
 export const EventToolStarted = 'soothe.tool.execution.started';
 export const EventToolCompleted = 'soothe.tool.execution.completed';
@@ -178,3 +183,12 @@ export const ESSENTIAL_EVENT_TYPES: ReadonlySet<string> = new Set([
   EventTacitusCompleted,
   EventGeneralFailed,
 ]);
+
+/** Returns true if the message type is a card ledger replay frame (RFC-413). */
+export function isCardReplayFrame(messageType: string): boolean {
+  return (
+    messageType === EventCardReplayBegin ||
+    messageType === EventCardCreated ||
+    messageType === EventCardReplayEnd
+  );
+}

@@ -396,7 +396,7 @@ export interface LoopReattachResponse extends BaseMessage {
   success?: boolean;
 }
 
-// History replay messages (RFC-411)
+// History replay messages (RFC-411, legacy — superseded by card.* frames)
 
 export interface HistoryReplayMessage extends BaseMessage {
   type: 'history_replay';
@@ -420,6 +420,34 @@ export interface LoopReattachedWireMessage extends BaseMessage {
   type: 'loop_reattached';
   loop_id?: string;
   timestamp?: string;
+}
+
+// Card ledger replay frames (RFC-413, card_binder design)
+
+/** Signals the start of a card ledger replay. */
+export interface CardReplayBeginMessage extends BaseMessage {
+  type: 'card.replay_begin';
+  loop_id: string;
+  total_cards: number;
+  latest_seq: number;
+}
+
+/** Carries one display card during ledger replay. */
+export interface CardCreatedMessage extends BaseMessage {
+  type: 'card.created';
+  loop_id: string;
+  seq: number;
+  card_id: string;
+  kind: string;
+  data: Record<string, unknown>;
+}
+
+/** Signals the end of a card ledger replay. */
+export interface CardReplayEndMessage extends BaseMessage {
+  type: 'card.replay_end';
+  loop_id: string;
+  latest_seq: number;
+  card_count: number;
 }
 
 // Other responses
@@ -492,6 +520,9 @@ export type DecodedMessage =
   | HistoryReplayCompleteMessage
   | ReplayCompleteMessage
   | LoopReattachedWireMessage
+  | CardReplayBeginMessage
+  | CardCreatedMessage
+  | CardReplayEndMessage
   | SkillsListResponse
   | ModelsListResponse
   | Record<string, unknown>;
@@ -594,6 +625,11 @@ export function decodeMessage(data: string): DecodedMessage | null {
       return parsed;
     case 'skills_list_response': return { ...parsed } as unknown as SkillsListResponse;
     case 'models_list_response': return { ...parsed } as unknown as ModelsListResponse;
+
+    // Card ledger replay (RFC-413)
+    case 'card.replay_begin': return { ...parsed } as unknown as CardReplayBeginMessage;
+    case 'card.created': return { ...parsed } as unknown as CardCreatedMessage;
+    case 'card.replay_end': return { ...parsed } as unknown as CardReplayEndMessage;
 
     default:
       return parsed;

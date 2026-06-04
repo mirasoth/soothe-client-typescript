@@ -68,6 +68,9 @@ export type {
   HistoryReplayCompleteMessage,
   ReplayCompleteMessage,
   LoopReattachedWireMessage,
+  CardReplayBeginMessage,
+  CardCreatedMessage,
+  CardReplayEndMessage,
   SkillsListResponse,
   ModelsListResponse,
   JobCreateMessage,
@@ -105,6 +108,9 @@ export {
   EventTacitusCompleted,
   EventReplayComplete,
   EventLoopReattachedWire,
+  EventCardReplayBegin,
+  EventCardCreated,
+  EventCardReplayEnd,
   EventAgentLoopReasoned,
   EventToolStarted,
   EventToolCompleted,
@@ -128,6 +134,7 @@ export {
   classifyEventVerbosity,
   isCompletionEvent,
   isSubagentProgressEvent,
+  isCardReplayFrame,
   ESSENTIAL_EVENT_TYPES,
 } from './events.js';
 
