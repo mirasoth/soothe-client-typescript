@@ -148,6 +148,146 @@ export interface DetachMessage extends BaseMessage {
 }
 
 // ---------------------------------------------------------------------------
+// RFC-228: Autopilot Job IPC messages
+// ---------------------------------------------------------------------------
+
+// Job creation
+export interface JobCreateMessage extends BaseMessage {
+  type: 'job_create';
+  goal: string;
+  verification_rules?: string;
+}
+
+export interface JobCreateResponse extends BaseMessage {
+  type: 'job_create_response';
+  job_id: string;
+  status: string;
+}
+
+// Job status
+export interface JobStatusMessage extends BaseMessage {
+  type: 'job_status';
+  job_id: string;
+}
+
+export interface JobStatusResponse extends BaseMessage {
+  type: 'job_status_response';
+  job_id: string;
+  status: string;
+  active_goals: number;
+  completed_goals: number;
+  failed_goals: number;
+  total_goals: number;
+  workers: Array<{ goal_id: string; loop_id: string }>;
+  last_error?: string;
+}
+
+// Job pause/resume/cancel
+export interface JobPauseMessage extends BaseMessage {
+  type: 'job_pause';
+  job_id: string;
+}
+
+export interface JobPauseResponse extends BaseMessage {
+  type: 'job_pause_response';
+  job_id: string;
+  status: string;
+}
+
+export interface JobResumeMessage extends BaseMessage {
+  type: 'job_resume';
+  job_id: string;
+}
+
+export interface JobResumeResponse extends BaseMessage {
+  type: 'job_resume_response';
+  job_id: string;
+  status: string;
+}
+
+export interface JobCancelMessage extends BaseMessage {
+  type: 'job_cancel';
+  job_id: string;
+}
+
+export interface JobCancelResponse extends BaseMessage {
+  type: 'job_cancel_response';
+  job_id: string;
+  status: string;
+}
+
+// Job DAG visualization
+export interface JobDagMessage extends BaseMessage {
+  type: 'job_dag';
+  job_id: string;
+}
+
+export interface DagNode {
+  id: string;
+  description: string;
+  status: string;
+  priority: number;
+  depends_on: string[];
+  assigned_loop_id?: string;
+  steps_completed: number;
+  steps_total: number;
+  tool_calls: number;
+  summary?: string;
+  findings?: string[];
+}
+
+export interface DagEdge {
+  source: string;
+  target: string;
+}
+
+export interface JobDagResponse extends BaseMessage {
+  type: 'job_dag_response';
+  job_id: string;
+  dag: {
+    nodes: DagNode[];
+    edges: DagEdge[];
+    root_id: string;
+  };
+}
+
+// Job guidance (LOR comments)
+export interface JobGuidanceMessage extends BaseMessage {
+  type: 'job_guidance';
+  job_id: string;
+  goal_id?: string;
+  text: string;
+}
+
+export interface JobGuidanceResponse extends BaseMessage {
+  type: 'job_guidance_response';
+  job_id: string;
+  goal_id?: string;
+  absorbed: boolean;
+}
+
+// Autopilot subscription (worker events bypass)
+export interface AutopilotSubscribeMessage extends BaseMessage {
+  type: 'autopilot_subscribe';
+}
+
+export interface AutopilotSubscribeResponse extends BaseMessage {
+  type: 'autopilot_subscribe_response';
+  client_id: string;
+  subscribed: boolean;
+}
+
+export interface AutopilotUnsubscribeMessage extends BaseMessage {
+  type: 'autopilot_unsubscribe';
+}
+
+export interface AutopilotUnsubscribeResponse extends BaseMessage {
+  type: 'autopilot_unsubscribe_response';
+  client_id: string;
+  subscribed: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Daemon → Client messages
 // ---------------------------------------------------------------------------
 
@@ -314,6 +454,24 @@ export type DecodedMessage =
   | ModelsListMessage
   | InvokeSkillMessage
   | DetachMessage
+  | JobCreateMessage
+  | JobCreateResponse
+  | JobStatusMessage
+  | JobStatusResponse
+  | JobPauseMessage
+  | JobPauseResponse
+  | JobResumeMessage
+  | JobResumeResponse
+  | JobCancelMessage
+  | JobCancelResponse
+  | JobDagMessage
+  | JobDagResponse
+  | JobGuidanceMessage
+  | JobGuidanceResponse
+  | AutopilotSubscribeMessage
+  | AutopilotSubscribeResponse
+  | AutopilotUnsubscribeMessage
+  | AutopilotUnsubscribeResponse
   | EventMessage
   | StatusResponse
   | SubscriptionConfirmedResponse
@@ -381,6 +539,26 @@ export function decodeMessage(data: string): DecodedMessage | null {
     case 'models_list': return { ...parsed } as unknown as ModelsListMessage;
     case 'invoke_skill': return { ...parsed } as unknown as InvokeSkillMessage;
     case 'detach': return { ...parsed } as unknown as DetachMessage;
+
+    // RFC-228: Autopilot Job messages
+    case 'job_create': return { ...parsed } as unknown as JobCreateMessage;
+    case 'job_create_response': return { ...parsed } as unknown as JobCreateResponse;
+    case 'job_status': return { ...parsed } as unknown as JobStatusMessage;
+    case 'job_status_response': return { ...parsed } as unknown as JobStatusResponse;
+    case 'job_pause': return { ...parsed } as unknown as JobPauseMessage;
+    case 'job_pause_response': return { ...parsed } as unknown as JobPauseResponse;
+    case 'job_resume': return { ...parsed } as unknown as JobResumeMessage;
+    case 'job_resume_response': return { ...parsed } as unknown as JobResumeResponse;
+    case 'job_cancel': return { ...parsed } as unknown as JobCancelMessage;
+    case 'job_cancel_response': return { ...parsed } as unknown as JobCancelResponse;
+    case 'job_dag': return { ...parsed } as unknown as JobDagMessage;
+    case 'job_dag_response': return { ...parsed } as unknown as JobDagResponse;
+    case 'job_guidance': return { ...parsed } as unknown as JobGuidanceMessage;
+    case 'job_guidance_response': return { ...parsed } as unknown as JobGuidanceResponse;
+    case 'autopilot_subscribe': return { ...parsed } as unknown as AutopilotSubscribeMessage;
+    case 'autopilot_subscribe_response': return { ...parsed } as unknown as AutopilotSubscribeResponse;
+    case 'autopilot_unsubscribe': return { ...parsed } as unknown as AutopilotUnsubscribeMessage;
+    case 'autopilot_unsubscribe_response': return { ...parsed } as unknown as AutopilotUnsubscribeResponse;
 
     // Daemon → Client
     case 'event': return { ...parsed } as unknown as EventMessage;
