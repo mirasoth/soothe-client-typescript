@@ -49,6 +49,14 @@ export const EventMessageSent = 'soothe.protocol.message.sent';
 // Output events
 export const EventFinalReport = 'soothe.output.autonomous.final_report.reported';
 
+// Autopilot events (RFC-228)
+export const EventAutopilotGoalStatus = 'soothe.autopilot.goal.status';
+export const EventAutopilotGoalProgress = 'soothe.autopilot.goal.progress';
+export const EventAutopilotGoalCreated = 'soothe.autopilot.goal.created';
+export const EventAutopilotGoalCompleted = 'soothe.autopilot.goal.completed';
+export const EventAutopilotWorkerAssigned = 'soothe.autopilot.worker.assigned';
+export const EventAutopilotWorkerUnassigned = 'soothe.autopilot.worker.unassigned';
+
 // Error events
 export const EventGeneralFailed = 'soothe.error.general.failed';
 
@@ -104,6 +112,8 @@ function classifyByDomainAndComponent(domain: string, _component: string, full: 
       return VerbosityTier.Internal;
     case 'subagent':
       return classifySubagentEvent(full);
+    case 'autopilot':
+      return VerbosityTier.Normal;
     case 'output':
     case 'error':
       return VerbosityTier.Quiet;

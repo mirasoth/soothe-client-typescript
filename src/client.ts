@@ -469,6 +469,59 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
+  // RFC-228 Job IPC methods
+  // ---------------------------------------------------------------------------
+
+  /** Creates an autopilot job and waits for the response. */
+  createJob(goal: string, verificationRules?: string, timeout?: number): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = { type: 'job_create', goal };
+    if (verificationRules) payload.verification_rules = verificationRules;
+    return this.requestResponse(payload, 'job_create_response', timeout ?? 15_000);
+  }
+
+  /** Queries job status and waits for the response. */
+  getJobStatus(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'job_status', job_id: jobId }, 'job_status_response', timeout ?? 15_000);
+  }
+
+  /** Pauses a running job. */
+  pauseJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'job_pause', job_id: jobId }, 'job_pause_response', timeout ?? 15_000);
+  }
+
+  /** Resumes a paused job. */
+  resumeJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'job_resume', job_id: jobId }, 'job_resume_response', timeout ?? 15_000);
+  }
+
+  /** Cancels a job. */
+  cancelJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'job_cancel', job_id: jobId }, 'job_cancel_response', timeout ?? 15_000);
+  }
+
+  /** Requests the DAG visualization for a job. */
+  getJobDag(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'job_dag', job_id: jobId }, 'job_dag_response', timeout ?? 15_000);
+  }
+
+  /** Sends guidance to a job or specific goal. */
+  sendJobGuidance(jobId: string, text: string, goalId?: string, timeout?: number): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = { type: 'job_guidance', job_id: jobId, text };
+    if (goalId) payload.goal_id = goalId;
+    return this.requestResponse(payload, 'job_guidance_response', timeout ?? 30_000);
+  }
+
+  /** Subscribes to autopilot worker events. */
+  autopilotSubscribe(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'autopilot_subscribe' }, 'autopilot_subscribe_response', timeout ?? 15_000);
+  }
+
+  /** Unsubscribes from autopilot worker events. */
+  autopilotUnsubscribe(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'autopilot_unsubscribe' }, 'autopilot_unsubscribe_response', timeout ?? 15_000);
+  }
+
+  // ---------------------------------------------------------------------------
   // Wait helpers
   // ---------------------------------------------------------------------------
 
