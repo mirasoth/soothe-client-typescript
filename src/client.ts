@@ -449,8 +449,10 @@ export class Client extends EventEmitter {
   }
 
   /** Requests loop list and waits for response. */
-  listLoops(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'loop_list' }, 'loop_list_response', timeout ?? 15_000);
+  listLoops(timeout?: number, workspace?: string): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = { type: 'loop_list' };
+    if (workspace) payload.filter = { workspace };
+    return this.requestResponse(payload, 'loop_list_response', timeout ?? 15_000);
   }
 
   /** Requests loop details and waits for response. */
@@ -473,9 +475,10 @@ export class Client extends EventEmitter {
   // ---------------------------------------------------------------------------
 
   /** Creates an autopilot job and waits for the response. */
-  createJob(goal: string, verificationRules?: string, timeout?: number): Promise<Record<string, unknown>> {
+  createJob(goal: string, verificationRules?: string, workspace?: string, timeout?: number): Promise<Record<string, unknown>> {
     const payload: Record<string, unknown> = { type: 'job_create', goal };
     if (verificationRules) payload.verification_rules = verificationRules;
+    if (workspace) payload.workspace = workspace;
     return this.requestResponse(payload, 'job_create_response', timeout ?? 15_000);
   }
 
