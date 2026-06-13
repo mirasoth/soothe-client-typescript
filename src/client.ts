@@ -18,7 +18,7 @@ import {
 } from './protocol.js';
 
 export interface InputOptions {
-  /** Subscribed AgentLoop id (required for loop_input). */
+  /** Subscribed StrangeLoop id (required for loop_input). */
   loopID?: string;
   autonomous?: boolean;
   maxIterations?: number;
@@ -232,7 +232,7 @@ export class Client extends EventEmitter {
   // Loop lifecycle methods (RFC-503)
   // ---------------------------------------------------------------------------
 
-  /** Requests the daemon to create a new AgentLoop. */
+  /** Requests the daemon to create a new StrangeLoop. */
   sendLoopNew(opts?: LoopNewOptions | string): Promise<void> {
     return this.sendMessage(newLoopNewMessage(opts));
   }

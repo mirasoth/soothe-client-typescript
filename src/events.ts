@@ -41,11 +41,15 @@ export const EventToolError = 'soothe.tool.execution.error';
 export const EventStreamToolCallUpdate = 'soothe.stream.tool_call.update';
 export const EventToolCallUpdatesBatch = 'tool_call_updates_batch';
 
-// Agent loop events (cognition domain)
-export const EventAgentLoopStarted = 'soothe.cognition.agent_loop.started';
-export const EventAgentLoopIterated = 'soothe.cognition.agent_loop.iterated';
-export const EventAgentLoopCompleted = 'soothe.cognition.agent_loop.completed';
-export const EventAgentLoopReasoned = 'soothe.cognition.agent_loop.reasoned';
+// StrangeLoop events (cognition domain)
+export const EventStrangeLoopStarted = 'soothe.cognition.strange_loop.started';
+export const EventStrangeLoopCompleted = 'soothe.cognition.strange_loop.completed';
+export const EventStrangeLoopPlanDecision = 'soothe.cognition.strange_loop.plan.decision';
+export const EventStrangeLoopReasoned = 'soothe.cognition.strange_loop.reasoned';
+export const EventStrangeLoopStepStarted = 'soothe.cognition.strange_loop.step.started';
+export const EventStrangeLoopStepQueued = 'soothe.cognition.strange_loop.step.queued';
+export const EventStrangeLoopStepCompleted = 'soothe.cognition.strange_loop.step.completed';
+export const EventStrangeLoopContextCompacted = 'soothe.cognition.strange_loop.context.compacted';
 
 // Message protocol events (client stream metadata)
 export const EventMessageReceived = 'soothe.protocol.message.received';
@@ -173,9 +177,9 @@ export function isSubagentProgressEvent(eventType: string): boolean {
 
 /** Essential progress event types for minimal UI surfaces. */
 export const ESSENTIAL_EVENT_TYPES: ReadonlySet<string> = new Set([
-  EventAgentLoopStarted,
-  EventAgentLoopCompleted,
-  EventAgentLoopReasoned,
+  EventStrangeLoopStarted,
+  EventStrangeLoopCompleted,
+  EventStrangeLoopReasoned,
   EventPlanCreated,
   EventExploreStarted,
   EventExploreCompleted,

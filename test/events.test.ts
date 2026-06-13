@@ -8,8 +8,8 @@ import {
   EventToolStarted,
   EventFinalReport,
   EventGeneralFailed,
-  EventAgentLoopCompleted,
-  EventAgentLoopReasoned,
+  EventStrangeLoopCompleted,
+  EventStrangeLoopReasoned,
 } from '../src/events.js';
 import { VerbosityTier } from '../src/verbosity.js';
 
@@ -44,7 +44,7 @@ describe('classifyEventVerbosity', () => {
 
   it('normal tier', () => {
     expect(classifyEventVerbosity(EventPlanCreated)).toBe(VerbosityTier.Normal);
-    expect(classifyEventVerbosity(EventAgentLoopReasoned)).toBe(VerbosityTier.Normal);
+    expect(classifyEventVerbosity(EventStrangeLoopReasoned)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventExploreStarted)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventExploreCompleted)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventTacitusStarted)).toBe(VerbosityTier.Normal);
@@ -62,7 +62,7 @@ describe('classifyEventVerbosity', () => {
 
 describe('isCompletionEvent', () => {
   it('completed actions', () => {
-    expect(isCompletionEvent(EventAgentLoopCompleted)).toBe(true);
+    expect(isCompletionEvent(EventStrangeLoopCompleted)).toBe(true);
     expect(isCompletionEvent('soothe.subagent.explore.completed')).toBe(true);
     expect(isCompletionEvent('soothe.cognition.plan.completed')).toBe(true);
   });
@@ -91,7 +91,7 @@ describe('isSubagentProgressEvent', () => {
 describe('ESSENTIAL_EVENT_TYPES', () => {
   it('contains essential events', () => {
     const essential = [
-      EventAgentLoopReasoned,
+      EventStrangeLoopReasoned,
       EventGeneralFailed,
       EventPlanCreated,
       EventExploreStarted,

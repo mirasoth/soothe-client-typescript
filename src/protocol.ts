@@ -650,7 +650,7 @@ export function splitWirePayload(data: string): string[] {
 }
 
 /**
- * Returns the AgentLoop id when present in a message.
+ * Returns the StrangeLoop id when present in a message.
  * Prefers loop_id field.
  */
 export function extractSootheLoopID(msg: unknown): [string, boolean] {
