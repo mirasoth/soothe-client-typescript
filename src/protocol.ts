@@ -332,6 +332,8 @@ export interface DaemonStatusResponse extends BaseMessage {
   running: boolean;
   port_live: boolean;
   active_loops: number;
+  daemon_version?: string;
+  core_version?: string;
 }
 
 export interface ShutdownAckResponse extends BaseMessage {
