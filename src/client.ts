@@ -27,6 +27,20 @@ export interface InputOptions {
   model?: string;
   modelParams?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
+  /** Intent hint: "quiz" bypasses in-agent classification. */
+  intentHint?: string;
+  /** JSON Schema for structured output (direct_llm only). */
+  responseSchema?: Record<string, unknown>;
+  /** Provider schema name for structured output. */
+  responseSchemaName?: string;
+  /** Strict mode for JSON schema (default true). */
+  responseSchemaStrict?: boolean;
+  /** RFC-622 clarification relay mode ("auto" / "manual"). */
+  clarificationMode?: string;
+  /** Treat this input as answer to pending clarification interrupt. */
+  clarificationAnswer?: boolean;
+  /** Per-question answers for multi-question clarifications. */
+  clarificationAnswers?: string[];
 }
 
 export class Client extends EventEmitter {
@@ -220,6 +234,13 @@ export class Client extends EventEmitter {
     if (options?.model) payload.model = options.model;
     if (options?.modelParams) payload.model_params = options.modelParams;
     if (options?.attachments) payload.attachments = options.attachments;
+    if (options?.intentHint) payload.intent_hint = options.intentHint;
+    if (options?.responseSchema) payload.response_schema = options.responseSchema;
+    if (options?.responseSchemaName) payload.response_schema_name = options.responseSchemaName;
+    if (options?.responseSchemaStrict !== undefined) payload.response_schema_strict = options.responseSchemaStrict;
+    if (options?.clarificationMode) payload.clarification_mode = options.clarificationMode;
+    if (options?.clarificationAnswer) payload.clarification_answer = true;
+    if (options?.clarificationAnswers) payload.clarification_answers = options.clarificationAnswers;
     return this.sendMessage(payload);
   }
 
@@ -468,6 +489,92 @@ export class Client extends EventEmitter {
   /** Requests loop deletion and waits for response. */
   deleteLoop(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
     return this.requestResponse({ type: 'loop_delete', loop_id: loopID }, 'loop_delete_response', timeout ?? 15_000);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Additional loop methods (RFC-503 extensions)
+  // ---------------------------------------------------------------------------
+
+  /** Requests persisted conversation/activity rows. */
+  sendLoopMessages(loopID: string, limit?: number, offset?: number, includeEvents?: boolean, requestID?: string): Promise<void> {
+    const msg: Record<string, unknown> = {
+      type: 'loop_messages',
+      loop_id: loopID,
+      request_id: requestID ?? newRequestID(),
+    };
+    if (limit !== undefined) msg.limit = limit;
+    if (offset !== undefined) msg.offset = offset;
+    if (includeEvents) msg.include_events = true;
+    return this.sendMessage(msg);
+  }
+
+  /** Requests LangGraph checkpoint channel values. */
+  sendLoopStateGet(loopID: string, requestID?: string): Promise<void> {
+    return this.sendMessage({
+      type: 'loop_state_get',
+      loop_id: loopID,
+      request_id: requestID ?? newRequestID(),
+    });
+  }
+
+  /** Applies partial checkpoint values. */
+  sendLoopStateUpdate(loopID: string, values: Record<string, unknown>, asNode?: string, requestID?: string): Promise<void> {
+    const msg: Record<string, unknown> = {
+      type: 'loop_state_update',
+      loop_id: loopID,
+      values,
+      request_id: requestID ?? newRequestID(),
+    };
+    if (asNode) msg.as_node = asNode;
+    return this.sendMessage(msg);
+  }
+
+  /** Requests display card ledger snapshot (RFC-413). */
+  sendLoopCardsFetch(loopID: string, requestID?: string): Promise<void> {
+    return this.sendMessage({
+      type: 'loop_cards_fetch',
+      loop_id: loopID,
+      request_id: requestID ?? newRequestID(),
+    });
+  }
+
+  /** Requests MCP server status. */
+  sendMCPStatus(requestID?: string): Promise<void> {
+    return this.sendMessage({
+      type: 'mcp_status',
+      request_id: requestID ?? newRequestID(),
+    });
+  }
+
+  /** Requests persisted messages and waits for response. */
+  getLoopMessages(loopID: string, limit?: number, offset?: number, includeEvents?: boolean, timeout?: number): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = { type: 'loop_messages', loop_id: loopID };
+    if (limit !== undefined) payload.limit = limit;
+    if (offset !== undefined) payload.offset = offset;
+    if (includeEvents) payload.include_events = true;
+    return this.requestResponse(payload, 'loop_messages_response', timeout ?? 15_000);
+  }
+
+  /** Requests loop state and waits for response. */
+  getLoopState(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'loop_state_get', loop_id: loopID }, 'loop_state_get_response', timeout ?? 15_000);
+  }
+
+  /** Updates loop state and waits for response. */
+  updateLoopState(loopID: string, values: Record<string, unknown>, asNode?: string, timeout?: number): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = { type: 'loop_state_update', loop_id: loopID, values };
+    if (asNode) payload.as_node = asNode;
+    return this.requestResponse(payload, 'loop_state_update_response', timeout ?? 15_000);
+  }
+
+  /** Requests display cards and waits for response. */
+  fetchLoopCards(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'loop_cards_fetch', loop_id: loopID }, 'loop_cards_fetch_response', timeout ?? 15_000);
+  }
+
+  /** Requests MCP status and waits for response. */
+  getMCPStatus(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse({ type: 'mcp_status' }, 'mcp_status_response', timeout ?? 15_000);
   }
 
   // ---------------------------------------------------------------------------
