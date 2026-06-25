@@ -208,4 +208,227 @@ describe.skipIf(skip())('Integration', () => {
     }
     client.close();
   });
+
+  // ---------------------------------------------------------------------------
+  // RFC-228 Job IPC Integration Tests
+  // ---------------------------------------------------------------------------
+
+  it('create job', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    const resp = await client.createJob('Write a simple hello world program', undefined, undefined, 30_000);
+    expect(resp.type).toBe('job_create_response');
+    expect(resp.job_id).toBeDefined();
+    client.close();
+  });
+
+  it('get job status', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    // Create a job first
+    const createResp = await client.createJob('List files', undefined, undefined, 30_000);
+    const jobId = createResp.job_id as string;
+
+    const resp = await client.getJobStatus(jobId, 15_000);
+    expect(resp.type).toBe('job_status_response');
+    expect(resp.job_id).toBe(jobId);
+
+    // Clean up
+    await client.cancelJob(jobId, 15_000);
+    client.close();
+  });
+
+  it('pause and resume job', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    // Create a job
+    const createResp = await client.createJob('Count slowly', undefined, undefined, 30_000);
+    const jobId = createResp.job_id as string;
+
+    // Pause
+    const pauseResp = await client.pauseJob(jobId, 15_000);
+    expect(pauseResp.type).toBe('job_pause_response');
+
+    // Resume
+    const resumeResp = await client.resumeJob(jobId, 15_000);
+    expect(resumeResp.type).toBe('job_resume_response');
+
+    // Clean up
+    await client.cancelJob(jobId, 15_000);
+    client.close();
+  });
+
+  it('cancel job', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    // Create a job
+    const createResp = await client.createJob('Task to cancel', undefined, undefined, 30_000);
+    const jobId = createResp.job_id as string;
+
+    // Cancel
+    const cancelResp = await client.cancelJob(jobId, 15_000);
+    expect(cancelResp.type).toBe('job_cancel_response');
+    client.close();
+  });
+
+  it('get job dag', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    // Create a job
+    const createResp = await client.createJob('Simple task', undefined, undefined, 30_000);
+    const jobId = createResp.job_id as string;
+
+    const dagResp = await client.getJobDag(jobId, 15_000);
+    expect(dagResp.type).toBe('job_dag_response');
+
+    // Clean up
+    await client.cancelJob(jobId, 15_000);
+    client.close();
+  });
+
+  it('autopilot subscribe/unsubscribe', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    const subResp = await client.autopilotSubscribe(15_000);
+    expect(subResp.type).toBe('autopilot_subscribe_response');
+
+    const unsubResp = await client.autopilotUnsubscribe(15_000);
+    expect(unsubResp.type).toBe('autopilot_unsubscribe_response');
+    client.close();
+  });
+
+  // ---------------------------------------------------------------------------
+  // RFC-503 Loop Extensions Integration Tests
+  // ---------------------------------------------------------------------------
+
+  it('get loop messages', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    mkdtempSync(join(tmpdir(), 'soothe-test-'));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+
+    const resp = await client.getLoopMessages(loopID, 10, 0, false, 15_000);
+    expect(resp.type).toBe('loop_messages_response');
+    client.close();
+  });
+
+  it('get loop state', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    mkdtempSync(join(tmpdir(), 'soothe-test-'));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+
+    const resp = await client.getLoopState(loopID, 15_000);
+    expect(resp.type).toBe('loop_state_get_response');
+    client.close();
+  });
+
+  it('fetch loop cards', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    mkdtempSync(join(tmpdir(), 'soothe-test-'));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+
+    const resp = await client.fetchLoopCards(loopID, 15_000);
+    expect(resp.type).toBe('loop_cards_fetch_response');
+    client.close();
+  });
+
+  it('get mcp status', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    await client.sendDaemonReady();
+    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+
+    const resp = await client.getMCPStatus(15_000);
+    expect(resp.type).toBe('mcp_status_response');
+    client.close();
+  });
+
+  // ---------------------------------------------------------------------------
+  // RFC-622 Clarification Options Tests
+  // ---------------------------------------------------------------------------
+
+  it('send input with clarification mode', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    mkdtempSync(join(tmpdir(), 'soothe-test-'));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+
+    await client.sendInput('Test clarification mode', {
+      loopID,
+      clarificationMode: 'manual',
+    });
+
+    // Read some events
+    let eventCount = 0;
+    const start = Date.now();
+    while (Date.now() - start < 3000 && eventCount < 3) {
+      const ev = await client.readEventWithTimeout(1000);
+      if (ev === null) break;
+      eventCount++;
+    }
+    client.close();
+  });
+
+  it('send input with intent hint', async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    mkdtempSync(join(tmpdir(), 'soothe-test-'));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+
+    await client.sendInput('Hello world', {
+      loopID,
+      intentHint: 'quiz',
+    });
+
+    // Read some events
+    let eventCount = 0;
+    const start = Date.now();
+    while (Date.now() - start < 3000 && eventCount < 3) {
+      const ev = await client.readEventWithTimeout(1000);
+      if (ev === null) break;
+      eventCount++;
+    }
+    client.close();
+  });
 });
