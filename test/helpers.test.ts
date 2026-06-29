@@ -1,16 +1,20 @@
-import { describe, it, expect } from 'vitest';
-import { Client } from '../src/client.js';
+import { describe, it, expect } from "vitest";
+import { Client } from "../src/client.js";
 import {
-  checkDaemonStatus, isDaemonLive, requestDaemonShutdown,
-  fetchSkillsCatalog, fetchConfigSection,
-} from '../src/helpers.js';
+  checkDaemonStatus,
+  isDaemonLive,
+  requestDaemonShutdown,
+  fetchSkillsCatalog,
+  fetchConfigSection,
+} from "../src/helpers.js";
 import {
-  createTestServer, requestResponseHandler,
-} from './helpers/ws-server.js';
-import type { WebSocket } from 'ws';
+  createTestServer,
+  requestResponseHandler,
+} from "./helpers/ws-server.js";
+import type { WebSocket } from "ws";
 
-describe('checkDaemonStatus', () => {
-  it('returns daemon status result', async () => {
+describe("checkDaemonStatus", () => {
+  it("returns daemon status result", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
@@ -24,8 +28,8 @@ describe('checkDaemonStatus', () => {
   });
 });
 
-describe('isDaemonLive', () => {
-  it('returns true when daemon is live', async () => {
+describe("isDaemonLive", () => {
+  it("returns true when daemon is live", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const result = await isDaemonLive(server.url, 3000);
@@ -35,45 +39,75 @@ describe('isDaemonLive', () => {
     }
   });
 
-  it('returns false when daemon is not reachable', async () => {
-    const result = await isDaemonLive('ws://localhost:59999', 500);
+  it("returns false when daemon is not reachable", async () => {
+    const result = await isDaemonLive("ws://localhost:59999", 500);
     expect(result).toBe(false);
   });
 });
 
-describe('requestDaemonShutdown', () => {
-  it('succeeds when acknowledged', async () => {
+describe("requestDaemonShutdown", () => {
+  it("succeeds when acknowledged", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(requestDaemonShutdown(client, 3000)).resolves.toBeUndefined();
+      await expect(
+        requestDaemonShutdown(client, 3000),
+      ).resolves.toBeUndefined();
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('fails when not acknowledged', async () => {
+  it("fails when not acknowledged", async () => {
     const server = createTestServer((ws: WebSocket) => {
-      ws.on('message', raw => {
+      ws.on("message", (raw) => {
         let m: Record<string, unknown>;
-        try { m = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return; }
-        if (m.type === 'connection_init') {
-          ws.send(JSON.stringify({ proto: '1', type: 'status', state: 'idle', input_history: [] }));
-          ws.send(JSON.stringify({
-            proto: '1', type: 'connection_ack',
-            result: { protocol_version: '1', readiness_state: 'ready', capabilities: [], heartbeat_interval_ms: 0 },
-          }));
+        try {
+          m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        } catch {
           return;
         }
-        ws.send(JSON.stringify({ proto: '1', type: 'response', id: m.id, result: { status: 'denied' } }));
+        if (m.type === "connection_init") {
+          ws.send(
+            JSON.stringify({
+              proto: "1",
+              type: "status",
+              state: "idle",
+              input_history: [],
+            }),
+          );
+          ws.send(
+            JSON.stringify({
+              proto: "1",
+              type: "connection_ack",
+              result: {
+                protocol_version: "1",
+                readiness_state: "ready",
+                capabilities: [],
+                heartbeat_interval_ms: 0,
+              },
+            }),
+          );
+          return;
+        }
+        ws.send(
+          JSON.stringify({
+            proto: "1",
+            type: "response",
+            id: m.id,
+            result: { status: "denied" },
+          }),
+        );
       });
     });
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(requestDaemonShutdown(client, 3000)).rejects.toThrow('not acknowledged');
+      await expect(requestDaemonShutdown(client, 3000)).rejects.toThrow(
+        "not acknowledged",
+      );
       client.close();
     } finally {
       await server.close();
@@ -81,35 +115,61 @@ describe('requestDaemonShutdown', () => {
   });
 });
 
-describe('fetchSkillsCatalog', () => {
-  it('returns skills list', async () => {
+describe("fetchSkillsCatalog", () => {
+  it("returns skills list", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
       const skills = await fetchSkillsCatalog(client, 3000);
       expect(skills).toHaveLength(2);
-      expect(skills[0]!.name).toBe('research');
+      expect(skills[0]!.name).toBe("research");
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('returns empty array when no skills', async () => {
+  it("returns empty array when no skills", async () => {
     const server = createTestServer((ws: WebSocket) => {
-      ws.on('message', raw => {
+      ws.on("message", (raw) => {
         let m: Record<string, unknown>;
-        try { m = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return; }
-        if (m.type === 'connection_init') {
-          ws.send(JSON.stringify({ proto: '1', type: 'status', state: 'idle', input_history: [] }));
-          ws.send(JSON.stringify({
-            proto: '1', type: 'connection_ack',
-            result: { protocol_version: '1', readiness_state: 'ready', capabilities: [], heartbeat_interval_ms: 0 },
-          }));
+        try {
+          m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        } catch {
           return;
         }
-        ws.send(JSON.stringify({ proto: '1', type: 'response', id: m.id, result: {} }));
+        if (m.type === "connection_init") {
+          ws.send(
+            JSON.stringify({
+              proto: "1",
+              type: "status",
+              state: "idle",
+              input_history: [],
+            }),
+          );
+          ws.send(
+            JSON.stringify({
+              proto: "1",
+              type: "connection_ack",
+              result: {
+                protocol_version: "1",
+                readiness_state: "ready",
+                capabilities: [],
+                heartbeat_interval_ms: 0,
+              },
+            }),
+          );
+          return;
+        }
+        ws.send(
+          JSON.stringify({
+            proto: "1",
+            type: "response",
+            id: m.id,
+            result: {},
+          }),
+        );
       });
     });
     try {
@@ -124,14 +184,14 @@ describe('fetchSkillsCatalog', () => {
   });
 });
 
-describe('fetchConfigSection', () => {
-  it('returns config section', async () => {
+describe("fetchConfigSection", () => {
+  it("returns config section", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      const config = await fetchConfigSection(client, 'providers', 3000);
-      expect(config.key).toBe('value');
+      const config = await fetchConfigSection(client, "providers", 3000);
+      expect(config.key).toBe("value");
       client.close();
     } finally {
       await server.close();

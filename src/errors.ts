@@ -10,7 +10,7 @@ export class ConnectionError extends Error {
 
   constructor(url: string, attempt: number, cause: Error) {
     super(`connection error to ${url} (attempt ${attempt}): ${cause.message}`);
-    this.name = 'ConnectionError';
+    this.name = "ConnectionError";
     this.url = url;
     this.attempt = attempt;
     this.cause = cause;
@@ -33,7 +33,7 @@ export class DaemonError extends Error {
 
   constructor(code: number, message: string, data?: unknown) {
     super(`daemon error [${code}]: ${message}`);
-    this.name = 'DaemonError';
+    this.name = "DaemonError";
     this.code = code;
     this.daemonMessage = message;
     this.data = data;
@@ -47,7 +47,7 @@ export class TimeoutError extends Error {
 
   constructor(operation: string, duration: string) {
     super(`timeout after ${duration} waiting for ${operation}`);
-    this.name = 'TimeoutError';
+    this.name = "TimeoutError";
     this.operation = operation;
     this.duration = duration;
   }

@@ -6,11 +6,11 @@
  * requests are accepted until the daemon reports readiness_state "ready".
  */
 
-import { EventEmitter } from 'node:events';
-import WebSocket from 'ws';
-import type { Config } from './config.js';
-import { defaultConfig } from './config.js';
-import { DaemonError } from './errors.js';
+import { EventEmitter } from "node:events";
+import WebSocket from "ws";
+import type { Config } from "./config.js";
+import { defaultConfig } from "./config.js";
+import { DaemonError } from "./errors.js";
 import {
   CLIENT_VERSION,
   DEFAULT_CLIENT_CAPABILITIES,
@@ -31,7 +31,7 @@ import {
   type DecodedMessage,
   type LoopNewOptions,
   type MethodName,
-} from './protocol.js';
+} from "./protocol.js";
 
 /** Input options for `sendInput` (loop_input). */
 export interface InputOptions {
@@ -98,24 +98,24 @@ export class Client extends EventEmitter {
         handshakeTimeout: 10_000,
       });
 
-      ws.on('open', () => {
+      ws.on("open", () => {
         this.ws = ws;
         // Kick off the protocol-1 handshake; resolve connect() once ready.
         this._performHandshake()
-          .then(ack => {
+          .then((ack) => {
             this.handshakeComplete = true;
-            this.readinessState = ack.result?.readiness_state ?? 'ready';
+            this.readinessState = ack.result?.readiness_state ?? "ready";
             this._startHeartbeat();
             resolve();
           })
-          .catch(err => {
+          .catch((err) => {
             // Handshake failed — tear down the underlying socket so server
             // close() does not hang on a lingering connection.
             this._stopHeartbeat();
             this.ws = null;
             this.handshakeComplete = false;
             try {
-              ws.close(1011, 'handshake failed');
+              ws.close(1011, "handshake failed");
             } catch {
               // ignore
             }
@@ -123,13 +123,13 @@ export class Client extends EventEmitter {
           });
       });
 
-      ws.on('error', err => {
+      ws.on("error", (err) => {
         if (!this.ws) {
           reject(new Error(`soothe dial: ${err.message}`));
         }
       });
 
-      ws.on('message', (data: WebSocket.RawData) => {
+      ws.on("message", (data: WebSocket.RawData) => {
         const text = data.toString();
         for (const frame of splitWirePayload(text)) {
           let msg: DecodedMessage | null;
@@ -142,11 +142,11 @@ export class Client extends EventEmitter {
 
           // Intercept heartbeat frames (RFC-450 §8.3).
           const m = msg as Record<string, unknown>;
-          if (m.type === 'ping') {
+          if (m.type === "ping") {
             this._sendRaw(pongEnvelope());
             continue;
           }
-          if (m.type === 'pong') {
+          if (m.type === "pong") {
             this.lastPongMonotonic = Date.now();
             continue;
           }
@@ -160,15 +160,15 @@ export class Client extends EventEmitter {
           } else {
             this.messageBuffer.push(msg);
           }
-          this.emit('message', msg);
+          this.emit("message", msg);
         }
       });
 
-      ws.on('close', () => {
+      ws.on("close", () => {
         this.ws = null;
         this._stopHeartbeat();
         this.handshakeComplete = false;
-        this.emit('close');
+        this.emit("close");
         // Resolve any pending readEvent calls with null.
         for (const resolver of this.resolvers) {
           resolver(null);
@@ -187,7 +187,7 @@ export class Client extends EventEmitter {
       if (this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify(disconnectEnvelope()));
       }
-      this.ws.close(1000, '');
+      this.ws.close(1000, "");
     } catch {
       // ignore close errors
     }
@@ -197,7 +197,11 @@ export class Client extends EventEmitter {
 
   /** Returns whether the client has an active, handshaked WebSocket connection. */
   isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN && this.handshakeComplete;
+    return (
+      this.ws !== null &&
+      this.ws.readyState === WebSocket.OPEN &&
+      this.handshakeComplete
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -208,7 +212,7 @@ export class Client extends EventEmitter {
   private async _performHandshake(): Promise<ConnectionAckEnvelope> {
     const init = connectionInitEnvelope({
       client_version: CLIENT_VERSION,
-      client_name: 'soothe-client-ts',
+      client_name: "soothe-client-ts",
       accept_proto: [PROTO_VERSION],
       capabilities: DEFAULT_CLIENT_CAPABILITIES,
     });
@@ -218,41 +222,48 @@ export class Client extends EventEmitter {
     while (Date.now() < deadline) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
-      const ev = (await this.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
+      const ev = (await this.readEventWithTimeout(remaining)) as Record<
+        string,
+        unknown
+      > | null;
       if (ev === null) {
-        throw new Error('connection closed during handshake');
+        throw new Error("connection closed during handshake");
       }
       // Discard the initial `status` frame; keep other frames for later.
-      if (ev.type === 'status') {
+      if (ev.type === "status") {
         continue;
       }
-      if (ev.type !== 'connection_ack') {
+      if (ev.type !== "connection_ack") {
         continue;
       }
       const ack = ev as unknown as ConnectionAckEnvelope;
       const result = ack.result ?? {};
-      const state = result.readiness_state ?? 'ready';
+      const state = result.readiness_state ?? "ready";
       this.protocolVersion = result.protocol_version ?? PROTO_VERSION;
       this.negotiatedCapabilities = new Set(result.capabilities ?? []);
       this.heartbeatIntervalMs = result.heartbeat_interval_ms ?? 0;
 
-      if (state === 'incompatible') {
-        throw new Error(`protocol version incompatible: daemon returned ${this.protocolVersion}`);
+      if (state === "incompatible") {
+        throw new Error(
+          `protocol version incompatible: daemon returned ${this.protocolVersion}`,
+        );
       }
-      if (state === 'ready') {
+      if (state === "ready") {
         return ack;
       }
-      if (state === 'error') {
-        throw new Error('daemon startup failed');
+      if (state === "error") {
+        throw new Error("daemon startup failed");
       }
-      if (state === 'degraded') {
-        throw new Error('daemon is degraded');
+      if (state === "degraded") {
+        throw new Error("daemon is degraded");
       }
       // starting / warming — bounded retry by re-sending connection_init.
       await this._sleep(50);
       await this.sendMessage(init);
     }
-    throw new Error(`timeout after ${this.config.daemonReadyTimeout}ms waiting for connection_ack`);
+    throw new Error(
+      `timeout after ${this.config.daemonReadyTimeout}ms waiting for connection_ack`,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -260,11 +271,14 @@ export class Client extends EventEmitter {
   // ---------------------------------------------------------------------------
 
   private _startHeartbeat(): void {
-    if (!this.negotiatedCapabilities.has('heartbeat')) return;
+    if (!this.negotiatedCapabilities.has("heartbeat")) return;
     const interval = this.heartbeatIntervalMs;
     if (interval <= 0) return;
     this.lastPongMonotonic = Date.now();
-    this.heartbeatTimer = setInterval(() => this._heartbeatTick(interval), interval);
+    this.heartbeatTimer = setInterval(
+      () => this._heartbeatTick(interval),
+      interval,
+    );
   }
 
   private _stopHeartbeat(): void {
@@ -281,7 +295,7 @@ export class Client extends EventEmitter {
     if (now - (this.lastPongMonotonic || now) > intervalMs + timeoutMs) {
       // Dead connection — force close.
       try {
-        this.ws.close(1001, 'heartbeat timeout');
+        this.ws.close(1001, "heartbeat timeout");
       } catch {
         // ignore
       }
@@ -295,7 +309,7 @@ export class Client extends EventEmitter {
   }
 
   private _sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   // ---------------------------------------------------------------------------
@@ -306,11 +320,11 @@ export class Client extends EventEmitter {
   sendMessage(msg: unknown): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        reject(new Error('soothe: not connected'));
+        reject(new Error("soothe: not connected"));
         return;
       }
       const payload = JSON.stringify(msg);
-      this.ws.send(payload, err => {
+      this.ws.send(payload, (err) => {
         if (err) reject(err);
         else resolve();
       });
@@ -339,7 +353,7 @@ export class Client extends EventEmitter {
       }
 
       // Wait for next message or close.
-      const msg = await new Promise<DecodedMessage | null>(resolve => {
+      const msg = await new Promise<DecodedMessage | null>((resolve) => {
         if (!this.ws) {
           resolve(null);
           return;
@@ -359,7 +373,7 @@ export class Client extends EventEmitter {
       return msg as Record<string, unknown>;
     }
     if (!this.ws) return null;
-    const msg = await new Promise<DecodedMessage | null>(resolve => {
+    const msg = await new Promise<DecodedMessage | null>((resolve) => {
       this.resolvers.push(resolve);
     });
     if (msg === null) return null;
@@ -367,14 +381,16 @@ export class Client extends EventEmitter {
   }
 
   /** Reads a single event with a timeout. Returns null on timeout or close. */
-  readEventWithTimeout(timeout: number): Promise<Record<string, unknown> | null> {
+  readEventWithTimeout(
+    timeout: number,
+  ): Promise<Record<string, unknown> | null> {
     if (this.messageBuffer.length > 0) {
       const msg = this.messageBuffer.shift()!;
       return Promise.resolve(msg as Record<string, unknown>);
     }
     if (!this.ws) return Promise.resolve(null);
 
-    return new Promise<Record<string, unknown> | null>(resolve => {
+    return new Promise<Record<string, unknown> | null>((resolve) => {
       const timer = setTimeout(() => {
         const idx = this.resolvers.indexOf(resolver);
         if (idx >= 0) this.resolvers.splice(idx, 1);
@@ -402,9 +418,11 @@ export class Client extends EventEmitter {
    * continuous subscription stream). Non-RPC frames read here are pushed to
    * `messageBuffer` for the stream readers.
    */
-  private readLiveEventWithTimeout(timeout: number): Promise<Record<string, unknown> | null> {
+  private readLiveEventWithTimeout(
+    timeout: number,
+  ): Promise<Record<string, unknown> | null> {
     if (!this.ws) return Promise.resolve(null);
-    return new Promise<Record<string, unknown> | null>(resolve => {
+    return new Promise<Record<string, unknown> | null>((resolve) => {
       const timer = setTimeout(() => {
         const idx = this.resolvers.indexOf(resolver);
         if (idx >= 0) this.resolvers.splice(idx, 1);
@@ -454,20 +472,24 @@ export class Client extends EventEmitter {
       }
 
       const typ = ev.type as string;
-      if (typ === 'error') {
-        const errObj = (ev.error as { code?: number; message?: string; data?: unknown }) ?? {};
+      if (typ === "error") {
+        const errObj =
+          (ev.error as { code?: number; message?: string; data?: unknown }) ??
+          {};
         throw new DaemonError(
           errObj.code ?? -32603,
-          errObj.message ?? 'daemon error',
+          errObj.message ?? "daemon error",
           errObj.data,
         );
       }
-      if (typ === 'response') {
+      if (typ === "response") {
         return (ev.result as Record<string, unknown>) ?? ev;
       }
     }
 
-    throw new Error(`timeout after ${timeout}ms waiting for ${responseType ?? method}`);
+    throw new Error(
+      `timeout after ${timeout}ms waiting for ${responseType ?? method}`,
+    );
   }
 
   /** Sends a fire-and-forget `notification` envelope (no response expected). */
@@ -481,7 +503,7 @@ export class Client extends EventEmitter {
    * carrying the same `id`.
    */
   async subscribe(
-    method: 'loop_events' | 'autopilot_events',
+    method: "loop_events" | "autopilot_events",
     params: Record<string, unknown>,
     timeout: number = 5_000,
   ): Promise<string> {
@@ -504,15 +526,17 @@ export class Client extends EventEmitter {
         continue;
       }
       const typ = ev.type as string;
-      if (typ === 'error') {
-        const errObj = (ev.error as { code?: number; message?: string; data?: unknown }) ?? {};
+      if (typ === "error") {
+        const errObj =
+          (ev.error as { code?: number; message?: string; data?: unknown }) ??
+          {};
         throw new DaemonError(
           errObj.code ?? -32603,
-          errObj.message ?? 'subscription rejected',
+          errObj.message ?? "subscription rejected",
           errObj.data,
         );
       }
-      if (typ === 'next' || typ === 'complete') {
+      if (typ === "next" || typ === "complete") {
         // Subscription confirmed (next) or already complete. Re-buffer for the
         // stream reader so it sees the first event.
         this.messageBuffer.unshift(ev as DecodedMessage);
@@ -535,7 +559,7 @@ export class Client extends EventEmitter {
   async next(): Promise<Record<string, unknown> | null> {
     const ev = await this.readEvent();
     if (ev === null) return null;
-    if (ev.type === 'next') {
+    if (ev.type === "next") {
       return (ev.payload as Record<string, unknown>) ?? {};
     }
     return ev;
@@ -547,34 +571,40 @@ export class Client extends EventEmitter {
 
   /** Sends user input to the daemon (loop_input notification; requires loopID). */
   sendInput(text: string, options?: InputOptions): Promise<void> {
-    const loopId = (options?.loopID ?? '').trim();
+    const loopId = (options?.loopID ?? "").trim();
     if (!loopId) {
-      return Promise.reject(new Error('sendInput requires options.loopID'));
+      return Promise.reject(new Error("sendInput requires options.loopID"));
     }
     const params: Record<string, unknown> = {
       loop_id: loopId,
       content: text,
       autonomous: options?.autonomous ?? false,
     };
-    if (options?.maxIterations !== undefined) params.max_iterations = options.maxIterations;
+    if (options?.maxIterations !== undefined)
+      params.max_iterations = options.maxIterations;
     if (options?.subagent) params.preferred_subagent = options.subagent;
     if (options?.interactive) params.interactive = true;
     if (options?.model) params.model = options.model;
     if (options?.modelParams) params.model_params = options.modelParams;
     if (options?.attachments) params.attachments = options.attachments;
     if (options?.intentHint) params.intent_hint = options.intentHint;
-    if (options?.responseSchema) params.response_schema = options.responseSchema;
-    if (options?.responseSchemaName) params.response_schema_name = options.responseSchemaName;
-    if (options?.responseSchemaStrict !== undefined) params.response_schema_strict = options.responseSchemaStrict;
-    if (options?.clarificationMode) params.clarification_mode = options.clarificationMode;
+    if (options?.responseSchema)
+      params.response_schema = options.responseSchema;
+    if (options?.responseSchemaName)
+      params.response_schema_name = options.responseSchemaName;
+    if (options?.responseSchemaStrict !== undefined)
+      params.response_schema_strict = options.responseSchemaStrict;
+    if (options?.clarificationMode)
+      params.clarification_mode = options.clarificationMode;
     if (options?.clarificationAnswer) params.clarification_answer = true;
-    if (options?.clarificationAnswers) params.clarification_answers = options.clarificationAnswers;
-    return this.notify('loop_input', params);
+    if (options?.clarificationAnswers)
+      params.clarification_answers = options.clarificationAnswers;
+    return this.notify("loop_input", params);
   }
 
   /** Sends a slash command to the daemon (slash_command notification). */
   sendCommand(cmd: string): Promise<void> {
-    return this.notify('slash_command', { cmd });
+    return this.notify("slash_command", { cmd });
   }
 
   // ---------------------------------------------------------------------------
@@ -590,9 +620,13 @@ export class Client extends EventEmitter {
   async sendLoopSubscribe(
     loopID: string,
     verbosity: string,
-    streamDelivery?: 'batch' | 'adaptive' | 'streaming',
+    streamDelivery?: "batch" | "adaptive" | "streaming",
   ): Promise<void> {
-    await this.subscribe('loop_events', { loop_id: loopID, verbosity, stream_delivery: streamDelivery });
+    await this.subscribe("loop_events", {
+      loop_id: loopID,
+      verbosity,
+      stream_delivery: streamDelivery,
+    });
   }
 
   /** Detaches from a loop (unsubscribe). */
@@ -609,17 +643,17 @@ export class Client extends EventEmitter {
 
   /** Requests daemon status check. */
   sendDaemonStatus(): Promise<void> {
-    return this.sendMessage(requestEnvelope('daemon_status', {}));
+    return this.sendMessage(requestEnvelope("daemon_status", {}));
   }
 
   /** Requests daemon shutdown. */
   sendDaemonShutdown(): Promise<void> {
-    return this.sendMessage(requestEnvelope('daemon_shutdown', {}));
+    return this.sendMessage(requestEnvelope("daemon_shutdown", {}));
   }
 
   /** Requests a config section from the daemon. */
   sendConfigGet(section: string): Promise<void> {
-    return this.sendMessage(requestEnvelope('config_get', { section }));
+    return this.sendMessage(requestEnvelope("config_get", { section }));
   }
 
   // ---------------------------------------------------------------------------
@@ -628,40 +662,88 @@ export class Client extends EventEmitter {
 
   /** Requests the skills catalog and waits for the response. */
   listSkills(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('skills_list', {}, 'skills_list', timeout ?? 15_000);
+    return this.requestResponse(
+      "skills_list",
+      {},
+      "skills_list",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests the models catalog and waits for the response. */
   listModels(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('models_list', {}, 'models_list', timeout ?? 15_000);
+    return this.requestResponse(
+      "models_list",
+      {},
+      "models_list",
+      timeout ?? 15_000,
+    );
   }
 
   /** Invokes a skill on the daemon host and receives echo. */
-  invokeSkill(skill: string, args?: string, timeout?: number): Promise<Record<string, unknown>> {
-    const params: Record<string, unknown> = { skill, args: args ?? '' };
-    return this.requestResponse('invoke_skill', params, 'invoke_skill', timeout ?? 120_000);
+  invokeSkill(
+    skill: string,
+    args?: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    const params: Record<string, unknown> = { skill, args: args ?? "" };
+    return this.requestResponse(
+      "invoke_skill",
+      params,
+      "invoke_skill",
+      timeout ?? 120_000,
+    );
   }
 
   /** Requests loop list and waits for response. */
-  listLoops(timeout?: number, workspace?: string): Promise<Record<string, unknown>> {
+  listLoops(
+    timeout?: number,
+    workspace?: string,
+  ): Promise<Record<string, unknown>> {
     const params: Record<string, unknown> = {};
     if (workspace) params.filter = { workspace };
-    return this.requestResponse('loop_list', params, 'loop_list', timeout ?? 15_000);
+    return this.requestResponse(
+      "loop_list",
+      params,
+      "loop_list",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests loop details and waits for response. */
   getLoop(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('loop_get', { loop_id: loopID }, 'loop_get', timeout ?? 15_000);
+    return this.requestResponse(
+      "loop_get",
+      { loop_id: loopID },
+      "loop_get",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests loop tree and waits for response. */
-  getLoopTree(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('loop_tree', { loop_id: loopID }, 'loop_tree', timeout ?? 15_000);
+  getLoopTree(
+    loopID: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "loop_tree",
+      { loop_id: loopID },
+      "loop_tree",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests loop deletion and waits for response. */
-  deleteLoop(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('loop_delete', { loop_id: loopID }, 'loop_delete', timeout ?? 15_000);
+  deleteLoop(
+    loopID: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "loop_delete",
+      { loop_id: loopID },
+      "loop_delete",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests persisted conversation/activity rows. */
@@ -675,12 +757,14 @@ export class Client extends EventEmitter {
     if (limit !== undefined) params.limit = limit;
     if (offset !== undefined) params.offset = offset;
     if (includeEvents) params.include_events = true;
-    return this.sendMessage(requestEnvelope('loop_messages', params));
+    return this.sendMessage(requestEnvelope("loop_messages", params));
   }
 
   /** Requests LangGraph checkpoint channel values. */
   sendLoopStateGet(loopID: string): Promise<void> {
-    return this.sendMessage(requestEnvelope('loop_state_get', { loop_id: loopID }));
+    return this.sendMessage(
+      requestEnvelope("loop_state_get", { loop_id: loopID }),
+    );
   }
 
   /** Applies partial checkpoint values. */
@@ -691,17 +775,19 @@ export class Client extends EventEmitter {
   ): Promise<void> {
     const params: Record<string, unknown> = { loop_id: loopID, values };
     if (asNode) params.as_node = asNode;
-    return this.sendMessage(requestEnvelope('loop_state_update', params));
+    return this.sendMessage(requestEnvelope("loop_state_update", params));
   }
 
   /** Requests display card ledger snapshot. */
   sendLoopCardsFetch(loopID: string): Promise<void> {
-    return this.sendMessage(requestEnvelope('loop_cards_fetch', { loop_id: loopID }));
+    return this.sendMessage(
+      requestEnvelope("loop_cards_fetch", { loop_id: loopID }),
+    );
   }
 
   /** Requests MCP server status. */
   sendMCPStatus(): Promise<void> {
-    return this.sendMessage(requestEnvelope('mcp_status', {}));
+    return this.sendMessage(requestEnvelope("mcp_status", {}));
   }
 
   /** Requests persisted messages and waits for response. */
@@ -716,12 +802,25 @@ export class Client extends EventEmitter {
     if (limit !== undefined) params.limit = limit;
     if (offset !== undefined) params.offset = offset;
     if (includeEvents) params.include_events = true;
-    return this.requestResponse('loop_messages', params, 'loop_messages', timeout ?? 15_000);
+    return this.requestResponse(
+      "loop_messages",
+      params,
+      "loop_messages",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests loop state and waits for response. */
-  getLoopState(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('loop_state_get', { loop_id: loopID }, 'loop_state_get', timeout ?? 15_000);
+  getLoopState(
+    loopID: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "loop_state_get",
+      { loop_id: loopID },
+      "loop_state_get",
+      timeout ?? 15_000,
+    );
   }
 
   /** Updates loop state and waits for response. */
@@ -733,17 +832,35 @@ export class Client extends EventEmitter {
   ): Promise<Record<string, unknown>> {
     const params: Record<string, unknown> = { loop_id: loopID, values };
     if (asNode) params.as_node = asNode;
-    return this.requestResponse('loop_state_update', params, 'loop_state_update', timeout ?? 15_000);
+    return this.requestResponse(
+      "loop_state_update",
+      params,
+      "loop_state_update",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests display cards and waits for response. */
-  fetchLoopCards(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('loop_cards_fetch', { loop_id: loopID }, 'loop_cards_fetch', timeout ?? 15_000);
+  fetchLoopCards(
+    loopID: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "loop_cards_fetch",
+      { loop_id: loopID },
+      "loop_cards_fetch",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests MCP status and waits for response. */
   getMCPStatus(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('mcp_status', {}, 'mcp_status', timeout ?? 15_000);
+    return this.requestResponse(
+      "mcp_status",
+      {},
+      "mcp_status",
+      timeout ?? 15_000,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -751,48 +868,96 @@ export class Client extends EventEmitter {
   // ---------------------------------------------------------------------------
 
   /** Creates an autopilot job and waits for the response. */
-  createJob(goal: string, verificationRules?: string, workspace?: string, timeout?: number): Promise<Record<string, unknown>> {
+  createJob(
+    goal: string,
+    verificationRules?: string,
+    workspace?: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
     const params: Record<string, unknown> = { goal };
     if (verificationRules) params.verification_rules = verificationRules;
     if (workspace) params.workspace = workspace;
-    return this.requestResponse('job_create', params, 'job_create', timeout ?? 15_000);
+    return this.requestResponse(
+      "job_create",
+      params,
+      "job_create",
+      timeout ?? 15_000,
+    );
   }
 
   /** Queries job status and waits for the response. */
-  getJobStatus(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('job_status', { job_id: jobId }, 'job_status', timeout ?? 15_000);
+  getJobStatus(
+    jobId: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "job_status",
+      { job_id: jobId },
+      "job_status",
+      timeout ?? 15_000,
+    );
   }
 
   /** Pauses a running job. */
   pauseJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('job_pause', { job_id: jobId }, 'job_pause', timeout ?? 15_000);
+    return this.requestResponse(
+      "job_pause",
+      { job_id: jobId },
+      "job_pause",
+      timeout ?? 15_000,
+    );
   }
 
   /** Resumes a paused job. */
   resumeJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('job_resume', { job_id: jobId }, 'job_resume', timeout ?? 15_000);
+    return this.requestResponse(
+      "job_resume",
+      { job_id: jobId },
+      "job_resume",
+      timeout ?? 15_000,
+    );
   }
 
   /** Cancels a job. */
   cancelJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('job_cancel', { job_id: jobId }, 'job_cancel', timeout ?? 15_000);
+    return this.requestResponse(
+      "job_cancel",
+      { job_id: jobId },
+      "job_cancel",
+      timeout ?? 15_000,
+    );
   }
 
   /** Requests the DAG visualization for a job. */
   getJobDag(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse('job_dag', { job_id: jobId }, 'job_dag', timeout ?? 15_000);
+    return this.requestResponse(
+      "job_dag",
+      { job_id: jobId },
+      "job_dag",
+      timeout ?? 15_000,
+    );
   }
 
   /** Sends guidance to a job or specific goal. */
-  sendJobGuidance(jobId: string, text: string, goalId?: string, timeout?: number): Promise<Record<string, unknown>> {
+  sendJobGuidance(
+    jobId: string,
+    text: string,
+    goalId?: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
     const params: Record<string, unknown> = { job_id: jobId, content: text };
     if (goalId) params.goal_id = goalId;
-    return this.requestResponse('job_guidance', params, 'job_guidance', timeout ?? 30_000);
+    return this.requestResponse(
+      "job_guidance",
+      params,
+      "job_guidance",
+      timeout ?? 30_000,
+    );
   }
 
   /** Subscribes to autopilot worker events. */
   autopilotSubscribe(timeout?: number): Promise<string> {
-    return this.subscribe('autopilot_events', {}, timeout ?? 15_000);
+    return this.subscribe("autopilot_events", {}, timeout ?? 15_000);
   }
 
   // ---------------------------------------------------------------------------
@@ -806,7 +971,7 @@ export class Client extends EventEmitter {
    */
   async waitForDaemonReady(timeout?: number): Promise<Record<string, unknown>> {
     if (this.handshakeComplete) {
-      return { readiness_state: this.readinessState ?? 'ready' };
+      return { readiness_state: this.readinessState ?? "ready" };
     }
     const t = timeout ?? 10_000;
     const deadline = Date.now() + t;
@@ -815,17 +980,21 @@ export class Client extends EventEmitter {
       if (remaining <= 0) break;
       const ev = await this.readEventWithTimeout(remaining);
       if (ev === null) break;
-      if (ev.type !== 'connection_ack') continue;
+      if (ev.type !== "connection_ack") continue;
       const result = (ev.result as Record<string, unknown> | undefined) ?? {};
       const state = result.readiness_state as string | undefined;
-      if (state === 'ready') return ev;
-      throw new Error(`daemon not ready: state=${state ?? 'unknown'}`);
+      if (state === "ready") return ev;
+      throw new Error(`daemon not ready: state=${state ?? "unknown"}`);
     }
     throw new Error(`timeout after ${t}ms waiting for connection_ack`);
   }
 
   /** Waits for a subscription confirmation `next` matching the loop id. */
-  async waitForSubscriptionConfirmed(loopID: string, _verbosity: string, timeout?: number): Promise<void> {
+  async waitForSubscriptionConfirmed(
+    loopID: string,
+    _verbosity: string,
+    timeout?: number,
+  ): Promise<void> {
     const t = timeout ?? 5_000;
     const deadline = Date.now() + t;
     while (Date.now() < deadline) {
@@ -835,17 +1004,22 @@ export class Client extends EventEmitter {
       if (ev === null) break;
       // Subscription confirmation arrives as a `next` frame whose payload
       // carries {event:"subscribed", loop_id, success}.
-      if (ev.type === 'next') {
-        const payload = (ev.payload as Record<string, unknown> | undefined) ?? {};
-        const lid = String(payload.loop_id ?? '');
+      if (ev.type === "next") {
+        const payload =
+          (ev.payload as Record<string, unknown> | undefined) ?? {};
+        const lid = String(payload.loop_id ?? "");
         if (lid === loopID && payload.success === true) return;
         continue;
       }
-      if (ev.type === 'error') {
+      if (ev.type === "error") {
         const errObj = (ev.error as { message?: string }) ?? {};
-        throw new Error(`daemon error: ${errObj.message ?? 'subscription failed'}`);
+        throw new Error(
+          `daemon error: ${errObj.message ?? "subscription failed"}`,
+        );
       }
     }
-    throw new Error(`timeout after ${t}ms waiting for subscription confirmation`);
+    throw new Error(
+      `timeout after ${t}ms waiting for subscription confirmation`,
+    );
   }
 }

@@ -7,79 +7,92 @@
  * Format: soothe.<domain>.<component>.<action>
  */
 
-import { VerbosityTier } from './verbosity.js';
+import { VerbosityTier } from "./verbosity.js";
 
 // Plan events (client UX)
-export const EventPlanCreated = 'soothe.cognition.plan.created';
+export const EventPlanCreated = "soothe.cognition.plan.created";
 
 // Explore subagent events (built-in wire, IG-339)
-export const EventExploreStarted = 'soothe.subagent.explore.started';
-export const EventExploreMilestone = 'soothe.subagent.explore.milestone';
-export const EventExploreStepCompleted = 'soothe.subagent.explore.step.completed';
-export const EventExploreCompleted = 'soothe.subagent.explore.completed';
+export const EventExploreStarted = "soothe.subagent.explore.started";
+export const EventExploreMilestone = "soothe.subagent.explore.milestone";
+export const EventExploreStepCompleted =
+  "soothe.subagent.explore.step.completed";
+export const EventExploreCompleted = "soothe.subagent.explore.completed";
 
 // Tacitus subagent events (built-in wire, IG-339)
-export const EventTacitusStarted = 'soothe.subagent.tacitus.started';
-export const EventTacitusGatherSummary = 'soothe.subagent.tacitus.gather.summary';
-export const EventTacitusCompleted = 'soothe.subagent.tacitus.completed';
+export const EventTacitusStarted = "soothe.subagent.tacitus.started";
+export const EventTacitusGatherSummary =
+  "soothe.subagent.tacitus.gather.summary";
+export const EventTacitusCompleted = "soothe.subagent.tacitus.completed";
 
 // Control-plane wire envelopes (not soothe.* catalog events)
-export const EventReplayComplete = 'replay_complete';
-export const EventLoopReattachedWire = 'loop_reattached';
+export const EventReplayComplete = "replay_complete";
+export const EventLoopReattachedWire = "loop_reattached";
 
 // Card ledger replay frames (RFC-413, card_binder design)
-export const EventCardReplayBegin = 'card.replay_begin';
-export const EventCardCreated = 'card.created';
-export const EventCardReplayEnd = 'card.replay_end';
+export const EventCardReplayBegin = "card.replay_begin";
+export const EventCardCreated = "card.created";
+export const EventCardReplayEnd = "card.replay_end";
 
 // Tool events
-export const EventToolStarted = 'soothe.tool.execution.started';
-export const EventToolCompleted = 'soothe.tool.execution.completed';
-export const EventToolError = 'soothe.tool.execution.error';
+export const EventToolStarted = "soothe.tool.execution.started";
+export const EventToolCompleted = "soothe.tool.execution.completed";
+export const EventToolError = "soothe.tool.execution.error";
 
 // Stream tool call events (RFC-450, IG-416)
-export const EventStreamToolCallUpdate = 'soothe.stream.tool_call.update';
-export const EventToolCallUpdatesBatch = 'tool_call_updates_batch';
+export const EventStreamToolCallUpdate = "soothe.stream.tool_call.update";
+export const EventToolCallUpdatesBatch = "tool_call_updates_batch";
 
 // StrangeLoop events (cognition domain)
-export const EventStrangeLoopStarted = 'soothe.cognition.strange_loop.started';
-export const EventStrangeLoopCompleted = 'soothe.cognition.strange_loop.completed';
-export const EventStrangeLoopPlanDecision = 'soothe.cognition.strange_loop.plan.decision';
-export const EventStrangeLoopReasoned = 'soothe.cognition.strange_loop.reasoned';
-export const EventStrangeLoopStepStarted = 'soothe.cognition.strange_loop.step.started';
-export const EventStrangeLoopStepQueued = 'soothe.cognition.strange_loop.step.queued';
-export const EventStrangeLoopStepCompleted = 'soothe.cognition.strange_loop.step.completed';
-export const EventStrangeLoopContextCompacted = 'soothe.cognition.strange_loop.context.compacted';
+export const EventStrangeLoopStarted = "soothe.cognition.strange_loop.started";
+export const EventStrangeLoopCompleted =
+  "soothe.cognition.strange_loop.completed";
+export const EventStrangeLoopPlanDecision =
+  "soothe.cognition.strange_loop.plan.decision";
+export const EventStrangeLoopReasoned =
+  "soothe.cognition.strange_loop.reasoned";
+export const EventStrangeLoopStepStarted =
+  "soothe.cognition.strange_loop.step.started";
+export const EventStrangeLoopStepQueued =
+  "soothe.cognition.strange_loop.step.queued";
+export const EventStrangeLoopStepCompleted =
+  "soothe.cognition.strange_loop.step.completed";
+export const EventStrangeLoopContextCompacted =
+  "soothe.cognition.strange_loop.context.compacted";
 
 // Message protocol events (client stream metadata)
-export const EventMessageReceived = 'soothe.protocol.message.received';
-export const EventMessageSent = 'soothe.protocol.message.sent';
+export const EventMessageReceived = "soothe.protocol.message.received";
+export const EventMessageSent = "soothe.protocol.message.sent";
 
 // Output events
-export const EventFinalReport = 'soothe.output.autonomous.final_report.reported';
+export const EventFinalReport =
+  "soothe.output.autonomous.final_report.reported";
 
 // Autopilot events (RFC-228)
-export const EventAutopilotGoalStatus = 'soothe.autopilot.goal.status';
-export const EventAutopilotGoalProgress = 'soothe.autopilot.goal.progress';
-export const EventAutopilotGoalCreated = 'soothe.autopilot.goal.created';
-export const EventAutopilotGoalCompleted = 'soothe.autopilot.goal.completed';
-export const EventAutopilotWorkerAssigned = 'soothe.autopilot.worker.assigned';
-export const EventAutopilotWorkerUnassigned = 'soothe.autopilot.worker.unassigned';
+export const EventAutopilotGoalStatus = "soothe.autopilot.goal.status";
+export const EventAutopilotGoalProgress = "soothe.autopilot.goal.progress";
+export const EventAutopilotGoalCreated = "soothe.autopilot.goal.created";
+export const EventAutopilotGoalCompleted = "soothe.autopilot.goal.completed";
+export const EventAutopilotWorkerAssigned = "soothe.autopilot.worker.assigned";
+export const EventAutopilotWorkerUnassigned =
+  "soothe.autopilot.worker.unassigned";
 
 // Error events
-export const EventGeneralFailed = 'soothe.error.general.failed';
+export const EventGeneralFailed = "soothe.error.general.failed";
 
 // ---------------------------------------------------------------------------
 // Namespace parsing
 // ---------------------------------------------------------------------------
 
 /** Splits a 4-segment event namespace into domain, component, and action. */
-export function parseNamespace(ns: string): { domain: string; component: string; action: string } | null {
+export function parseNamespace(
+  ns: string,
+): { domain: string; component: string; action: string } | null {
   const parts = splitNamespace(ns);
-  if (parts.length < 4 || parts[0] !== 'soothe') {
+  if (parts.length < 4 || parts[0] !== "soothe") {
     return null;
   }
-  if (parts[1] === 'internal') {
+  if (parts[1] === "internal") {
     return null;
   }
   return { domain: parts[1], component: parts[2], action: parts[3] };
@@ -89,7 +102,7 @@ function splitNamespace(ns: string): string[] {
   const parts: string[] = [];
   let start = 0;
   for (let i = 0; i < ns.length; i++) {
-    if (ns[i] === '.') {
+    if (ns[i] === ".") {
       parts.push(ns.slice(start, i));
       start = i + 1;
     }
@@ -103,28 +116,38 @@ function splitNamespace(ns: string): string[] {
 // ---------------------------------------------------------------------------
 
 /** Returns the VerbosityTier for a given event type string. */
-export function classifyEventVerbosity(eventTypeOrNamespace: string): VerbosityTier {
+export function classifyEventVerbosity(
+  eventTypeOrNamespace: string,
+): VerbosityTier {
   const parsed = parseNamespace(eventTypeOrNamespace);
   if (!parsed) {
     return classifyByEventTypeString(eventTypeOrNamespace);
   }
-  return classifyByDomainAndComponent(parsed.domain, parsed.component, eventTypeOrNamespace);
+  return classifyByDomainAndComponent(
+    parsed.domain,
+    parsed.component,
+    eventTypeOrNamespace,
+  );
 }
 
-function classifyByDomainAndComponent(domain: string, _component: string, full: string): VerbosityTier {
+function classifyByDomainAndComponent(
+  domain: string,
+  _component: string,
+  full: string,
+): VerbosityTier {
   switch (domain) {
-    case 'cognition':
+    case "cognition":
       return VerbosityTier.Normal;
-    case 'protocol':
+    case "protocol":
       return VerbosityTier.Detailed;
-    case 'tool':
+    case "tool":
       return VerbosityTier.Internal;
-    case 'subagent':
+    case "subagent":
       return classifySubagentEvent(full);
-    case 'autopilot':
+    case "autopilot":
       return VerbosityTier.Normal;
-    case 'output':
-    case 'error':
+    case "output":
+    case "error":
       return VerbosityTier.Quiet;
     default:
       return VerbosityTier.Normal;
@@ -135,8 +158,8 @@ function classifySubagentEvent(full: string): VerbosityTier {
   const parsed = parseNamespace(full);
   if (!parsed) return VerbosityTier.Normal;
   switch (parsed.action) {
-    case 'started':
-    case 'completed':
+    case "started":
+    case "completed":
       return VerbosityTier.Normal;
     default:
       return VerbosityTier.Detailed;
@@ -160,8 +183,8 @@ function classifyByEventTypeString(eventType: string): VerbosityTier {
 /** Event types that represent completion milestones. */
 export function isCompletionEvent(eventType: string): boolean {
   return (
-    eventType.endsWith('.completed') ||
-    eventType.endsWith('.failed') ||
+    eventType.endsWith(".completed") ||
+    eventType.endsWith(".failed") ||
     eventType === EventGeneralFailed
   );
 }
@@ -169,10 +192,10 @@ export function isCompletionEvent(eventType: string): boolean {
 /** Lifecycle subagent events (started/completed) for progress UI. */
 export function isSubagentProgressEvent(eventType: string): boolean {
   const parsed = parseNamespace(eventType);
-  if (!parsed || parsed.domain !== 'subagent') {
+  if (!parsed || parsed.domain !== "subagent") {
     return false;
   }
-  return parsed.action === 'started' || parsed.action === 'completed';
+  return parsed.action === "started" || parsed.action === "completed";
 }
 
 /** Essential progress event types for minimal UI surfaces. */

@@ -1,17 +1,20 @@
-import { describe, it, expect } from 'vitest';
-import { Client } from '../src/client.js';
+import { describe, it, expect } from "vitest";
+import { Client } from "../src/client.js";
 import {
-  createTestServer, echoHandler, fullBootstrapHandler,
-  ndjsonHandler, requestResponseHandler,
-} from './helpers/ws-server.js';
-import type { WebSocket } from 'ws';
+  createTestServer,
+  echoHandler,
+  fullBootstrapHandler,
+  ndjsonHandler,
+  requestResponseHandler,
+} from "./helpers/ws-server.js";
+import type { WebSocket } from "ws";
 
 // ---------------------------------------------------------------------------
 // Client unit tests (RFC-450 protocol-1)
 // ---------------------------------------------------------------------------
 
-describe('Client', () => {
-  it('connect completes handshake and close', async () => {
+describe("Client", () => {
+  it("connect completes handshake and close", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
@@ -24,29 +27,31 @@ describe('Client', () => {
     }
   });
 
-  it('send when not connected throws', async () => {
-    const client = new Client('ws://localhost:9999');
-    await expect(client.sendMessage({ type: 'test' })).rejects.toThrow('not connected');
+  it("send when not connected throws", async () => {
+    const client = new Client("ws://localhost:9999");
+    await expect(client.sendMessage({ type: "test" })).rejects.toThrow(
+      "not connected",
+    );
   });
 
-  it('send and receive echo (notification envelope)', async () => {
+  it("send and receive echo (notification envelope)", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.notify('loop_input', { loop_id: 'l1', content: 'hello' });
+      await client.notify("loop_input", { loop_id: "l1", content: "hello" });
       const ev = await client.readEvent();
       expect(ev).not.toBeNull();
-      expect(ev!.type).toBe('notification');
-      expect(ev!.method).toBe('loop_input');
-      expect((ev!.params as Record<string, unknown>).content).toBe('hello');
+      expect(ev!.type).toBe("notification");
+      expect(ev!.method).toBe("loop_input");
+      expect((ev!.params as Record<string, unknown>).content).toBe("hello");
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('receiveMessages yields decoded messages', async () => {
+  it("receiveMessages yields decoded messages", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
@@ -61,7 +66,7 @@ describe('Client', () => {
         }
       })();
 
-      await client.notify('loop_input', { loop_id: 'l1', content: 'world' });
+      await client.notify("loop_input", { loop_id: "l1", content: "world" });
       await p;
 
       expect(msgs.length).toBeGreaterThanOrEqual(1);
@@ -71,7 +76,7 @@ describe('Client', () => {
     }
   });
 
-  it('NDJSON receive splits multiple messages', async () => {
+  it("NDJSON receive splits multiple messages", async () => {
     const server = createTestServer(ndjsonHandler);
     try {
       const client = new Client(server.url);
@@ -87,7 +92,7 @@ describe('Client', () => {
       })();
 
       // ndjsonHandler triggers the NDJSON payload on the second message.
-      await client.notify('loop_input', { loop_id: 'l1', content: 'trigger' });
+      await client.notify("loop_input", { loop_id: "l1", content: "trigger" });
       await p;
 
       expect(msgs.length).toBeGreaterThanOrEqual(2);
@@ -97,13 +102,18 @@ describe('Client', () => {
     }
   });
 
-  it('requestResponse matches by id and returns result', async () => {
+  it("requestResponse matches by id and returns result", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
 
-      const resp = await client.requestResponse('daemon_status', {}, 'daemon_status', 3000);
+      const resp = await client.requestResponse(
+        "daemon_status",
+        {},
+        "daemon_status",
+        3000,
+      );
       expect(resp.running).toBe(true);
       expect(resp.port_live).toBe(true);
       client.close();
@@ -112,21 +122,40 @@ describe('Client', () => {
     }
   });
 
-  it('requestResponse timeout', async () => {
+  it("requestResponse timeout", async () => {
     const server = createTestServer((ws: WebSocket) => {
-      ws.on('message', () => {
+      ws.on("message", () => {
         // Never respond (but still handshake so connect succeeds)
       });
       // Perform the handshake only.
-      ws.on('message', raw => {
+      ws.on("message", (raw) => {
         let m: Record<string, unknown>;
-        try { m = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return; }
-        if (m.type === 'connection_init') {
-          ws.send(JSON.stringify({ proto: '1', type: 'status', state: 'idle', input_history: [] }));
-          ws.send(JSON.stringify({
-            proto: '1', type: 'connection_ack',
-            result: { protocol_version: '1', readiness_state: 'ready', capabilities: [], heartbeat_interval_ms: 0 },
-          }));
+        try {
+          m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+        if (m.type === "connection_init") {
+          ws.send(
+            JSON.stringify({
+              proto: "1",
+              type: "status",
+              state: "idle",
+              input_history: [],
+            }),
+          );
+          ws.send(
+            JSON.stringify({
+              proto: "1",
+              type: "connection_ack",
+              result: {
+                protocol_version: "1",
+                readiness_state: "ready",
+                capabilities: [],
+                heartbeat_interval_ms: 0,
+              },
+            }),
+          );
         }
       });
     });
@@ -134,22 +163,22 @@ describe('Client', () => {
       const client = new Client(server.url);
       await client.connect();
       await expect(
-        client.requestResponse('daemon_status', {}, 'daemon_status', 500),
-      ).rejects.toThrow('timeout');
+        client.requestResponse("daemon_status", {}, "daemon_status", 500),
+      ).rejects.toThrow("timeout");
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('requestResponse daemon error', async () => {
+  it("requestResponse daemon error", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
       await expect(
-        client.requestResponse('error_test', {}, 'error_test', 3000),
-      ).rejects.toThrow('daemon error');
+        client.requestResponse("error_test", {}, "error_test", 3000),
+      ).rejects.toThrow("daemon error");
       client.close();
     } finally {
       await server.close();
@@ -160,43 +189,47 @@ describe('Client', () => {
   // High-level API method tests (Loop-first, RFC-503)
   // ---------------------------------------------------------------------------
 
-  it('sendInput emits loop_input notification with params', async () => {
+  it("sendInput emits loop_input notification with params", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendInput('hello', { loopID: 'l1', model: 'openai:gpt-4' });
+      await client.sendInput("hello", { loopID: "l1", model: "openai:gpt-4" });
       const ev = await client.readEvent();
-      expect(ev!.type).toBe('notification');
-      expect(ev!.method).toBe('loop_input');
+      expect(ev!.type).toBe("notification");
+      expect(ev!.method).toBe("loop_input");
       const params = ev!.params as Record<string, unknown>;
-      expect(params.content).toBe('hello');
-      expect(params.loop_id).toBe('l1');
-      expect(params.model).toBe('openai:gpt-4');
+      expect(params.content).toBe("hello");
+      expect(params.loop_id).toBe("l1");
+      expect(params.model).toBe("openai:gpt-4");
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('sendInput rejects without loop id', async () => {
+  it("sendInput rejects without loop id", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(client.sendInput('hello')).rejects.toThrow('loopID');
+      await expect(client.sendInput("hello")).rejects.toThrow("loopID");
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('sendInput autonomous', async () => {
+  it("sendInput autonomous", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendInput('do stuff', { loopID: 'L1', autonomous: true, maxIterations: 5 });
+      await client.sendInput("do stuff", {
+        loopID: "L1",
+        autonomous: true,
+        maxIterations: 5,
+      });
       const ev = await client.readEvent();
       const params = ev!.params as Record<string, unknown>;
       expect(params.autonomous).toBe(true);
@@ -207,45 +240,52 @@ describe('Client', () => {
     }
   });
 
-  it('sendCommand emits slash_command notification', async () => {
+  it("sendCommand emits slash_command notification", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendCommand('/help');
+      await client.sendCommand("/help");
       const ev = await client.readEvent();
-      expect(ev!.type).toBe('notification');
-      expect(ev!.method).toBe('slash_command');
-      expect((ev!.params as Record<string, unknown>).cmd).toBe('/help');
+      expect(ev!.type).toBe("notification");
+      expect(ev!.method).toBe("slash_command");
+      expect((ev!.params as Record<string, unknown>).cmd).toBe("/help");
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('sendLoopNew returns loop_id via response', async () => {
+  it("sendLoopNew returns loop_id via response", async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
       const resp = await client.requestResponse(
-        'loop_new', { client_workspace: '/tmp/workspace' }, 'loop_new', 3000,
+        "loop_new",
+        { client_workspace: "/tmp/workspace" },
+        "loop_new",
+        3000,
       );
-      expect(resp.loop_id).toBe('test-loop-123');
+      expect(resp.loop_id).toBe("test-loop-123");
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('sendLoopSubscribe receives next confirmation', async () => {
+  it("sendLoopSubscribe receives next confirmation", async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      const subId = await client.subscribe('loop_events', { loop_id: 'loop-abc', verbosity: 'normal' }, 3000);
+      const subId = await client.subscribe(
+        "loop_events",
+        { loop_id: "loop-abc", verbosity: "normal" },
+        3000,
+      );
       const ev = await client.readEvent();
-      expect(ev!.type).toBe('next');
+      expect(ev!.type).toBe("next");
       expect(ev!.id).toBe(subId);
       client.close();
     } finally {
@@ -253,14 +293,14 @@ describe('Client', () => {
     }
   });
 
-  it('sendDetach emits disconnect notification', async () => {
+  it("sendDetach emits disconnect notification", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
       await client.sendDetach();
       const ev = await client.readEvent();
-      expect(ev!.type).toBe('disconnect');
+      expect(ev!.type).toBe("disconnect");
       client.close();
     } finally {
       await server.close();
@@ -271,7 +311,7 @@ describe('Client', () => {
   // Convenience RPC method tests
   // ---------------------------------------------------------------------------
 
-  it('listSkills', async () => {
+  it("listSkills", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
@@ -284,7 +324,7 @@ describe('Client', () => {
     }
   });
 
-  it('listModels', async () => {
+  it("listModels", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
@@ -297,20 +337,20 @@ describe('Client', () => {
     }
   });
 
-  it('invokeSkill', async () => {
+  it("invokeSkill", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.invokeSkill('research', 'search for X', 3000);
-      expect(resp.echo).toMatchObject({ status: 'ok' });
+      const resp = await client.invokeSkill("research", "search for X", 3000);
+      expect(resp.echo).toMatchObject({ status: "ok" });
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('listLoops', async () => {
+  it("listLoops", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
@@ -323,25 +363,25 @@ describe('Client', () => {
     }
   });
 
-  it('getLoop', async () => {
+  it("getLoop", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.getLoop('l1', 3000);
-      expect(resp.loop).toMatchObject({ loop_id: 'l1' });
+      const resp = await client.getLoop("l1", 3000);
+      expect(resp.loop).toMatchObject({ loop_id: "l1" });
       client.close();
     } finally {
       await server.close();
     }
   });
 
-  it('deleteLoop', async () => {
+  it("deleteLoop", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.deleteLoop('l1', 3000);
+      const resp = await client.deleteLoop("l1", 3000);
       expect(resp.success).toBe(true);
       client.close();
     } finally {
@@ -353,14 +393,14 @@ describe('Client', () => {
   // WaitForDaemonReady
   // ---------------------------------------------------------------------------
 
-  it('waitForDaemonReady resolves after handshake', async () => {
+  it("waitForDaemonReady resolves after handshake", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
       // Handshake already completed in connect(); waitForDaemonReady resolves immediately.
       const ev = await client.waitForDaemonReady(3000);
-      expect(ev.readiness_state).toBe('ready');
+      expect(ev.readiness_state).toBe("ready");
       client.close();
     } finally {
       await server.close();
@@ -371,7 +411,7 @@ describe('Client', () => {
   // Connection recovery
   // ---------------------------------------------------------------------------
 
-  it('connection recovery', async () => {
+  it("connection recovery", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client1 = new Client(server.url);

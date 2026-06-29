@@ -7,73 +7,78 @@
  * semantics for message class distinction.
  */
 
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from "node:crypto";
 
 /** Protocol version string (RFC-450 §8.1). */
-export const PROTO_VERSION = '1';
+export const PROTO_VERSION = "1";
 
 /** Default client capabilities declared in the connection_init handshake. */
-export const DEFAULT_CLIENT_CAPABILITIES = ['streaming', 'batch', 'heartbeat', 'receipts'];
+export const DEFAULT_CLIENT_CAPABILITIES = [
+  "streaming",
+  "batch",
+  "heartbeat",
+  "receipts",
+];
 
 /** Client version reported in the connection_init handshake. */
-export const CLIENT_VERSION = '0.1.0';
+export const CLIENT_VERSION = "0.1.0";
 
 // ---------------------------------------------------------------------------
 // Envelope message classes (RFC-450 §9.1)
 // ---------------------------------------------------------------------------
 
 export type MessageType =
-  | 'connection_init'
-  | 'connection_ack'
-  | 'request'
-  | 'response'
-  | 'notification'
-  | 'subscribe'
-  | 'next'
-  | 'error'
-  | 'complete'
-  | 'unsubscribe'
-  | 'ping'
-  | 'pong'
-  | 'receipt_response'
-  | 'disconnect'
-  | 'status';
+  | "connection_init"
+  | "connection_ack"
+  | "request"
+  | "response"
+  | "notification"
+  | "subscribe"
+  | "next"
+  | "error"
+  | "complete"
+  | "unsubscribe"
+  | "ping"
+  | "pong"
+  | "receipt_response"
+  | "disconnect"
+  | "status";
 
 /** Method names carried in the envelope `method` field (RFC-450 §9.2). */
 export type MethodName =
-  | 'loop_list'
-  | 'loop_get'
-  | 'loop_tree'
-  | 'loop_prune'
-  | 'loop_delete'
-  | 'loop_new'
-  | 'loop_reattach'
-  | 'loop_input'
-  | 'loop_messages'
-  | 'loop_state_get'
-  | 'loop_state_update'
-  | 'loop_cards_fetch'
-  | 'loop_events'
-  | 'autopilot_events'
-  | 'job_create'
-  | 'job_status'
-  | 'job_pause'
-  | 'job_resume'
-  | 'job_cancel'
-  | 'job_dag'
-  | 'job_guidance'
-  | 'daemon_status'
-  | 'daemon_shutdown'
-  | 'config_get'
-  | 'skills_list'
-  | 'invoke_skill'
-  | 'models_list'
-  | 'mcp_status'
-  | 'auth'
-  | 'auth_refresh'
-  | 'slash_command'
-  | 'rpc_command'
-  | 'disconnect';
+  | "loop_list"
+  | "loop_get"
+  | "loop_tree"
+  | "loop_prune"
+  | "loop_delete"
+  | "loop_new"
+  | "loop_reattach"
+  | "loop_input"
+  | "loop_messages"
+  | "loop_state_get"
+  | "loop_state_update"
+  | "loop_cards_fetch"
+  | "loop_events"
+  | "autopilot_events"
+  | "job_create"
+  | "job_status"
+  | "job_pause"
+  | "job_resume"
+  | "job_cancel"
+  | "job_dag"
+  | "job_guidance"
+  | "daemon_status"
+  | "daemon_shutdown"
+  | "config_get"
+  | "skills_list"
+  | "invoke_skill"
+  | "models_list"
+  | "mcp_status"
+  | "auth"
+  | "auth_refresh"
+  | "slash_command"
+  | "rpc_command"
+  | "disconnect";
 
 // ---------------------------------------------------------------------------
 // Envelope interfaces (RFC-450 §5.2)
@@ -87,7 +92,7 @@ export interface BaseEnvelope {
 
 /** A client→server RPC request (expects a `response` correlated by `id`). */
 export interface RequestEnvelope extends BaseEnvelope {
-  type: 'request';
+  type: "request";
   method: MethodName;
   params?: Record<string, unknown>;
   id: string;
@@ -95,14 +100,14 @@ export interface RequestEnvelope extends BaseEnvelope {
 
 /** A server→client RPC success response. */
 export interface ResponseEnvelope extends BaseEnvelope {
-  type: 'response';
+  type: "response";
   result?: Record<string, unknown>;
   id?: string;
 }
 
 /** A fire-and-forget client→server notification (no `id`, no response). */
 export interface NotificationEnvelope extends BaseEnvelope {
-  type: 'notification';
+  type: "notification";
   method: MethodName;
   params?: Record<string, unknown>;
   /** Optional receipt id for delivery confirmation (RFC-450 §5.7). */
@@ -111,41 +116,41 @@ export interface NotificationEnvelope extends BaseEnvelope {
 
 /** Start a subscription stream (events arrive as `next`). */
 export interface SubscribeEnvelope extends BaseEnvelope {
-  type: 'subscribe';
-  method: 'loop_events' | 'autopilot_events';
+  type: "subscribe";
+  method: "loop_events" | "autopilot_events";
   params?: Record<string, unknown>;
   id: string;
 }
 
 /** A stream event for an active subscription. */
 export interface NextEnvelope extends BaseEnvelope {
-  type: 'next';
+  type: "next";
   payload?: Record<string, unknown>;
   id?: string;
 }
 
 /** Structured error response (terminates the operation). */
 export interface ErrorEnvelope extends BaseEnvelope {
-  type: 'error';
+  type: "error";
   error: { code: number; message: string; data?: unknown };
   id?: string;
 }
 
 /** Explicit stream-completion signal. */
 export interface CompleteEnvelope extends BaseEnvelope {
-  type: 'complete';
+  type: "complete";
   id?: string;
 }
 
 /** Cancel a subscription by `id`. */
 export interface UnsubscribeEnvelope extends BaseEnvelope {
-  type: 'unsubscribe';
+  type: "unsubscribe";
   id: string;
 }
 
 /** Connection handshake (client→server, first message). */
 export interface ConnectionInitEnvelope extends BaseEnvelope {
-  type: 'connection_init';
+  type: "connection_init";
   params?: {
     client_version: string;
     client_name?: string;
@@ -156,7 +161,7 @@ export interface ConnectionInitEnvelope extends BaseEnvelope {
 
 /** Connection handshake response (server→client). */
 export interface ConnectionAckEnvelope extends BaseEnvelope {
-  type: 'connection_ack';
+  type: "connection_ack";
   result?: {
     server_version?: string;
     protocol_version?: string;
@@ -168,23 +173,23 @@ export interface ConnectionAckEnvelope extends BaseEnvelope {
 
 /** Heartbeat ping (either direction). */
 export interface PingEnvelope extends BaseEnvelope {
-  type: 'ping';
+  type: "ping";
 }
 
 /** Heartbeat pong response. */
 export interface PongEnvelope extends BaseEnvelope {
-  type: 'pong';
+  type: "pong";
 }
 
 /** Delivery confirmation for a notification that carried a `receipt`. */
 export interface ReceiptResponseEnvelope extends BaseEnvelope {
-  type: 'receipt_response';
+  type: "receipt_response";
   receipt: string;
 }
 
 /** Clean connection close (daemon keeps loops running). */
 export interface DisconnectEnvelope extends BaseEnvelope {
-  type: 'disconnect';
+  type: "disconnect";
 }
 
 /**
@@ -193,7 +198,7 @@ export interface DisconnectEnvelope extends BaseEnvelope {
  * unchanged, so it is NOT wrapped in a `next` envelope.
  */
 export interface StatusFrame extends BaseEnvelope {
-  type: 'status';
+  type: "status";
   state?: string;
   loop_id?: string;
   workspace?: string;
@@ -276,7 +281,7 @@ export interface StreamEventPayload {
 
 /** Encodes a message as JSON with a newline delimiter (NDJSON frame). */
 export function encodeMessage(msg: unknown): string {
-  return JSON.stringify(msg) + '\n';
+  return JSON.stringify(msg) + "\n";
 }
 
 /**
@@ -295,44 +300,47 @@ export function decodeMessage(data: string): DecodedMessage | null {
     throw new Error(`invalid JSON: ${data}`);
   }
 
-  if (!parsed || typeof parsed !== 'object') return parsed;
+  if (!parsed || typeof parsed !== "object") return parsed;
 
   const type = parsed.type as MessageType | undefined;
   if (!type) return parsed;
 
   switch (type) {
-    case 'connection_init':
+    case "connection_init":
       return { ...parsed } as unknown as ConnectionInitEnvelope;
-    case 'connection_ack':
+    case "connection_ack":
       return { ...parsed } as unknown as ConnectionAckEnvelope;
-    case 'request':
+    case "request":
       return { ...parsed } as unknown as RequestEnvelope;
-    case 'response':
+    case "response":
       return { ...parsed } as unknown as ResponseEnvelope;
-    case 'notification':
+    case "notification":
       return { ...parsed } as unknown as NotificationEnvelope;
-    case 'subscribe':
+    case "subscribe":
       return { ...parsed } as unknown as SubscribeEnvelope;
-    case 'next':
+    case "next":
       return { ...parsed } as unknown as NextEnvelope;
-    case 'error':
+    case "error":
       return { ...parsed } as unknown as ErrorEnvelope;
-    case 'complete':
+    case "complete":
       return { ...parsed } as unknown as CompleteEnvelope;
-    case 'unsubscribe':
+    case "unsubscribe":
       return { ...parsed } as unknown as UnsubscribeEnvelope;
-    case 'ping':
+    case "ping":
       return { ...parsed } as unknown as PingEnvelope;
-    case 'pong':
+    case "pong":
       return { ...parsed } as unknown as PongEnvelope;
-    case 'receipt_response':
+    case "receipt_response":
       return { ...parsed } as unknown as ReceiptResponseEnvelope;
-    case 'disconnect':
+    case "disconnect":
       return { ...parsed } as unknown as DisconnectEnvelope;
-    case 'status': {
+    case "status": {
       const msg = { ...parsed } as unknown as StatusFrame;
       // Tolerate camelCase loopId from some daemon builds.
-      if ((!msg.loop_id || msg.loop_id === '') && typeof parsed.loopId === 'string') {
+      if (
+        (!msg.loop_id || msg.loop_id === "") &&
+        typeof parsed.loopId === "string"
+      ) {
         msg.loop_id = parsed.loopId as string;
       }
       return msg;
@@ -352,7 +360,13 @@ export function requestEnvelope(
   params?: Record<string, unknown>,
   id?: string,
 ): RequestEnvelope {
-  return { proto: PROTO_VERSION, type: 'request', method, params, id: id ?? newRequestID() };
+  return {
+    proto: PROTO_VERSION,
+    type: "request",
+    method,
+    params,
+    id: id ?? newRequestID(),
+  };
 }
 
 /** Builds a `notification` envelope (no `id`). */
@@ -360,21 +374,27 @@ export function notificationEnvelope(
   method: MethodName,
   params?: Record<string, unknown>,
 ): NotificationEnvelope {
-  return { proto: PROTO_VERSION, type: 'notification', method, params };
+  return { proto: PROTO_VERSION, type: "notification", method, params };
 }
 
 /** Builds a `subscribe` envelope. */
 export function subscribeEnvelope(
-  method: 'loop_events' | 'autopilot_events',
+  method: "loop_events" | "autopilot_events",
   params?: Record<string, unknown>,
   id?: string,
 ): SubscribeEnvelope {
-  return { proto: PROTO_VERSION, type: 'subscribe', method, params, id: id ?? newRequestID() };
+  return {
+    proto: PROTO_VERSION,
+    type: "subscribe",
+    method,
+    params,
+    id: id ?? newRequestID(),
+  };
 }
 
 /** Builds an `unsubscribe` envelope. */
 export function unsubscribeEnvelope(id: string): UnsubscribeEnvelope {
-  return { proto: PROTO_VERSION, type: 'unsubscribe', id };
+  return { proto: PROTO_VERSION, type: "unsubscribe", id };
 }
 
 /** Builds a `connection_init` handshake envelope. */
@@ -386,10 +406,10 @@ export function connectionInitEnvelope(opts?: {
 }): ConnectionInitEnvelope {
   return {
     proto: PROTO_VERSION,
-    type: 'connection_init',
+    type: "connection_init",
     params: {
       client_version: opts?.client_version ?? CLIENT_VERSION,
-      client_name: opts?.client_name ?? 'soothe-client-ts',
+      client_name: opts?.client_name ?? "soothe-client-ts",
       accept_proto: opts?.accept_proto ?? [PROTO_VERSION],
       capabilities: opts?.capabilities ?? DEFAULT_CLIENT_CAPABILITIES,
     },
@@ -398,17 +418,17 @@ export function connectionInitEnvelope(opts?: {
 
 /** Builds a `ping` heartbeat envelope. */
 export function pingEnvelope(): PingEnvelope {
-  return { proto: PROTO_VERSION, type: 'ping' };
+  return { proto: PROTO_VERSION, type: "ping" };
 }
 
 /** Builds a `pong` heartbeat envelope. */
 export function pongEnvelope(): PongEnvelope {
-  return { proto: PROTO_VERSION, type: 'pong' };
+  return { proto: PROTO_VERSION, type: "pong" };
 }
 
 /** Builds a `disconnect` notification envelope. */
 export function disconnectEnvelope(): DisconnectEnvelope {
-  return { proto: PROTO_VERSION, type: 'disconnect' };
+  return { proto: PROTO_VERSION, type: "disconnect" };
 }
 
 // ---------------------------------------------------------------------------
@@ -418,9 +438,12 @@ export function disconnectEnvelope(): DisconnectEnvelope {
 /** Splits a single WebSocket text payload into individual JSON lines. */
 export function splitWirePayload(data: string): string[] {
   const trimmed = data.trim();
-  if (trimmed === '') return [];
+  if (trimmed === "") return [];
 
-  const lines = trimmed.split('\n').map(l => l.trim()).filter(l => l !== '');
+  const lines = trimmed
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== "");
   return lines.length > 0 ? lines : [data];
 }
 
@@ -437,36 +460,36 @@ export function splitWirePayload(data: string): string[] {
  * both shapes.
  */
 export function extractSootheLoopID(msg: unknown): [string, boolean] {
-  if (!msg || typeof msg !== 'object') return ['', false];
+  if (!msg || typeof msg !== "object") return ["", false];
   const m = msg as Record<string, unknown>;
 
   // `next` envelope: dig into payload.data.loop_id.
-  if (m.type === 'next') {
+  if (m.type === "next") {
     const payload = m.payload as Record<string, unknown> | undefined;
-    if (payload && typeof payload === 'object') {
+    if (payload && typeof payload === "object") {
       const data = payload.data as Record<string, unknown> | undefined;
-      if (data && typeof data === 'object') {
+      if (data && typeof data === "object") {
         const id = (data.loop_id ?? data.loopId) as string | undefined;
-        if (id && id !== '') return [id, true];
+        if (id && id !== "") return [id, true];
       }
       // Some payloads carry loop_id directly.
       const pid = (payload.loop_id ?? payload.loopId) as string | undefined;
-      if (pid && pid !== '') return [pid, true];
+      if (pid && pid !== "") return [pid, true];
     }
-    return ['', false];
+    return ["", false];
   }
 
-  if (m.type === 'status') {
+  if (m.type === "status") {
     const id = m.loop_id as string | undefined;
-    if (id && id !== '') return [id, true];
-    return ['', false];
+    if (id && id !== "") return [id, true];
+    return ["", false];
   }
 
   // Generic fallback: top-level loop_id / loopId.
   const generic = (m.loop_id ?? m.loopId) as string | undefined;
-  if (generic && generic !== '') return [generic, true];
+  if (generic && generic !== "") return [generic, true];
 
-  return ['', false];
+  return ["", false];
 }
 
 // ---------------------------------------------------------------------------
@@ -479,14 +502,23 @@ export function newRequestID(): string {
 }
 
 /** Creates a `loop_input` notification envelope. */
-export function newLoopInputMessage(loopID: string, content: string): NotificationEnvelope {
-  return notificationEnvelope('loop_input', { loop_id: loopID, content, autonomous: false });
+export function newLoopInputMessage(
+  loopID: string,
+  content: string,
+): NotificationEnvelope {
+  return notificationEnvelope("loop_input", {
+    loop_id: loopID,
+    content,
+    autonomous: false,
+  });
 }
 
 /** Creates a `loop_new` request envelope. */
-export function newLoopNewMessage(opts?: LoopNewOptions | string): RequestEnvelope {
+export function newLoopNewMessage(
+  opts?: LoopNewOptions | string,
+): RequestEnvelope {
   const options: LoopNewOptions =
-    typeof opts === 'string' ? { client_workspace: opts } : opts ?? {};
+    typeof opts === "string" ? { client_workspace: opts } : (opts ?? {});
   const clientWorkspace = options.client_workspace ?? options.workspace;
   const params: Record<string, unknown> = {};
   if (clientWorkspace?.trim()) {
@@ -501,18 +533,18 @@ export function newLoopNewMessage(opts?: LoopNewOptions | string): RequestEnvelo
   if (options.is_ephemeral) {
     params.is_ephemeral = true;
   }
-  return requestEnvelope('loop_new', params);
+  return requestEnvelope("loop_new", params);
 }
 
 /** Creates a `loop_events` subscribe envelope. */
 export function newLoopSubscribeMessage(
   loopID: string,
   verbosity: string,
-  streamDelivery?: 'batch' | 'adaptive' | 'streaming',
+  streamDelivery?: "batch" | "adaptive" | "streaming",
 ): SubscribeEnvelope {
   const params: Record<string, unknown> = { loop_id: loopID, verbosity };
   if (streamDelivery) {
     params.stream_delivery = streamDelivery;
   }
-  return subscribeEnvelope('loop_events', params);
+  return subscribeEnvelope("loop_events", params);
 }

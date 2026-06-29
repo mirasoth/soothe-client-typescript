@@ -2,7 +2,7 @@
  * Client configuration for connecting to the Soothe daemon.
  */
 
-import type { VerbosityLevel } from './verbosity.js';
+import type { VerbosityLevel } from "./verbosity.js";
 
 export interface Config {
   /** WebSocket URL for Soothe daemon */
@@ -26,8 +26,8 @@ export interface Config {
 /** Returns default configuration. */
 export function defaultConfig(): Config {
   return {
-    daemonURL: 'ws://localhost:8765',
-    verbosityLevel: 'normal',
+    daemonURL: "ws://localhost:8765",
+    verbosityLevel: "normal",
     maxRetries: 5,
     reconnectDelay: 2000,
     heartbeatInterval: 30000,
@@ -41,7 +41,7 @@ export function defaultConfig(): Config {
 export function loadConfigFromEnv(): Config {
   const config = defaultConfig();
 
-  if (typeof process === 'undefined') return config;
+  if (typeof process === "undefined") return config;
 
   const url = process.env.SOOTHE_DAEMON_URL;
   if (url) config.daemonURL = url;

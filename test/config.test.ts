@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { defaultConfig, loadConfigFromEnv } from '../src/config.js';
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { defaultConfig, loadConfigFromEnv } from "../src/config.js";
 
-describe('defaultConfig', () => {
-  it('has expected defaults', () => {
+describe("defaultConfig", () => {
+  it("has expected defaults", () => {
     const cfg = defaultConfig();
-    expect(cfg.daemonURL).toBe('ws://localhost:8765');
-    expect(cfg.verbosityLevel).toBe('normal');
+    expect(cfg.daemonURL).toBe("ws://localhost:8765");
+    expect(cfg.verbosityLevel).toBe("normal");
     expect(cfg.maxRetries).toBe(5);
     expect(cfg.daemonReadyTimeout).toBe(20000);
     expect(cfg.loopStatusTimeout).toBe(60000);
@@ -15,14 +15,14 @@ describe('defaultConfig', () => {
   });
 });
 
-describe('loadConfigFromEnv', () => {
+describe("loadConfigFromEnv", () => {
   const envVars = [
-    'SOOTHE_DAEMON_URL',
-    'SOOTHE_VERBOSITY',
-    'SOOTHE_MAX_RETRIES',
-    'SOOTHE_DAEMON_READY_TIMEOUT_SEC',
-    'SOOTHE_LOOP_STATUS_TIMEOUT_SEC',
-    'SOOTHE_SUBSCRIPTION_TIMEOUT_SEC',
+    "SOOTHE_DAEMON_URL",
+    "SOOTHE_VERBOSITY",
+    "SOOTHE_MAX_RETRIES",
+    "SOOTHE_DAEMON_READY_TIMEOUT_SEC",
+    "SOOTHE_LOOP_STATUS_TIMEOUT_SEC",
+    "SOOTHE_SUBSCRIPTION_TIMEOUT_SEC",
   ];
 
   const originalValues: Record<string, string | undefined> = {};
@@ -43,26 +43,26 @@ describe('loadConfigFromEnv', () => {
     }
   });
 
-  it('overrides defaults from env', () => {
-    process.env.SOOTHE_DAEMON_URL = 'ws://custom:9999';
-    process.env.SOOTHE_VERBOSITY = 'debug';
-    process.env.SOOTHE_MAX_RETRIES = '10';
-    process.env.SOOTHE_DAEMON_READY_TIMEOUT_SEC = '30';
-    process.env.SOOTHE_LOOP_STATUS_TIMEOUT_SEC = '45';
-    process.env.SOOTHE_SUBSCRIPTION_TIMEOUT_SEC = '15';
+  it("overrides defaults from env", () => {
+    process.env.SOOTHE_DAEMON_URL = "ws://custom:9999";
+    process.env.SOOTHE_VERBOSITY = "debug";
+    process.env.SOOTHE_MAX_RETRIES = "10";
+    process.env.SOOTHE_DAEMON_READY_TIMEOUT_SEC = "30";
+    process.env.SOOTHE_LOOP_STATUS_TIMEOUT_SEC = "45";
+    process.env.SOOTHE_SUBSCRIPTION_TIMEOUT_SEC = "15";
 
     const cfg = loadConfigFromEnv();
-    expect(cfg.daemonURL).toBe('ws://custom:9999');
-    expect(cfg.verbosityLevel).toBe('debug');
+    expect(cfg.daemonURL).toBe("ws://custom:9999");
+    expect(cfg.verbosityLevel).toBe("debug");
     expect(cfg.maxRetries).toBe(10);
     expect(cfg.daemonReadyTimeout).toBe(30000);
     expect(cfg.loopStatusTimeout).toBe(45000);
     expect(cfg.subscriptionTimeout).toBe(15000);
   });
 
-  it('falls back to defaults for invalid values', () => {
-    process.env.SOOTHE_MAX_RETRIES = 'not-a-number';
-    process.env.SOOTHE_DAEMON_READY_TIMEOUT_SEC = '-5';
+  it("falls back to defaults for invalid values", () => {
+    process.env.SOOTHE_MAX_RETRIES = "not-a-number";
+    process.env.SOOTHE_DAEMON_READY_TIMEOUT_SEC = "-5";
 
     const cfg = loadConfigFromEnv();
     expect(cfg.maxRetries).toBe(5);

@@ -6,12 +6,12 @@
  * jumps straight to loop_new + subscribe(loop_events).
  */
 
-import type { Client } from './client.js';
-import type { Config } from './config.js';
-import { defaultConfig } from './config.js';
-import type { DecodedMessage } from './protocol.js';
-import { newLoopNewMessage } from './protocol.js';
-import { DaemonError } from './errors.js';
+import type { Client } from "./client.js";
+import type { Config } from "./config.js";
+import { defaultConfig } from "./config.js";
+import type { DecodedMessage } from "./protocol.js";
+import { newLoopNewMessage } from "./protocol.js";
+import { DaemonError } from "./errors.js";
 
 // ---------------------------------------------------------------------------
 // Bootstrap flows (loop-first, RFC-503)
@@ -25,29 +25,29 @@ export async function bootstrapLoopSession(
   client: Client,
   resumeLoopId: string | null | undefined,
   config?: Config,
-  loopNew?: import('./protocol.js').LoopNewOptions,
+  loopNew?: import("./protocol.js").LoopNewOptions,
 ): Promise<string> {
   const cfg = config ?? defaultConfig();
 
-  let loopId = (resumeLoopId ?? '').trim();
+  let loopId = (resumeLoopId ?? "").trim();
   if (!loopId) {
     const env = newLoopNewMessage(loopNew);
     const newResp = await client.requestResponse(
       env.method,
       env.params ?? {},
-      'loop_new',
+      "loop_new",
       cfg.loopStatusTimeout,
     );
-    loopId = String(newResp.loop_id ?? '').trim();
+    loopId = String(newResp.loop_id ?? "").trim();
     if (!loopId) {
-      throw new Error('loop_new response missing loop_id');
+      throw new Error("loop_new response missing loop_id");
     }
   }
 
   // Subscribe to the loop event stream. Confirmation arrives as a `next`
   // frame; client.subscribe() handles the initial ack/error window.
   await client.subscribe(
-    'loop_events',
+    "loop_events",
     { loop_id: loopId, verbosity: cfg.verbosityLevel },
     cfg.subscriptionTimeout,
   );
@@ -72,18 +72,23 @@ export async function waitDaemonReady(
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<
+      string,
+      unknown
+    > | null;
     if (ev === null) break;
-    if (ev.type === 'connection_ack') {
+    if (ev.type === "connection_ack") {
       const result = (ev.result as Record<string, unknown> | undefined) ?? {};
       const state = result.readiness_state as string | undefined;
-      if (state === 'ready') return;
+      if (state === "ready") return;
       throw new Error(
-        `daemon not ready: state=${JSON.stringify(state ?? 'unknown')}`,
+        `daemon not ready: state=${JSON.stringify(state ?? "unknown")}`,
       );
     }
   }
-  throw new Error(`timeout after ${timeout}ms waiting for connection_ack (ready)`);
+  throw new Error(
+    `timeout after ${timeout}ms waiting for connection_ack (ready)`,
+  );
 }
 
 /** Waits for connection_ack using messages from an AsyncIterable (e.g. receiveMessages()). */
@@ -93,18 +98,22 @@ export async function waitDaemonReadyFromStream(
 ): Promise<void> {
   const deadline = Date.now() + timeout;
   for await (const msg of eventStream) {
-    if (msg && typeof msg === 'object') {
+    if (msg && typeof msg === "object") {
       const m = msg as Record<string, unknown>;
-      if (m.type === 'connection_ack') {
+      if (m.type === "connection_ack") {
         const result = (m.result as Record<string, unknown> | undefined) ?? {};
         const state = result.readiness_state as string | undefined;
-        if (state === 'ready') return;
-        throw new Error(`daemon not ready: state=${JSON.stringify(state ?? 'unknown')}`);
+        if (state === "ready") return;
+        throw new Error(
+          `daemon not ready: state=${JSON.stringify(state ?? "unknown")}`,
+        );
       }
     }
     if (Date.now() >= deadline) break;
   }
-  throw new Error(`timeout after ${timeout}ms waiting for connection_ack (ready)`);
+  throw new Error(
+    `timeout after ${timeout}ms waiting for connection_ack (ready)`,
+  );
 }
 
 /** Waits for a status message with a non-empty loop_id. */
@@ -116,17 +125,23 @@ export async function waitLoopStatusWithID(
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<
+      string,
+      unknown
+    > | null;
     if (ev === null) break;
 
-    if (ev.type === 'error') {
+    if (ev.type === "error") {
       const errObj = (ev.error as { code?: number; message?: string }) ?? {};
-      throw new DaemonError(errObj.code ?? -32603, errObj.message ?? 'daemon error');
+      throw new DaemonError(
+        errObj.code ?? -32603,
+        errObj.message ?? "daemon error",
+      );
     }
 
-    if (ev.type === 'status') {
+    if (ev.type === "status") {
       const lid = ev.loop_id as string | undefined;
-      if (lid && lid !== '') {
+      if (lid && lid !== "") {
         return ev;
       }
     }
@@ -145,20 +160,27 @@ export async function waitSubscriptionConfirmed(
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<
+      string,
+      unknown
+    > | null;
     if (ev === null) break;
-    if (ev.type === 'next') {
+    if (ev.type === "next") {
       const payload = (ev.payload as Record<string, unknown> | undefined) ?? {};
-      const lid = String(payload.loop_id ?? '');
+      const lid = String(payload.loop_id ?? "");
       if (lid === wantLoopID && payload.success === true) return;
       continue;
     }
-    if (ev.type === 'error') {
+    if (ev.type === "error") {
       const errObj = (ev.error as { message?: string }) ?? {};
-      throw new Error(`daemon error: ${errObj.message ?? 'subscription failed'}`);
+      throw new Error(
+        `daemon error: ${errObj.message ?? "subscription failed"}`,
+      );
     }
   }
-  throw new Error(`timeout after ${timeout}ms waiting for subscription confirmation`);
+  throw new Error(
+    `timeout after ${timeout}ms waiting for subscription confirmation`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -182,7 +204,9 @@ export async function connectWithRetries(
     } catch (err) {
       lastErr = err as Error;
     }
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
-  throw new Error(`failed to connect after ${retries} attempts: ${lastErr?.message ?? 'unknown error'}`);
+  throw new Error(
+    `failed to connect after ${retries} attempts: ${lastErr?.message ?? "unknown error"}`,
+  );
 }
