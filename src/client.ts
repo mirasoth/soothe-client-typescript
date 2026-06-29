@@ -1,22 +1,39 @@
 /**
- * Client manages a WebSocket session with the Soothe daemon.
- * After close(), a new Client must be created to reconnect.
+ * Client manages a WebSocket session with the Soothe daemon (RFC-450 protocol-1).
+ *
+ * After close(), a new Client must be created to reconnect. The connection
+ * begins with a bidirectional connection_init/connection_ack handshake; no
+ * requests are accepted until the daemon reports readiness_state "ready".
  */
 
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
 import type { Config } from './config.js';
 import { defaultConfig } from './config.js';
+import { DaemonError } from './errors.js';
 import {
+  CLIENT_VERSION,
+  DEFAULT_CLIENT_CAPABILITIES,
+  PROTO_VERSION,
+  connectionInitEnvelope,
   decodeMessage,
-  splitWirePayload,
-  newRequestID,
+  disconnectEnvelope,
   newLoopNewMessage,
-  newLoopSubscribeMessage,
+  newRequestID,
+  notificationEnvelope,
+  pingEnvelope,
+  pongEnvelope,
+  requestEnvelope,
+  splitWirePayload,
+  subscribeEnvelope,
+  unsubscribeEnvelope,
+  type ConnectionAckEnvelope,
   type DecodedMessage,
   type LoopNewOptions,
+  type MethodName,
 } from './protocol.js';
 
+/** Input options for `sendInput` (loop_input). */
 export interface InputOptions {
   /** Subscribed StrangeLoop id (required for loop_input). */
   loopID?: string;
@@ -35,7 +52,7 @@ export interface InputOptions {
   responseSchemaName?: string;
   /** Strict mode for JSON schema (default true). */
   responseSchemaStrict?: boolean;
-  /** RFC-622 clarification relay mode ("auto" / "manual"). */
+  /** Clarification relay mode ("auto" / "manual"). */
   clarificationMode?: string;
   /** Treat this input as answer to pending clarification interrupt. */
   clarificationAnswer?: boolean;
@@ -43,12 +60,23 @@ export interface InputOptions {
   clarificationAnswers?: string[];
 }
 
+/** Capability set negotiated with the daemon. */
+export type NegotiatedCapabilities = ReadonlySet<string>;
+
 export class Client extends EventEmitter {
   private url: string;
   private config: Config;
   private ws: WebSocket | null = null;
   private messageBuffer: DecodedMessage[] = [];
   private resolvers: Array<(value: DecodedMessage | null) => void> = [];
+  // Protocol-1 handshake state (RFC-450 §8.2)
+  private handshakeComplete = false;
+  private negotiatedCapabilities: NegotiatedCapabilities = new Set();
+  private protocolVersion: string | null = null;
+  private readinessState: string | null = null;
+  private heartbeatIntervalMs = 0;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private lastPongMonotonic = 0;
 
   constructor(url: string, config?: Config) {
     super();
@@ -60,7 +88,10 @@ export class Client extends EventEmitter {
   // Connection lifecycle
   // ---------------------------------------------------------------------------
 
-  /** Dials the Soothe daemon WebSocket. No WS-level ping/pong (RFC-0013). */
+  /**
+   * Dials the Soothe daemon WebSocket and completes the protocol-1 handshake
+   * (connection_init → connection_ack with readiness_state "ready").
+   */
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(this.url, {
@@ -69,7 +100,27 @@ export class Client extends EventEmitter {
 
       ws.on('open', () => {
         this.ws = ws;
-        resolve();
+        // Kick off the protocol-1 handshake; resolve connect() once ready.
+        this._performHandshake()
+          .then(ack => {
+            this.handshakeComplete = true;
+            this.readinessState = ack.result?.readiness_state ?? 'ready';
+            this._startHeartbeat();
+            resolve();
+          })
+          .catch(err => {
+            // Handshake failed — tear down the underlying socket so server
+            // close() does not hang on a lingering connection.
+            this._stopHeartbeat();
+            this.ws = null;
+            this.handshakeComplete = false;
+            try {
+              ws.close(1011, 'handshake failed');
+            } catch {
+              // ignore
+            }
+            reject(err);
+          });
       });
 
       ws.on('error', err => {
@@ -81,25 +132,44 @@ export class Client extends EventEmitter {
       ws.on('message', (data: WebSocket.RawData) => {
         const text = data.toString();
         for (const frame of splitWirePayload(text)) {
+          let msg: DecodedMessage | null;
           try {
-            const msg = decodeMessage(frame);
-            if (msg !== null) {
-              this.messageBuffer.push(msg);
-              this.emit('message', msg);
-              // Resolve pending readEvent calls
-              const resolver = this.resolvers.shift();
-              if (resolver) resolver(msg);
-            }
+            msg = decodeMessage(frame);
           } catch {
-            // skip malformed messages
+            continue;
           }
+          if (msg === null) continue;
+
+          // Intercept heartbeat frames (RFC-450 §8.3).
+          const m = msg as Record<string, unknown>;
+          if (m.type === 'ping') {
+            this._sendRaw(pongEnvelope());
+            continue;
+          }
+          if (m.type === 'pong') {
+            this.lastPongMonotonic = Date.now();
+            continue;
+          }
+
+          // If a reader is waiting, deliver directly; otherwise buffer for
+          // later readEvent/receiveMessages calls. Never do both — a single
+          // inbound frame must be consumed exactly once.
+          const resolver = this.resolvers.shift();
+          if (resolver) {
+            resolver(msg);
+          } else {
+            this.messageBuffer.push(msg);
+          }
+          this.emit('message', msg);
         }
       });
 
       ws.on('close', () => {
         this.ws = null;
+        this._stopHeartbeat();
+        this.handshakeComplete = false;
         this.emit('close');
-        // Resolve any pending readEvent calls with null
+        // Resolve any pending readEvent calls with null.
         for (const resolver of this.resolvers) {
           resolver(null);
         }
@@ -108,20 +178,124 @@ export class Client extends EventEmitter {
     });
   }
 
-  /** Shuts down the WebSocket connection. */
+  /** Sends a `disconnect` notification and closes the WebSocket. */
   close(): void {
+    this._stopHeartbeat();
     if (!this.ws) return;
     try {
+      // Best-effort clean disconnect (daemon keeps loops running).
+      if (this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(disconnectEnvelope()));
+      }
       this.ws.close(1000, '');
     } catch {
       // ignore close errors
     }
     this.ws = null;
+    this.handshakeComplete = false;
   }
 
-  /** Returns whether the client has an active WebSocket connection. */
+  /** Returns whether the client has an active, handshaked WebSocket connection. */
   isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN && this.handshakeComplete;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Protocol-1 handshake (RFC-450 §8.2)
+  // ---------------------------------------------------------------------------
+
+  /** Send connection_init and wait for connection_ack with readiness "ready". */
+  private async _performHandshake(): Promise<ConnectionAckEnvelope> {
+    const init = connectionInitEnvelope({
+      client_version: CLIENT_VERSION,
+      client_name: 'soothe-client-ts',
+      accept_proto: [PROTO_VERSION],
+      capabilities: DEFAULT_CLIENT_CAPABILITIES,
+    });
+    await this.sendMessage(init);
+
+    const deadline = Date.now() + this.config.daemonReadyTimeout;
+    while (Date.now() < deadline) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      const ev = (await this.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
+      if (ev === null) {
+        throw new Error('connection closed during handshake');
+      }
+      // Discard the initial `status` frame; keep other frames for later.
+      if (ev.type === 'status') {
+        continue;
+      }
+      if (ev.type !== 'connection_ack') {
+        continue;
+      }
+      const ack = ev as unknown as ConnectionAckEnvelope;
+      const result = ack.result ?? {};
+      const state = result.readiness_state ?? 'ready';
+      this.protocolVersion = result.protocol_version ?? PROTO_VERSION;
+      this.negotiatedCapabilities = new Set(result.capabilities ?? []);
+      this.heartbeatIntervalMs = result.heartbeat_interval_ms ?? 0;
+
+      if (state === 'incompatible') {
+        throw new Error(`protocol version incompatible: daemon returned ${this.protocolVersion}`);
+      }
+      if (state === 'ready') {
+        return ack;
+      }
+      if (state === 'error') {
+        throw new Error('daemon startup failed');
+      }
+      if (state === 'degraded') {
+        throw new Error('daemon is degraded');
+      }
+      // starting / warming — bounded retry by re-sending connection_init.
+      await this._sleep(50);
+      await this.sendMessage(init);
+    }
+    throw new Error(`timeout after ${this.config.daemonReadyTimeout}ms waiting for connection_ack`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Heartbeat (RFC-450 §8.3)
+  // ---------------------------------------------------------------------------
+
+  private _startHeartbeat(): void {
+    if (!this.negotiatedCapabilities.has('heartbeat')) return;
+    const interval = this.heartbeatIntervalMs;
+    if (interval <= 0) return;
+    this.lastPongMonotonic = Date.now();
+    this.heartbeatTimer = setInterval(() => this._heartbeatTick(interval), interval);
+  }
+
+  private _stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  private _heartbeatTick(intervalMs: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const timeoutMs = Math.max(10_000, intervalMs * 2);
+    const now = Date.now();
+    if (now - (this.lastPongMonotonic || now) > intervalMs + timeoutMs) {
+      // Dead connection — force close.
+      try {
+        this.ws.close(1001, 'heartbeat timeout');
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    try {
+      this.ws.send(JSON.stringify(pingEnvelope()));
+    } catch {
+      // ignore transient send failures
+    }
+  }
+
+  private _sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // ---------------------------------------------------------------------------
@@ -131,7 +305,7 @@ export class Client extends EventEmitter {
   /** Serializes msg as JSON and sends it as a WebSocket text frame. */
   sendMessage(msg: unknown): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (!this.ws) {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('soothe: not connected'));
         return;
       }
@@ -143,18 +317,28 @@ export class Client extends EventEmitter {
     });
   }
 
+  /** Low-level send that does not reject on a missing connection (best-effort). */
+  private _sendRaw(msg: unknown): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    try {
+      this.ws.send(JSON.stringify(msg));
+    } catch {
+      // ignore
+    }
+  }
+
   /** Returns an async iterable of decoded messages. Ends when connection closes. */
   async *receiveMessages(signal?: AbortSignal): AsyncGenerator<DecodedMessage> {
     while (true) {
       if (signal?.aborted) return;
 
-      // Drain buffer first
+      // Drain buffer first.
       while (this.messageBuffer.length > 0) {
         const msg = this.messageBuffer.shift()!;
         yield msg;
       }
 
-      // Wait for next message or close
+      // Wait for next message or close.
       const msg = await new Promise<DecodedMessage | null>(resolve => {
         if (!this.ws) {
           resolve(null);
@@ -170,30 +354,24 @@ export class Client extends EventEmitter {
 
   /** Reads a single event from the daemon. Returns null on connection close. */
   async readEvent(): Promise<Record<string, unknown> | null> {
-    // Check buffer first
     if (this.messageBuffer.length > 0) {
       const msg = this.messageBuffer.shift()!;
       return msg as Record<string, unknown>;
     }
-
     if (!this.ws) return null;
-
     const msg = await new Promise<DecodedMessage | null>(resolve => {
       this.resolvers.push(resolve);
     });
-
     if (msg === null) return null;
     return msg as Record<string, unknown>;
   }
 
-  /** Reads a single event with a timeout. Returns null on timeout or connection close. */
+  /** Reads a single event with a timeout. Returns null on timeout or close. */
   readEventWithTimeout(timeout: number): Promise<Record<string, unknown> | null> {
-    // Check buffer first
     if (this.messageBuffer.length > 0) {
       const msg = this.messageBuffer.shift()!;
       return Promise.resolve(msg as Record<string, unknown>);
     }
-
     if (!this.ws) return Promise.resolve(null);
 
     return new Promise<Record<string, unknown> | null>(resolve => {
@@ -213,368 +391,359 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // High-level API methods (Loop-first, RFC-503)
+  // Protocol-1 RPC primitives (RFC-450 §5/§9)
   // ---------------------------------------------------------------------------
 
-  /** Sends user input to the daemon (loop_input; requires loopID). */
-  sendInput(text: string, options?: InputOptions): Promise<void> {
-    const loopId = (options?.loopID ?? '').trim();
-    if (!loopId) {
-      return Promise.reject(new Error('sendInput requires options.loopID'));
-    }
-    const payload: Record<string, unknown> = {
-      type: 'loop_input',
-      loop_id: loopId,
-      content: text,
-      autonomous: options?.autonomous ?? false,
-    };
-    if (options?.maxIterations !== undefined) payload.max_iterations = options.maxIterations;
-    if (options?.subagent) payload.preferred_subagent = options.subagent;
-    if (options?.interactive) payload.interactive = true;
-    if (options?.model) payload.model = options.model;
-    if (options?.modelParams) payload.model_params = options.modelParams;
-    if (options?.attachments) payload.attachments = options.attachments;
-    if (options?.intentHint) payload.intent_hint = options.intentHint;
-    if (options?.responseSchema) payload.response_schema = options.responseSchema;
-    if (options?.responseSchemaName) payload.response_schema_name = options.responseSchemaName;
-    if (options?.responseSchemaStrict !== undefined) payload.response_schema_strict = options.responseSchemaStrict;
-    if (options?.clarificationMode) payload.clarification_mode = options.clarificationMode;
-    if (options?.clarificationAnswer) payload.clarification_answer = true;
-    if (options?.clarificationAnswers) payload.clarification_answers = options.clarificationAnswers;
-    return this.sendMessage(payload);
-  }
+  /**
+   * Reads the next frame directly from the live socket (via a resolver),
+   * bypassing `messageBuffer`. Used by RPC waits so that stream events
+   * previously buffered for `readEvent()`/`receiveMessages()` consumers are
+   * not re-cycled through the RPC wait loop (which would stall behind a
+   * continuous subscription stream). Non-RPC frames read here are pushed to
+   * `messageBuffer` for the stream readers.
+   */
+  private readLiveEventWithTimeout(timeout: number): Promise<Record<string, unknown> | null> {
+    if (!this.ws) return Promise.resolve(null);
+    return new Promise<Record<string, unknown> | null>(resolve => {
+      const timer = setTimeout(() => {
+        const idx = this.resolvers.indexOf(resolver);
+        if (idx >= 0) this.resolvers.splice(idx, 1);
+        resolve(null);
+      }, timeout);
 
-  /** Sends a slash command to the daemon. */
-  sendCommand(cmd: string): Promise<void> {
-    return this.sendMessage({ type: 'command', cmd });
-  }
+      const resolver = (val: DecodedMessage | null) => {
+        clearTimeout(timer);
+        resolve(val as Record<string, unknown> | null);
+      };
 
-  // ---------------------------------------------------------------------------
-  // Loop lifecycle methods (RFC-503)
-  // ---------------------------------------------------------------------------
-
-  /** Requests the daemon to create a new StrangeLoop. */
-  sendLoopNew(opts?: LoopNewOptions | string): Promise<void> {
-    return this.sendMessage(newLoopNewMessage(opts));
-  }
-
-  /** Subscribes to events for a loop. */
-  sendLoopSubscribe(loopID: string, verbosity: string, streamDelivery?: 'batch' | 'streaming'): Promise<void> {
-    const msg = newLoopSubscribeMessage(loopID, verbosity);
-    if (streamDelivery) {
-      (msg as unknown as Record<string, unknown>).stream_delivery = streamDelivery;
-    }
-    return this.sendMessage(msg);
-  }
-
-  /** Detaches from a loop (keeps loop running). */
-  sendLoopDetach(loopID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'loop_detach',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
+      this.resolvers.push(resolver);
     });
   }
 
-  /** Notifies the daemon that this client is detaching. */
-  sendDetach(): Promise<void> {
-    return this.sendMessage({ type: 'detach' });
-  }
-
-  /** Sends the daemon_ready handshake message. */
-  sendDaemonReady(): Promise<void> {
-    return this.sendMessage({ type: 'daemon_ready' });
-  }
-
-  /** Requests daemon status check. */
-  sendDaemonStatus(requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'daemon_status',
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Requests daemon shutdown. */
-  sendDaemonShutdown(requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'daemon_shutdown',
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Requests a config section from the daemon. */
-  sendConfigGet(section: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'config_get',
-      section,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Loop management RPC methods (RFC-504)
-  // ---------------------------------------------------------------------------
-
-  /** Requests the persisted loop list. */
-  sendLoopList(filter?: Record<string, unknown>, limit?: number, requestID?: string): Promise<void> {
-    const msg: Record<string, unknown> = {
-      type: 'loop_list',
-      request_id: requestID ?? newRequestID(),
-    };
-    if (filter) msg.filter = filter;
-    if (limit !== undefined) msg.limit = limit;
-    return this.sendMessage(msg);
-  }
-
-  /** Requests detailed loop metadata. */
-  sendLoopGet(loopID: string, verbose?: boolean, requestID?: string): Promise<void> {
-    const msg: Record<string, unknown> = {
-      type: 'loop_get',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
-    };
-    if (verbose) msg.verbose = verbose;
-    return this.sendMessage(msg);
-  }
-
-  /** Requests loop tree visualization. */
-  sendLoopTree(loopID: string, format?: string, requestID?: string): Promise<void> {
-    const msg: Record<string, unknown> = {
-      type: 'loop_tree',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
-    };
-    if (format) msg.format = format;
-    return this.sendMessage(msg);
-  }
-
-  /** Requests pruning of old failed branches. */
-  sendLoopPrune(loopID: string, retentionDays?: number, dryRun?: boolean, requestID?: string): Promise<void> {
-    const msg: Record<string, unknown> = {
-      type: 'loop_prune',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
-    };
-    if (retentionDays !== undefined) msg.retention_days = retentionDays;
-    if (dryRun !== undefined) msg.dry_run = dryRun;
-    return this.sendMessage(msg);
-  }
-
-  /** Requests loop deletion. */
-  sendLoopDelete(loopID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'loop_delete',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Requests reattachment to a loop with history replay. */
-  sendLoopReattach(loopID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'loop_reattach',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Skills and models
-  // ---------------------------------------------------------------------------
-
-  /** Requests the skills catalog (RFC-400). */
-  sendSkillsList(requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'skills_list',
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Requests the models catalog (RFC-400). */
-  sendModelsList(requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'models_list',
-      request_id: requestID ?? newRequestID(),
-    });
-  }
-
-  /** Invokes a skill on the daemon (RFC-400). */
-  sendInvokeSkill(skill: string, args?: string, requestID?: string): Promise<void> {
-    const msg: Record<string, unknown> = {
-      type: 'invoke_skill',
-      skill,
-      request_id: requestID ?? newRequestID(),
-    };
-    if (args) msg.args = args;
-    return this.sendMessage(msg);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Request-Response pattern
-  // ---------------------------------------------------------------------------
-
-  /** Sends a request with a unique request_id and waits for a matching response. */
+  /**
+   * Sends a `request` envelope and waits for the matching `response` (or
+   * `error`) correlated by `id`. Returns the `result` object.
+   *
+   * Reads from the live socket (not `messageBuffer`) so an active subscription
+   * stream cannot starve the RPC wait. Non-matching frames (stream events,
+   * status) are buffered for `readEvent()`/`receiveMessages()` consumers.
+   */
   async requestResponse(
-    payload: Record<string, unknown>,
-    responseType: string,
-    timeout: number,
+    method: MethodName,
+    params: Record<string, unknown>,
+    responseType?: string,
+    timeout: number = 15_000,
   ): Promise<Record<string, unknown>> {
-    const rid = newRequestID();
-    payload.request_id = rid;
-
-    await this.sendMessage(payload);
+    const req = requestEnvelope(method, params);
+    const rid = req.id;
+    await this.sendMessage(req);
 
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
 
-      const ev = await this.readEventWithTimeout(remaining);
-      if (ev === null) {
-        break; // timeout or connection closed
-      }
+      const ev = await this.readLiveEventWithTimeout(remaining);
+      if (ev === null) break; // timeout or connection closed
 
-      const evRid = ev.request_id as string | undefined;
-      if (evRid !== rid) continue;
+      const evId = ev.id as string | undefined;
+      if (evId !== rid) {
+        // Not our response — buffer for stream readers, keep waiting on live socket.
+        this.messageBuffer.push(ev as DecodedMessage);
+        continue;
+      }
 
       const typ = ev.type as string;
       if (typ === 'error') {
-        const msg = (ev.message as string) ?? 'unknown error';
-        throw new Error(`daemon error: ${msg}`);
+        const errObj = (ev.error as { code?: number; message?: string; data?: unknown }) ?? {};
+        throw new DaemonError(
+          errObj.code ?? -32603,
+          errObj.message ?? 'daemon error',
+          errObj.data,
+        );
       }
-      if (typ === responseType) {
-        return ev;
+      if (typ === 'response') {
+        return (ev.result as Record<string, unknown>) ?? ev;
       }
     }
 
-    throw new Error(`timeout after ${timeout}ms waiting for ${responseType}`);
+    throw new Error(`timeout after ${timeout}ms waiting for ${responseType ?? method}`);
+  }
+
+  /** Sends a fire-and-forget `notification` envelope (no response expected). */
+  notify(method: MethodName, params: Record<string, unknown>): Promise<void> {
+    return this.sendMessage(notificationEnvelope(method, params));
+  }
+
+  /**
+   * Starts a subscription stream. Returns the subscription `id` for later
+   * correlation and `unsubscribe()`. Stream events arrive as `next` frames
+   * carrying the same `id`.
+   */
+  async subscribe(
+    method: 'loop_events' | 'autopilot_events',
+    params: Record<string, unknown>,
+    timeout: number = 5_000,
+  ): Promise<string> {
+    const req = subscribeEnvelope(method, params);
+    const subId = req.id;
+    await this.sendMessage(req);
+
+    // Wait briefly for either a subscription-confirmation `next` or an `error`
+    // with the matching id. If neither arrives, assume accepted. Read from the
+    // live socket so buffered stream events do not stall the confirmation wait.
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      const ev = await this.readLiveEventWithTimeout(remaining);
+      if (ev === null) break;
+      const evId = ev.id as string | undefined;
+      if (evId !== subId) {
+        this.messageBuffer.push(ev as DecodedMessage);
+        continue;
+      }
+      const typ = ev.type as string;
+      if (typ === 'error') {
+        const errObj = (ev.error as { code?: number; message?: string; data?: unknown }) ?? {};
+        throw new DaemonError(
+          errObj.code ?? -32603,
+          errObj.message ?? 'subscription rejected',
+          errObj.data,
+        );
+      }
+      if (typ === 'next' || typ === 'complete') {
+        // Subscription confirmed (next) or already complete. Re-buffer for the
+        // stream reader so it sees the first event.
+        this.messageBuffer.unshift(ev as DecodedMessage);
+        break;
+      }
+    }
+    return subId;
+  }
+
+  /** Cancels an active subscription by id. */
+  unsubscribe(subscriptionId: string): Promise<void> {
+    return this.sendMessage(unsubscribeEnvelope(subscriptionId));
+  }
+
+  /**
+   * Reads the next stream event from a subscription. For `next` frames the
+   * `payload` is returned; for `complete`/`error` the full envelope is
+   * returned so the caller can inspect termination.
+   */
+  async next(): Promise<Record<string, unknown> | null> {
+    const ev = await this.readEvent();
+    if (ev === null) return null;
+    if (ev.type === 'next') {
+      return (ev.payload as Record<string, unknown>) ?? {};
+    }
+    return ev;
   }
 
   // ---------------------------------------------------------------------------
-  // Convenience RPC methods
+  // High-level API methods (Loop-first, RFC-503)
+  // ---------------------------------------------------------------------------
+
+  /** Sends user input to the daemon (loop_input notification; requires loopID). */
+  sendInput(text: string, options?: InputOptions): Promise<void> {
+    const loopId = (options?.loopID ?? '').trim();
+    if (!loopId) {
+      return Promise.reject(new Error('sendInput requires options.loopID'));
+    }
+    const params: Record<string, unknown> = {
+      loop_id: loopId,
+      content: text,
+      autonomous: options?.autonomous ?? false,
+    };
+    if (options?.maxIterations !== undefined) params.max_iterations = options.maxIterations;
+    if (options?.subagent) params.preferred_subagent = options.subagent;
+    if (options?.interactive) params.interactive = true;
+    if (options?.model) params.model = options.model;
+    if (options?.modelParams) params.model_params = options.modelParams;
+    if (options?.attachments) params.attachments = options.attachments;
+    if (options?.intentHint) params.intent_hint = options.intentHint;
+    if (options?.responseSchema) params.response_schema = options.responseSchema;
+    if (options?.responseSchemaName) params.response_schema_name = options.responseSchemaName;
+    if (options?.responseSchemaStrict !== undefined) params.response_schema_strict = options.responseSchemaStrict;
+    if (options?.clarificationMode) params.clarification_mode = options.clarificationMode;
+    if (options?.clarificationAnswer) params.clarification_answer = true;
+    if (options?.clarificationAnswers) params.clarification_answers = options.clarificationAnswers;
+    return this.notify('loop_input', params);
+  }
+
+  /** Sends a slash command to the daemon (slash_command notification). */
+  sendCommand(cmd: string): Promise<void> {
+    return this.notify('slash_command', { cmd });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Loop lifecycle methods (RFC-503)
+  // ---------------------------------------------------------------------------
+
+  /** Requests the daemon to create a new StrangeLoop and waits for the response. */
+  sendLoopNew(opts?: LoopNewOptions | string): Promise<void> {
+    return this.sendMessage(newLoopNewMessage(opts));
+  }
+
+  /** Subscribes to events for a loop (subscribe → loop_events). */
+  async sendLoopSubscribe(
+    loopID: string,
+    verbosity: string,
+    streamDelivery?: 'batch' | 'adaptive' | 'streaming',
+  ): Promise<void> {
+    await this.subscribe('loop_events', { loop_id: loopID, verbosity, stream_delivery: streamDelivery });
+  }
+
+  /** Detaches from a loop (unsubscribe). */
+  sendLoopDetach(loopID: string): Promise<void> {
+    // loop_detach is modelled as unsubscribe by subscription id; to preserve the
+    // loopID-based signature we send an unsubscribe carrying the loop-derived id.
+    return this.sendMessage(unsubscribeEnvelope(loopID));
+  }
+
+  /** Notifies the daemon that this client is leaving (disconnect notification). */
+  sendDetach(): Promise<void> {
+    return this.sendMessage(disconnectEnvelope());
+  }
+
+  /** Requests daemon status check. */
+  sendDaemonStatus(): Promise<void> {
+    return this.sendMessage(requestEnvelope('daemon_status', {}));
+  }
+
+  /** Requests daemon shutdown. */
+  sendDaemonShutdown(): Promise<void> {
+    return this.sendMessage(requestEnvelope('daemon_shutdown', {}));
+  }
+
+  /** Requests a config section from the daemon. */
+  sendConfigGet(section: string): Promise<void> {
+    return this.sendMessage(requestEnvelope('config_get', { section }));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Convenience RPC methods (blocking request/response)
   // ---------------------------------------------------------------------------
 
   /** Requests the skills catalog and waits for the response. */
   listSkills(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'skills_list' }, 'skills_list_response', timeout ?? 15_000);
+    return this.requestResponse('skills_list', {}, 'skills_list', timeout ?? 15_000);
   }
 
   /** Requests the models catalog and waits for the response. */
   listModels(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'models_list' }, 'models_list_response', timeout ?? 15_000);
+    return this.requestResponse('models_list', {}, 'models_list', timeout ?? 15_000);
   }
 
-  /** Invokes a skill on the daemon host and receives echo (RFC-400). */
+  /** Invokes a skill on the daemon host and receives echo. */
   invokeSkill(skill: string, args?: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'invoke_skill', skill, args }, 'invoke_skill_response', timeout ?? 120_000);
+    const params: Record<string, unknown> = { skill, args: args ?? '' };
+    return this.requestResponse('invoke_skill', params, 'invoke_skill', timeout ?? 120_000);
   }
 
   /** Requests loop list and waits for response. */
   listLoops(timeout?: number, workspace?: string): Promise<Record<string, unknown>> {
-    const payload: Record<string, unknown> = { type: 'loop_list' };
-    if (workspace) payload.filter = { workspace };
-    return this.requestResponse(payload, 'loop_list_response', timeout ?? 15_000);
+    const params: Record<string, unknown> = {};
+    if (workspace) params.filter = { workspace };
+    return this.requestResponse('loop_list', params, 'loop_list', timeout ?? 15_000);
   }
 
   /** Requests loop details and waits for response. */
   getLoop(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'loop_get', loop_id: loopID }, 'loop_get_response', timeout ?? 15_000);
+    return this.requestResponse('loop_get', { loop_id: loopID }, 'loop_get', timeout ?? 15_000);
   }
 
   /** Requests loop tree and waits for response. */
   getLoopTree(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'loop_tree', loop_id: loopID }, 'loop_tree_response', timeout ?? 15_000);
+    return this.requestResponse('loop_tree', { loop_id: loopID }, 'loop_tree', timeout ?? 15_000);
   }
 
   /** Requests loop deletion and waits for response. */
   deleteLoop(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'loop_delete', loop_id: loopID }, 'loop_delete_response', timeout ?? 15_000);
+    return this.requestResponse('loop_delete', { loop_id: loopID }, 'loop_delete', timeout ?? 15_000);
   }
 
-  // ---------------------------------------------------------------------------
-  // Additional loop methods (RFC-503 extensions)
-  // ---------------------------------------------------------------------------
-
   /** Requests persisted conversation/activity rows. */
-  sendLoopMessages(loopID: string, limit?: number, offset?: number, includeEvents?: boolean, requestID?: string): Promise<void> {
-    const msg: Record<string, unknown> = {
-      type: 'loop_messages',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
-    };
-    if (limit !== undefined) msg.limit = limit;
-    if (offset !== undefined) msg.offset = offset;
-    if (includeEvents) msg.include_events = true;
-    return this.sendMessage(msg);
+  sendLoopMessages(
+    loopID: string,
+    limit?: number,
+    offset?: number,
+    includeEvents?: boolean,
+  ): Promise<void> {
+    const params: Record<string, unknown> = { loop_id: loopID };
+    if (limit !== undefined) params.limit = limit;
+    if (offset !== undefined) params.offset = offset;
+    if (includeEvents) params.include_events = true;
+    return this.sendMessage(requestEnvelope('loop_messages', params));
   }
 
   /** Requests LangGraph checkpoint channel values. */
-  sendLoopStateGet(loopID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'loop_state_get',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
-    });
+  sendLoopStateGet(loopID: string): Promise<void> {
+    return this.sendMessage(requestEnvelope('loop_state_get', { loop_id: loopID }));
   }
 
   /** Applies partial checkpoint values. */
-  sendLoopStateUpdate(loopID: string, values: Record<string, unknown>, asNode?: string, requestID?: string): Promise<void> {
-    const msg: Record<string, unknown> = {
-      type: 'loop_state_update',
-      loop_id: loopID,
-      values,
-      request_id: requestID ?? newRequestID(),
-    };
-    if (asNode) msg.as_node = asNode;
-    return this.sendMessage(msg);
+  sendLoopStateUpdate(
+    loopID: string,
+    values: Record<string, unknown>,
+    asNode?: string,
+  ): Promise<void> {
+    const params: Record<string, unknown> = { loop_id: loopID, values };
+    if (asNode) params.as_node = asNode;
+    return this.sendMessage(requestEnvelope('loop_state_update', params));
   }
 
-  /** Requests display card ledger snapshot (RFC-413). */
-  sendLoopCardsFetch(loopID: string, requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'loop_cards_fetch',
-      loop_id: loopID,
-      request_id: requestID ?? newRequestID(),
-    });
+  /** Requests display card ledger snapshot. */
+  sendLoopCardsFetch(loopID: string): Promise<void> {
+    return this.sendMessage(requestEnvelope('loop_cards_fetch', { loop_id: loopID }));
   }
 
   /** Requests MCP server status. */
-  sendMCPStatus(requestID?: string): Promise<void> {
-    return this.sendMessage({
-      type: 'mcp_status',
-      request_id: requestID ?? newRequestID(),
-    });
+  sendMCPStatus(): Promise<void> {
+    return this.sendMessage(requestEnvelope('mcp_status', {}));
   }
 
   /** Requests persisted messages and waits for response. */
-  getLoopMessages(loopID: string, limit?: number, offset?: number, includeEvents?: boolean, timeout?: number): Promise<Record<string, unknown>> {
-    const payload: Record<string, unknown> = { type: 'loop_messages', loop_id: loopID };
-    if (limit !== undefined) payload.limit = limit;
-    if (offset !== undefined) payload.offset = offset;
-    if (includeEvents) payload.include_events = true;
-    return this.requestResponse(payload, 'loop_messages_response', timeout ?? 15_000);
+  getLoopMessages(
+    loopID: string,
+    limit?: number,
+    offset?: number,
+    includeEvents?: boolean,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    const params: Record<string, unknown> = { loop_id: loopID };
+    if (limit !== undefined) params.limit = limit;
+    if (offset !== undefined) params.offset = offset;
+    if (includeEvents) params.include_events = true;
+    return this.requestResponse('loop_messages', params, 'loop_messages', timeout ?? 15_000);
   }
 
   /** Requests loop state and waits for response. */
   getLoopState(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'loop_state_get', loop_id: loopID }, 'loop_state_get_response', timeout ?? 15_000);
+    return this.requestResponse('loop_state_get', { loop_id: loopID }, 'loop_state_get', timeout ?? 15_000);
   }
 
   /** Updates loop state and waits for response. */
-  updateLoopState(loopID: string, values: Record<string, unknown>, asNode?: string, timeout?: number): Promise<Record<string, unknown>> {
-    const payload: Record<string, unknown> = { type: 'loop_state_update', loop_id: loopID, values };
-    if (asNode) payload.as_node = asNode;
-    return this.requestResponse(payload, 'loop_state_update_response', timeout ?? 15_000);
+  updateLoopState(
+    loopID: string,
+    values: Record<string, unknown>,
+    asNode?: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    const params: Record<string, unknown> = { loop_id: loopID, values };
+    if (asNode) params.as_node = asNode;
+    return this.requestResponse('loop_state_update', params, 'loop_state_update', timeout ?? 15_000);
   }
 
   /** Requests display cards and waits for response. */
   fetchLoopCards(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'loop_cards_fetch', loop_id: loopID }, 'loop_cards_fetch_response', timeout ?? 15_000);
+    return this.requestResponse('loop_cards_fetch', { loop_id: loopID }, 'loop_cards_fetch', timeout ?? 15_000);
   }
 
   /** Requests MCP status and waits for response. */
   getMCPStatus(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'mcp_status' }, 'mcp_status_response', timeout ?? 15_000);
+    return this.requestResponse('mcp_status', {}, 'mcp_status', timeout ?? 15_000);
   }
 
   // ---------------------------------------------------------------------------
@@ -583,60 +752,62 @@ export class Client extends EventEmitter {
 
   /** Creates an autopilot job and waits for the response. */
   createJob(goal: string, verificationRules?: string, workspace?: string, timeout?: number): Promise<Record<string, unknown>> {
-    const payload: Record<string, unknown> = { type: 'job_create', goal };
-    if (verificationRules) payload.verification_rules = verificationRules;
-    if (workspace) payload.workspace = workspace;
-    return this.requestResponse(payload, 'job_create_response', timeout ?? 15_000);
+    const params: Record<string, unknown> = { goal };
+    if (verificationRules) params.verification_rules = verificationRules;
+    if (workspace) params.workspace = workspace;
+    return this.requestResponse('job_create', params, 'job_create', timeout ?? 15_000);
   }
 
   /** Queries job status and waits for the response. */
   getJobStatus(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'job_status', job_id: jobId }, 'job_status_response', timeout ?? 15_000);
+    return this.requestResponse('job_status', { job_id: jobId }, 'job_status', timeout ?? 15_000);
   }
 
   /** Pauses a running job. */
   pauseJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'job_pause', job_id: jobId }, 'job_pause_response', timeout ?? 15_000);
+    return this.requestResponse('job_pause', { job_id: jobId }, 'job_pause', timeout ?? 15_000);
   }
 
   /** Resumes a paused job. */
   resumeJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'job_resume', job_id: jobId }, 'job_resume_response', timeout ?? 15_000);
+    return this.requestResponse('job_resume', { job_id: jobId }, 'job_resume', timeout ?? 15_000);
   }
 
   /** Cancels a job. */
   cancelJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'job_cancel', job_id: jobId }, 'job_cancel_response', timeout ?? 15_000);
+    return this.requestResponse('job_cancel', { job_id: jobId }, 'job_cancel', timeout ?? 15_000);
   }
 
   /** Requests the DAG visualization for a job. */
   getJobDag(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'job_dag', job_id: jobId }, 'job_dag_response', timeout ?? 15_000);
+    return this.requestResponse('job_dag', { job_id: jobId }, 'job_dag', timeout ?? 15_000);
   }
 
   /** Sends guidance to a job or specific goal. */
   sendJobGuidance(jobId: string, text: string, goalId?: string, timeout?: number): Promise<Record<string, unknown>> {
-    const payload: Record<string, unknown> = { type: 'job_guidance', job_id: jobId, text };
-    if (goalId) payload.goal_id = goalId;
-    return this.requestResponse(payload, 'job_guidance_response', timeout ?? 30_000);
+    const params: Record<string, unknown> = { job_id: jobId, content: text };
+    if (goalId) params.goal_id = goalId;
+    return this.requestResponse('job_guidance', params, 'job_guidance', timeout ?? 30_000);
   }
 
   /** Subscribes to autopilot worker events. */
-  autopilotSubscribe(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'autopilot_subscribe' }, 'autopilot_subscribe_response', timeout ?? 15_000);
-  }
-
-  /** Unsubscribes from autopilot worker events. */
-  autopilotUnsubscribe(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse({ type: 'autopilot_unsubscribe' }, 'autopilot_unsubscribe_response', timeout ?? 15_000);
+  autopilotSubscribe(timeout?: number): Promise<string> {
+    return this.subscribe('autopilot_events', {}, timeout ?? 15_000);
   }
 
   // ---------------------------------------------------------------------------
   // Wait helpers
   // ---------------------------------------------------------------------------
 
-  /** Reads events until a daemon_ready with state == "ready". */
+  /**
+   * Waits for the connection_ack to report readiness (already done in
+   * connect(); kept for callers that reconnect manually). Resolves
+   * immediately if the handshake is already complete.
+   */
   async waitForDaemonReady(timeout?: number): Promise<Record<string, unknown>> {
+    if (this.handshakeComplete) {
+      return { readiness_state: this.readinessState ?? 'ready' };
+    }
     const t = timeout ?? 10_000;
     const deadline = Date.now() + t;
     while (Date.now() < deadline) {
@@ -644,15 +815,16 @@ export class Client extends EventEmitter {
       if (remaining <= 0) break;
       const ev = await this.readEventWithTimeout(remaining);
       if (ev === null) break;
-      if (ev.type !== 'daemon_ready') continue;
-      if (ev.state === 'ready') return ev;
-      const msg = (ev.message as string) ?? `daemon state is ${ev.state}`;
-      throw new Error(`daemon not ready: ${msg}`);
+      if (ev.type !== 'connection_ack') continue;
+      const result = (ev.result as Record<string, unknown> | undefined) ?? {};
+      const state = result.readiness_state as string | undefined;
+      if (state === 'ready') return ev;
+      throw new Error(`daemon not ready: state=${state ?? 'unknown'}`);
     }
-    throw new Error(`timeout after ${t}ms waiting for daemon_ready`);
+    throw new Error(`timeout after ${t}ms waiting for connection_ack`);
   }
 
-  /** Waits for subscription confirmation matching loop id. */
+  /** Waits for a subscription confirmation `next` matching the loop id. */
   async waitForSubscriptionConfirmed(loopID: string, _verbosity: string, timeout?: number): Promise<void> {
     const t = timeout ?? 5_000;
     const deadline = Date.now() + t;
@@ -661,14 +833,19 @@ export class Client extends EventEmitter {
       if (remaining <= 0) break;
       const ev = await this.readEventWithTimeout(remaining);
       if (ev === null) break;
-      if (ev.type === 'loop_subscribe_response' && ev.success === true) {
-        if (String(ev.loop_id ?? '') === loopID) return;
+      // Subscription confirmation arrives as a `next` frame whose payload
+      // carries {event:"subscribed", loop_id, success}.
+      if (ev.type === 'next') {
+        const payload = (ev.payload as Record<string, unknown> | undefined) ?? {};
+        const lid = String(payload.loop_id ?? '');
+        if (lid === loopID && payload.success === true) return;
         continue;
       }
-      if (ev.type !== 'subscription_confirmed') continue;
-      const lid = String((ev as { loop_id?: string }).loop_id ?? '');
-      if (lid === loopID) return;
+      if (ev.type === 'error') {
+        const errObj = (ev.error as { message?: string }) ?? {};
+        throw new Error(`daemon error: ${errObj.message ?? 'subscription failed'}`);
+      }
     }
-    throw new Error(`timeout after ${t}ms waiting for subscription_confirmed`);
+    throw new Error(`timeout after ${t}ms waiting for subscription confirmation`);
   }
 }

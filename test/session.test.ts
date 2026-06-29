@@ -13,7 +13,7 @@ import {
 } from './helpers/ws-server.js';
 
 describe('bootstrapLoopSession', () => {
-  it('runs full 3-step handshake', async () => {
+  it('runs loop_new + subscribe (handshake in connect)', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url, defaultConfig());
@@ -27,7 +27,7 @@ describe('bootstrapLoopSession', () => {
     }
   });
 
-  it('resumes with existing loop id', async () => {
+  it('resumes with existing loop id (skips loop_new)', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url, defaultConfig());
@@ -43,12 +43,11 @@ describe('bootstrapLoopSession', () => {
 });
 
 describe('waitDaemonReady', () => {
-  it('succeeds when daemon is ready', async () => {
+  it('resolves immediately after handshake', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendDaemonReady();
       await expect(waitDaemonReady(client, 3000)).resolves.toBeUndefined();
       client.close();
     } finally {
@@ -56,38 +55,21 @@ describe('waitDaemonReady', () => {
     }
   });
 
-  it('fails when daemon is not ready', async () => {
-    const server = createTestServer((ws) => {
-      ws.on('message', raw => {
-        let m: Record<string, unknown>;
-        try { m = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return; }
-        if (m.type === 'daemon_ready') {
-          ws.send(JSON.stringify({ type: 'daemon_ready', state: 'initializing' }));
-        }
-      });
-    });
-    try {
-      const client = new Client(server.url);
-      await client.connect();
-      await client.sendDaemonReady();
-      await expect(waitDaemonReady(client, 3000)).rejects.toThrow('not ready');
-      client.close();
-    } finally {
-      await server.close();
-    }
-  });
-
-  it('times out', async () => {
+  it('times out when no connection_ack arrives', async () => {
     const server = createTestServer((ws) => {
       ws.on('message', () => {
-        // Never respond
+        // Never handshake
       });
     });
     try {
-      const client = new Client(server.url);
-      await client.connect();
-      await client.sendDaemonReady();
-      await expect(waitDaemonReady(client, 500)).rejects.toThrow('timeout');
+      // Short handshake timeout so connect() rejects quickly.
+      const cfg = defaultConfig();
+      cfg.daemonReadyTimeout = 300;
+      const client = new Client(server.url, cfg);
+      await client.connect().catch(() => {});
+      // Client is not connected (handshake failed); waitDaemonReady should
+      // time out fast since readEventWithTimeout returns null immediately.
+      await expect(waitDaemonReady(client, 300)).rejects.toThrow('timeout');
       client.close();
     } finally {
       await server.close();
@@ -101,7 +83,7 @@ describe('waitLoopStatusWithID', () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      // Send loop_input to trigger status response
+      // Send loop_input notification; the handler emits a status frame.
       await client.sendInput('test', { loopID: 'test-loop-123' });
       const status = await waitLoopStatusWithID(client, 3000);
       expect(status.loop_id).toBe('test-loop-123');
@@ -114,7 +96,21 @@ describe('waitLoopStatusWithID', () => {
   it('fails on error response', async () => {
     const server = createTestServer((ws) => {
       ws.on('message', raw => {
-        ws.send(JSON.stringify({ type: 'error', code: 'not_found', message: 'loop not found' }));
+        let m: Record<string, unknown>;
+        try { m = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return; }
+        if (m.type === 'connection_init') {
+          ws.send(JSON.stringify({ proto: '1', type: 'status', state: 'idle', input_history: [] }));
+          ws.send(JSON.stringify({
+            proto: '1', type: 'connection_ack',
+            result: { protocol_version: '1', readiness_state: 'ready', capabilities: [], heartbeat_interval_ms: 0 },
+          }));
+          return;
+        }
+        // Respond to any subsequent message with an error.
+        ws.send(JSON.stringify({
+          proto: '1', type: 'error', id: m.id,
+          error: { code: -32200, message: 'loop not found' },
+        }));
       });
     });
     try {
@@ -130,12 +126,12 @@ describe('waitLoopStatusWithID', () => {
 });
 
 describe('waitSubscriptionConfirmed', () => {
-  it('succeeds when loop_id matches (loop_subscribe handshake)', async () => {
+  it('succeeds when loop_id matches (next confirmation)', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.sendLoopSubscribe('loop-abc', 'normal');
+      await client.subscribe('loop_events', { loop_id: 'loop-abc', verbosity: 'normal' }, 3000);
       await expect(waitSubscriptionConfirmed(client, 'loop-abc', 'normal', 3000)).resolves.toBeUndefined();
       client.close();
     } finally {
@@ -143,14 +139,12 @@ describe('waitSubscriptionConfirmed', () => {
     }
   });
 
-  it('times out when loop_id mismatches (loop_subscribe handshake)', async () => {
+  it('times out when loop_id mismatches', async () => {
     const server = createTestServer(fullBootstrapHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
-      // The server responds with loop_id from the message, so send for 'different'
-      // but wait for 'loop-abc'
-      await client.sendLoopSubscribe('different', 'normal');
+      await client.subscribe('loop_events', { loop_id: 'different', verbosity: 'normal' }, 3000);
       await expect(waitSubscriptionConfirmed(client, 'loop-abc', 'normal', 500)).rejects.toThrow('timeout');
       client.close();
     } finally {

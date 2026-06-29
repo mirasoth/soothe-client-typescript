@@ -1,8 +1,9 @@
 /**
  * Soothe WebSocket Client - TypeScript
  *
- * A WebSocket client for the Soothe daemon, providing typed message
- * protocol, session bootstrap, and convenience RPC helpers.
+ * A WebSocket client for the Soothe daemon (RFC-450 protocol-1 wire contract),
+ * providing the unified `{proto, type, method, params, id}` envelope, session
+ * bootstrap, and convenience RPC helpers.
  */
 
 // Errors
@@ -16,84 +17,51 @@ export type { VerbosityLevel } from './verbosity.js';
 export { defaultConfig, loadConfigFromEnv } from './config.js';
 export type { Config } from './config.js';
 
-// Protocol
+// Protocol (RFC-450 protocol-1 envelope)
 export {
+  PROTO_VERSION,
+  DEFAULT_CLIENT_CAPABILITIES,
+  CLIENT_VERSION,
   encodeMessage,
   decodeMessage,
   splitWirePayload,
   extractSootheLoopID,
   newRequestID,
+  requestEnvelope,
+  notificationEnvelope,
+  subscribeEnvelope,
+  unsubscribeEnvelope,
+  connectionInitEnvelope,
+  pingEnvelope,
+  pongEnvelope,
+  disconnectEnvelope,
   newLoopInputMessage,
   newLoopNewMessage,
   newLoopSubscribeMessage,
 } from './protocol.js';
 export type {
-  BaseMessage,
-  LoopInputMessage,
-  CommandMessage,
-  DaemonStatusMessage,
-  DaemonShutdownMessage,
-  ConfigGetMessage,
-  LoopNewMessage,
-  LoopNewOptions,
-  LoopSubscribeMessage,
-  LoopDetachMessage,
-  LoopListMessage,
-  LoopGetMessage,
-  LoopTreeMessage,
-  LoopPruneMessage,
-  LoopDeleteMessage,
-  LoopReattachMessage,
-  SkillsListMessage,
-  ModelsListMessage,
-  InvokeSkillMessage,
-  DetachMessage,
-  EventMessage,
-  StatusResponse,
-  SubscriptionConfirmedResponse,
-  ErrorResponse,
-  DaemonReadyResponse,
-  DaemonStatusResponse,
-  ShutdownAckResponse,
-  LoopNewResponse,
-  LoopSubscribeResponse,
-  LoopDetachResponse,
-  LoopListResponse,
-  LoopGetResponse,
-  LoopTreeResponse,
-  LoopPruneResponse,
-  LoopDeleteResponse,
-  LoopReattachResponse,
-  HistoryReplayMessage,
-  HistoryReplayCompleteMessage,
-  ReplayCompleteMessage,
-  LoopReattachedWireMessage,
-  CardReplayBeginMessage,
-  CardCreatedMessage,
-  CardReplayEndMessage,
-  SkillsListResponse,
-  ModelsListResponse,
-  JobCreateMessage,
-  JobCreateResponse,
-  JobStatusMessage,
-  JobStatusResponse,
-  JobPauseMessage,
-  JobPauseResponse,
-  JobResumeMessage,
-  JobResumeResponse,
-  JobCancelMessage,
-  JobCancelResponse,
-  JobDagMessage,
-  JobDagResponse,
-  DagNode,
-  DagEdge,
-  JobGuidanceMessage,
-  JobGuidanceResponse,
-  AutopilotSubscribeMessage,
-  AutopilotSubscribeResponse,
-  AutopilotUnsubscribeMessage,
-  AutopilotUnsubscribeResponse,
+  MessageType,
+  MethodName,
+  BaseEnvelope,
+  RequestEnvelope,
+  ResponseEnvelope,
+  NotificationEnvelope,
+  SubscribeEnvelope,
+  NextEnvelope,
+  ErrorEnvelope,
+  CompleteEnvelope,
+  UnsubscribeEnvelope,
+  ConnectionInitEnvelope,
+  ConnectionAckEnvelope,
+  PingEnvelope,
+  PongEnvelope,
+  ReceiptResponseEnvelope,
+  DisconnectEnvelope,
+  StatusFrame,
   DecodedMessage,
+  LoopInputParams,
+  LoopNewOptions,
+  StreamEventPayload,
 } from './protocol.js';
 
 // Events
@@ -144,7 +112,7 @@ export {
 
 // Client
 export { Client } from './client.js';
-export type { InputOptions } from './client.js';
+export type { InputOptions, NegotiatedCapabilities } from './client.js';
 
 // Helpers
 export {
@@ -159,6 +127,7 @@ export {
 export {
   bootstrapLoopSession,
   waitDaemonReady,
+  waitDaemonReadyFromStream,
   waitLoopStatusWithID,
   waitSubscriptionConfirmed,
   connectWithRetries,

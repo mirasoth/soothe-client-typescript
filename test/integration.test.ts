@@ -1,9 +1,9 @@
 /**
- * Integration tests that connect to a running Soothe daemon.
+ * Integration tests that connect to a running Soothe daemon (RFC-450 protocol-1).
  * Skipped unless SOOTHE_INTEGRATION=1 is set.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Client } from '../src/client.js';
 import { defaultConfig, loadConfigFromEnv } from '../src/config.js';
 import {
@@ -35,12 +35,11 @@ describe.skipIf(skip())('Integration', () => {
     expect(client.isConnected()).toBe(false);
   });
 
-  it('daemon ready', async () => {
+  it('handshake reports ready', async () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
-    await client.sendDaemonReady();
     const ev = await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-    expect(ev.state).toBe('ready');
+    expect(ev.readiness_state).toBe('ready');
     client.close();
   });
 
@@ -64,7 +63,7 @@ describe.skipIf(skip())('Integration', () => {
 
     await client.sendInput('Hello, this is a test message from TypeScript client', { loopID });
 
-    // Read some events for a short time
+    // Read some events for a short time.
     let eventCount = 0;
     const start = Date.now();
     while (Date.now() - start < 5000 && eventCount < 5) {
@@ -79,10 +78,7 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
-    const resp = await client.requestResponse({ type: 'daemon_status' }, 'daemon_status_response', 5000);
+    const resp = await client.requestResponse('daemon_status', {}, 'daemon_status', 5000);
     expect(resp.running).toBe(true);
     client.close();
   });
@@ -91,11 +87,8 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     const resp = await client.listSkills(15_000);
-    expect(resp.type).toBe('skills_list_response');
+    expect(Array.isArray(resp.skills)).toBe(true);
     client.close();
   });
 
@@ -103,11 +96,8 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     const resp = await client.listModels(15_000);
-    expect(resp.type).toBe('models_list_response');
+    expect(Array.isArray(resp.models)).toBe(true);
     client.close();
   });
 
@@ -115,11 +105,8 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     const resp = await client.listLoops(15_000);
-    expect(resp.type).toBe('loop_list_response');
+    expect(Array.isArray(resp.loops)).toBe(true);
     client.close();
   });
 
@@ -144,9 +131,6 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     const config = await fetchConfigSection(client, 'providers', 5000);
     expect(config).toBeDefined();
     client.close();
@@ -156,9 +140,6 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     await client.sendDetach();
     client.close();
   });
@@ -166,9 +147,6 @@ describe.skipIf(skip())('Integration', () => {
   it('check daemon status helper', async () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
-
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
 
     const resp = await checkDaemonStatus(client, 5000);
     expect(resp.running).toBe(true);
@@ -178,9 +156,6 @@ describe.skipIf(skip())('Integration', () => {
   it('fetch skills catalog helper', async () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
-
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
 
     const skills = await fetchSkillsCatalog(client, 15_000);
     expect(Array.isArray(skills)).toBe(true);
@@ -196,14 +171,13 @@ describe.skipIf(skip())('Integration', () => {
 
     await client.sendInput('List all files in the current directory', { loopID });
 
-    // Stream events for a few seconds
+    // Stream events for a few seconds.
     const eventTypes = new Map<string, number>();
     const start = Date.now();
     while (Date.now() - start < 10_000) {
       const ev = await client.readEventWithTimeout(2000);
       if (ev === null) break;
-      const ns = (ev as Record<string, unknown>).namespace as string | undefined;
-      const key = ns ?? 'other';
+      const key = (ev.type as string) ?? 'other';
       eventTypes.set(key, (eventTypes.get(key) ?? 0) + 1);
     }
     client.close();
@@ -217,11 +191,7 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     const resp = await client.createJob('Write a simple hello world program', undefined, undefined, 30_000);
-    expect(resp.type).toBe('job_create_response');
     expect(resp.job_id).toBeDefined();
     client.close();
   });
@@ -230,18 +200,12 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
-    // Create a job first
     const createResp = await client.createJob('List files', undefined, undefined, 30_000);
     const jobId = createResp.job_id as string;
 
     const resp = await client.getJobStatus(jobId, 15_000);
-    expect(resp.type).toBe('job_status_response');
     expect(resp.job_id).toBe(jobId);
 
-    // Clean up
     await client.cancelJob(jobId, 15_000);
     client.close();
   });
@@ -250,22 +214,15 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
-    // Create a job
     const createResp = await client.createJob('Count slowly', undefined, undefined, 30_000);
     const jobId = createResp.job_id as string;
 
-    // Pause
     const pauseResp = await client.pauseJob(jobId, 15_000);
-    expect(pauseResp.type).toBe('job_pause_response');
+    expect(pauseResp.status).toBeDefined();
 
-    // Resume
     const resumeResp = await client.resumeJob(jobId, 15_000);
-    expect(resumeResp.type).toBe('job_resume_response');
+    expect(resumeResp.status).toBeDefined();
 
-    // Clean up
     await client.cancelJob(jobId, 15_000);
     client.close();
   });
@@ -274,16 +231,11 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
-    // Create a job
     const createResp = await client.createJob('Task to cancel', undefined, undefined, 30_000);
     const jobId = createResp.job_id as string;
 
-    // Cancel
     const cancelResp = await client.cancelJob(jobId, 15_000);
-    expect(cancelResp.type).toBe('job_cancel_response');
+    expect(cancelResp.job_id).toBe(jobId);
     client.close();
   });
 
@@ -291,17 +243,12 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
-    // Create a job
     const createResp = await client.createJob('Simple task', undefined, undefined, 30_000);
     const jobId = createResp.job_id as string;
 
     const dagResp = await client.getJobDag(jobId, 15_000);
-    expect(dagResp.type).toBe('job_dag_response');
+    expect(dagResp.dag).toBeDefined();
 
-    // Clean up
     await client.cancelJob(jobId, 15_000);
     client.close();
   });
@@ -310,14 +257,10 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
+    const subId = await client.autopilotSubscribe(15_000);
+    expect(subId).toBeTruthy();
 
-    const subResp = await client.autopilotSubscribe(15_000);
-    expect(subResp.type).toBe('autopilot_subscribe_response');
-
-    const unsubResp = await client.autopilotUnsubscribe(15_000);
-    expect(unsubResp.type).toBe('autopilot_unsubscribe_response');
+    await client.unsubscribe(subId);
     client.close();
   });
 
@@ -329,14 +272,11 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     mkdtempSync(join(tmpdir(), 'soothe-test-'));
     const loopID = await bootstrapLoopSession(client, null, cfg);
 
     const resp = await client.getLoopMessages(loopID, 10, 0, false, 15_000);
-    expect(resp.type).toBe('loop_messages_response');
+    expect(Array.isArray(resp.messages)).toBe(true);
     client.close();
   });
 
@@ -344,14 +284,11 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     mkdtempSync(join(tmpdir(), 'soothe-test-'));
     const loopID = await bootstrapLoopSession(client, null, cfg);
 
     const resp = await client.getLoopState(loopID, 15_000);
-    expect(resp.type).toBe('loop_state_get_response');
+    expect(resp).toBeDefined();
     client.close();
   });
 
@@ -359,14 +296,11 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     mkdtempSync(join(tmpdir(), 'soothe-test-'));
     const loopID = await bootstrapLoopSession(client, null, cfg);
 
     const resp = await client.fetchLoopCards(loopID, 15_000);
-    expect(resp.type).toBe('loop_cards_fetch_response');
+    expect(resp).toBeDefined();
     client.close();
   });
 
@@ -374,11 +308,8 @@ describe.skipIf(skip())('Integration', () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    await client.sendDaemonReady();
-    await client.waitForDaemonReady(cfg.daemonReadyTimeout);
-
     const resp = await client.getMCPStatus(15_000);
-    expect(resp.type).toBe('mcp_status_response');
+    expect(Array.isArray(resp.servers)).toBe(true);
     client.close();
   });
 
@@ -398,7 +329,6 @@ describe.skipIf(skip())('Integration', () => {
       clarificationMode: 'manual',
     });
 
-    // Read some events
     let eventCount = 0;
     const start = Date.now();
     while (Date.now() - start < 3000 && eventCount < 3) {
@@ -421,7 +351,6 @@ describe.skipIf(skip())('Integration', () => {
       intentHint: 'quiz',
     });
 
-    // Read some events
     let eventCount = 0;
     const start = Date.now();
     while (Date.now() - start < 3000 && eventCount < 3) {

@@ -15,7 +15,7 @@ export interface Config {
   reconnectDelay: number;
   /** Application-level heartbeat interval in ms */
   heartbeatInterval: number;
-  /** Handshake: wait for daemon_ready in ms */
+  /** Handshake: wait for connection_ack (readiness "ready") in ms */
   daemonReadyTimeout: number;
   /** Bootstrap: wait for status with loop_id in ms */
   loopStatusTimeout: number;

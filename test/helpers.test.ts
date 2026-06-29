@@ -10,7 +10,7 @@ import {
 import type { WebSocket } from 'ws';
 
 describe('checkDaemonStatus', () => {
-  it('returns daemon status', async () => {
+  it('returns daemon status result', async () => {
     const server = createTestServer(requestResponseHandler);
     try {
       const client = new Client(server.url);
@@ -59,8 +59,15 @@ describe('requestDaemonShutdown', () => {
       ws.on('message', raw => {
         let m: Record<string, unknown>;
         try { m = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return; }
-        const rid = m.request_id as string | undefined;
-        ws.send(JSON.stringify({ type: 'shutdown_ack', request_id: rid, status: 'denied' }));
+        if (m.type === 'connection_init') {
+          ws.send(JSON.stringify({ proto: '1', type: 'status', state: 'idle', input_history: [] }));
+          ws.send(JSON.stringify({
+            proto: '1', type: 'connection_ack',
+            result: { protocol_version: '1', readiness_state: 'ready', capabilities: [], heartbeat_interval_ms: 0 },
+          }));
+          return;
+        }
+        ws.send(JSON.stringify({ proto: '1', type: 'response', id: m.id, result: { status: 'denied' } }));
       });
     });
     try {
@@ -94,8 +101,15 @@ describe('fetchSkillsCatalog', () => {
       ws.on('message', raw => {
         let m: Record<string, unknown>;
         try { m = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return; }
-        const rid = m.request_id as string | undefined;
-        ws.send(JSON.stringify({ type: 'skills_list_response', request_id: rid }));
+        if (m.type === 'connection_init') {
+          ws.send(JSON.stringify({ proto: '1', type: 'status', state: 'idle', input_history: [] }));
+          ws.send(JSON.stringify({
+            proto: '1', type: 'connection_ack',
+            result: { protocol_version: '1', readiness_state: 'ready', capabilities: [], heartbeat_interval_ms: 0 },
+          }));
+          return;
+        }
+        ws.send(JSON.stringify({ proto: '1', type: 'response', id: m.id, result: {} }));
       });
     });
     try {

@@ -16,11 +16,12 @@ describe('ConnectionError', () => {
 
 describe('DaemonError', () => {
   it('has correct properties', () => {
-    const err = new DaemonError('not_found', 'loop not found');
-    expect(err.code).toBe('not_found');
+    const err = new DaemonError(-32200, 'loop not found', { loop_id: 'abc' });
+    expect(err.code).toBe(-32200);
     expect(err.daemonMessage).toBe('loop not found');
+    expect(err.data).toEqual({ loop_id: 'abc' });
     expect(err.name).toBe('DaemonError');
-    expect(err.message).toContain('not_found');
+    expect(err.message).toContain('-32200');
     expect(err.message).toContain('loop not found');
   });
 });

@@ -1,5 +1,9 @@
 /**
- * Test WebSocket server utilities for unit tests.
+ * Test WebSocket server utilities for unit tests (RFC-450 protocol-1).
+ *
+ * Every handler performs the connection_init/connection_ack handshake so the
+ * client's connect() completes, then responds to request/subscribe envelopes
+ * with response/next envelopes correlated by `id`.
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
@@ -21,14 +25,73 @@ export function createTestServer(
   };
 }
 
-/** Echo handler: sends back any message it receives. */
+/** Returns true if the parsed message is a protocol-1 connection_init envelope. */
+function isConnectionInit(m: Record<string, unknown>): boolean {
+  return m.type === 'connection_init';
+}
+
+/** Sends a connection_ack with readiness_state "ready" (and a leading status frame). */
+function sendHandshake(ws: WebSocket, m: Record<string, unknown>): void {
+  // Leading status frame (the daemon sends this on connect).
+  ws.send(JSON.stringify({ proto: '1', type: 'status', state: 'idle', input_history: [] }));
+  const params = (m.params as Record<string, unknown> | undefined) ?? {};
+  const clientCaps = (params.capabilities as string[] | undefined) ?? [];
+  const daemonCaps = ['streaming', 'batch', 'heartbeat', 'receipts'];
+  const negotiated = daemonCaps.filter(c => clientCaps.includes(c));
+  ws.send(
+    JSON.stringify({
+      proto: '1',
+      type: 'connection_ack',
+      result: {
+        server_version: '0.1.0',
+        protocol_version: '1',
+        capabilities: negotiated,
+        readiness_state: 'ready',
+        heartbeat_interval_ms: 0,
+      },
+    }),
+  );
+}
+
+/** Echo handler: handshakes, then sends back any message it receives. */
 export function echoHandler(ws: WebSocket): void {
-  ws.on('message', data => {
-    ws.send(data);
+  ws.on('message', raw => {
+    let m: Record<string, unknown>;
+    try {
+      m = JSON.parse(raw.toString()) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    if (isConnectionInit(m)) {
+      sendHandshake(ws, m);
+      return;
+    }
+    ws.send(raw.toString());
   });
 }
 
-/** Full bootstrap handler: simulates the daemon handshake (loop-first, RFC-503). */
+/** Responds to a request envelope with a `response` carrying `result`. */
+function sendResponse(ws: WebSocket, id: unknown, result: Record<string, unknown>): void {
+  ws.send(JSON.stringify({ proto: '1', type: 'response', result, id }));
+}
+
+/** Responds to a request envelope with an `error`. */
+function sendError(
+  ws: WebSocket,
+  id: unknown,
+  code: number,
+  message: string,
+  data?: unknown,
+): void {
+  const error: Record<string, unknown> = { code, message };
+  if (data !== undefined) error.data = data;
+  ws.send(JSON.stringify({ proto: '1', type: 'error', error, id }));
+}
+
+/**
+ * Full bootstrap handler: handshakes, then handles loop_new / loop_events
+ * subscribe / loop_detach with protocol-1 response/next envelopes.
+ */
 export function fullBootstrapHandler(ws: WebSocket): void {
   ws.on('message', raw => {
     let m: Record<string, unknown>;
@@ -37,121 +100,82 @@ export function fullBootstrapHandler(ws: WebSocket): void {
     } catch {
       return;
     }
-    const typ = m.type as string;
+    if (isConnectionInit(m)) {
+      sendHandshake(ws, m);
+      return;
+    }
 
-    switch (typ) {
-      case 'daemon_ready':
-        ws.send(JSON.stringify({ type: 'daemon_ready', state: 'ready' }));
-        break;
-      case 'loop_new': {
-        const rid = m.request_id as string | undefined;
+    const typ = m.type as string;
+    const id = m.id;
+    const params = (m.params as Record<string, unknown> | undefined) ?? {};
+    const method = m.method as string | undefined;
+
+    if (typ === 'request' && method === 'loop_new') {
+      sendResponse(ws, id, { loop_id: 'test-loop-123', success: true });
+      return;
+    }
+    if (typ === 'subscribe' && method === 'loop_events') {
+      const loopId = String(params.loop_id ?? '');
+      // Subscription confirmation is a `next` frame carrying the subscription id.
+      ws.send(
+        JSON.stringify({
+          proto: '1',
+          type: 'next',
+          id,
+          payload: { loop_id: loopId, event: 'subscribed', success: true, client_id: 'c1' },
+        }),
+      );
+      return;
+    }
+    if (typ === 'unsubscribe') {
+      sendResponse(ws, id, { success: true, loop_id: params.loop_id });
+      return;
+    }
+    if (typ === 'notification' && method === 'loop_input') {
+      // Simulate input acceptance: emit a status frame with the loop id.
+      ws.send(
+        JSON.stringify({
+          proto: '1',
+          type: 'status',
+          state: 'running',
+          loop_id: params.loop_id,
+          workspace: '/tmp',
+        }),
+      );
+      return;
+    }
+    // Unknown: echo back.
+    ws.send(raw.toString());
+  });
+}
+
+/** NDJSON handler: handshakes, then sends multiple JSON objects in one frame. */
+export function ndjsonHandler(ws: WebSocket): void {
+  ws.once('message', raw => {
+    let m: Record<string, unknown>;
+    try {
+      m = JSON.parse(raw.toString()) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    if (isConnectionInit(m)) {
+      sendHandshake(ws, m);
+      // Trigger the NDJSON payload on the next message.
+      ws.once('message', () => {
         ws.send(
-          JSON.stringify({
-            type: 'loop_new_response',
-            request_id: rid,
-            loop_id: 'test-loop-123',
-            success: true,
-          }),
+          `{"proto":"1","type":"next","payload":{"namespace":["soothe","output"],"mode":"event","data":{"type":"soothe.output.autonomous.final_report.reported","text":"hello"}}}\n` +
+            `{"proto":"1","type":"status","state":"idle","loop_id":"ndjson-loop-123"}`,
         );
-        break;
-      }
-      case 'loop_subscribe': {
-        const rid = m.request_id as string | undefined;
-        const loopId = m.loop_id as string | undefined;
-        ws.send(
-          JSON.stringify({
-            type: 'loop_subscribe_response',
-            request_id: rid,
-            success: true,
-            loop_id: loopId ?? '',
-          }),
-        );
-        ws.send(
-          JSON.stringify({
-            type: 'subscription_confirmed',
-            loop_id: loopId ?? '',
-            client_id: 'c1',
-            verbosity: 'normal',
-          }),
-        );
-        break;
-      }
-      case 'loop_detach': {
-        const rid = m.request_id as string | undefined;
-        ws.send(
-          JSON.stringify({
-            type: 'loop_detach_response',
-            request_id: rid,
-            success: true,
-            loop_id: m.loop_id,
-          }),
-        );
-        break;
-      }
-      case 'loop_list': {
-        const rid = m.request_id as string | undefined;
-        ws.send(
-          JSON.stringify({
-            type: 'loop_list_response',
-            request_id: rid,
-            loops: [{ loop_id: 'loop-1', status: 'idle' }],
-            total: 1,
-          }),
-        );
-        break;
-      }
-      case 'loop_get': {
-        const rid = m.request_id as string | undefined;
-        ws.send(
-          JSON.stringify({
-            type: 'loop_get_response',
-            request_id: rid,
-            loop: { loop_id: m.loop_id, status: 'running' },
-          }),
-        );
-        break;
-      }
-      case 'loop_delete': {
-        const rid = m.request_id as string | undefined;
-        ws.send(
-          JSON.stringify({
-            type: 'loop_delete_response',
-            request_id: rid,
-            success: true,
-            message: 'deleted',
-          }),
-        );
-        break;
-      }
-      case 'loop_input': {
-        // Simulate input acceptance and send status
-        ws.send(
-          JSON.stringify({
-            type: 'status',
-            state: 'running',
-            loop_id: m.loop_id,
-            workspace: '/tmp',
-          }),
-        );
-        break;
-      }
-      default:
-        ws.send(raw);
+      });
     }
   });
 }
 
-/** NDJSON handler: sends multiple JSON objects in one frame. */
-export function ndjsonHandler(ws: WebSocket): void {
-  ws.once('message', () => {
-    ws.send(
-      `{"type":"event","namespace":"soothe.output.autonomous.final_report.reported","data":{"text":"hello"}}\n` +
-        `{"type":"status","state":"idle","loop_id":"ndjson-loop-123"}`,
-    );
-  });
-}
-
-/** Request-response handler: simulates the request-response RPC pattern. */
+/**
+ * Request-response handler: handshakes, then answers request envelopes for
+ * daemon_status / skills_list / models_list / config_get / daemon_shutdown /
+ * loop_list / loop_get / loop_delete / invoke_skill.
+ */
 export function requestResponseHandler(ws: WebSocket): void {
   ws.on('message', raw => {
     let m: Record<string, unknown>;
@@ -160,106 +184,58 @@ export function requestResponseHandler(ws: WebSocket): void {
     } catch {
       return;
     }
-    const typ = m.type as string;
-    const rid = m.request_id as string | undefined;
+    if (isConnectionInit(m)) {
+      sendHandshake(ws, m);
+      return;
+    }
 
-    switch (typ) {
+    const typ = m.type as string;
+    const id = m.id;
+    const params = (m.params as Record<string, unknown> | undefined) ?? {};
+    const method = m.method as string | undefined;
+
+    if (typ !== 'request') {
+      // Echo non-request frames (e.g. ping → handled by client; notifications).
+      return;
+    }
+
+    switch (method) {
       case 'daemon_status':
-        ws.send(
-          JSON.stringify({
-            type: 'daemon_status_response',
-            request_id: rid,
-            running: true,
-            port_live: true,
-            active_loops: 2,
-          }),
-        );
+        sendResponse(ws, id, { running: true, port_live: true, active_loops: 2 });
         break;
       case 'skills_list':
-        ws.send(
-          JSON.stringify({
-            type: 'skills_list_response',
-            request_id: rid,
-            skills: [{ name: 'research' }, { name: 'browser' }],
-          }),
-        );
+        sendResponse(ws, id, { skills: [{ name: 'research' }, { name: 'browser' }] });
         break;
       case 'models_list':
-        ws.send(
-          JSON.stringify({
-            type: 'models_list_response',
-            request_id: rid,
-            models: [{ id: 'gpt-4' }, { id: 'claude' }],
-          }),
-        );
+        sendResponse(ws, id, { models: [{ id: 'gpt-4' }, { id: 'claude' }] });
         break;
       case 'config_get': {
-        const section = m.section as string;
-        ws.send(
-          JSON.stringify({
-            type: 'config_get_response',
-            request_id: rid,
-            [section]: { key: 'value' },
-          }),
-        );
+        const section = String(params.section ?? 'all');
+        sendResponse(ws, id, { [section]: { key: 'value' } });
         break;
       }
       case 'daemon_shutdown':
-        ws.send(
-          JSON.stringify({ type: 'shutdown_ack', request_id: rid, status: 'acknowledged' }),
-        );
+        sendResponse(ws, id, { status: 'acknowledged' });
         break;
       case 'loop_list':
-        ws.send(
-          JSON.stringify({
-            type: 'loop_list_response',
-            request_id: rid,
-            loops: [{ loop_id: 'l1' }, { loop_id: 'l2' }],
-            total: 2,
-          }),
-        );
+        sendResponse(ws, id, { loops: [{ loop_id: 'l1' }, { loop_id: 'l2' }], total: 2 });
         break;
       case 'loop_get':
-        ws.send(
-          JSON.stringify({
-            type: 'loop_get_response',
-            request_id: rid,
-            loop: { loop_id: m.loop_id, status: 'idle' },
-          }),
-        );
+        sendResponse(ws, id, { loop: { loop_id: params.loop_id, status: 'idle' } });
         break;
       case 'loop_delete':
-        ws.send(
-          JSON.stringify({
-            type: 'loop_delete_response',
-            request_id: rid,
-            success: true,
-            message: 'deleted',
-          }),
-        );
+        sendResponse(ws, id, { success: true, message: 'deleted' });
         break;
       case 'invoke_skill':
-        ws.send(
-          JSON.stringify({
-            type: 'invoke_skill_response',
-            request_id: rid,
-            skill: 'test',
-            status: 'ok',
-          }),
-        );
+        sendResponse(ws, id, { echo: { skill: 'test', status: 'ok' } });
         break;
       case 'error_test':
-        ws.send(
-          JSON.stringify({
-            type: 'error',
-            request_id: rid,
-            code: 'test_error',
-            message: 'test error message',
-          }),
-        );
+        sendError(ws, id, -32603, 'test error message');
         break;
       default:
-        ws.send(raw);
+        // Echo unknown requests back as a response with the method as result.
+        sendResponse(ws, id, { echoed: method });
+        break;
     }
   });
 }

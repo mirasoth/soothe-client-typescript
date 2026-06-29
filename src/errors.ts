@@ -1,5 +1,5 @@
 /**
- * Custom error types for the Soothe client.
+ * Custom error types for the Soothe client (RFC-450 protocol-1).
  */
 
 /** Represents a WebSocket connection failure. */
@@ -17,17 +17,26 @@ export class ConnectionError extends Error {
   }
 }
 
-/** Represents an error reported by the Soothe daemon. */
+/**
+ * Represents an error reported by the Soothe daemon (RFC-450 §7).
+ *
+ * The daemon's structured error object carries a numeric `code` from the
+ * reserved ranges, a human-readable `message`, and optional `data`.
+ */
 export class DaemonError extends Error {
-  readonly code: string;
+  /** Numeric error code from the RFC-450 §7.3 registry. */
+  readonly code: number;
   /** The daemon's error message text. */
   readonly daemonMessage: string;
+  /** Optional machine-parseable error details. */
+  readonly data: unknown;
 
-  constructor(code: string, message: string) {
+  constructor(code: number, message: string, data?: unknown) {
     super(`daemon error [${code}]: ${message}`);
     this.name = 'DaemonError';
     this.code = code;
     this.daemonMessage = message;
+    this.data = data;
   }
 }
 

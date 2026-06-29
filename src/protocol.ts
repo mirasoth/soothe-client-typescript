@@ -1,26 +1,232 @@
 /**
- * Message types, encode/decode, NDJSON splitting, and factory functions
- * for the Soothe daemon wire protocol.
+ * Protocol-1 wire envelope: message types, encode/decode, NDJSON splitting,
+ * and factory functions for the Soothe daemon (RFC-450).
+ *
+ * The unified `{proto, type, method, params, id}` envelope combines
+ * JSON-RPC 2.0's `method`/`params`/`id` structure with graphql-ws's `type`
+ * semantics for message class distinction.
  */
 
 import { randomUUID } from 'node:crypto';
 
+/** Protocol version string (RFC-450 §8.1). */
+export const PROTO_VERSION = '1';
+
+/** Default client capabilities declared in the connection_init handshake. */
+export const DEFAULT_CLIENT_CAPABILITIES = ['streaming', 'batch', 'heartbeat', 'receipts'];
+
+/** Client version reported in the connection_init handshake. */
+export const CLIENT_VERSION = '0.1.0';
+
 // ---------------------------------------------------------------------------
-// Base types
+// Envelope message classes (RFC-450 §9.1)
 // ---------------------------------------------------------------------------
 
-export interface BaseMessage {
-  type: string;
-  request_id?: string;
+export type MessageType =
+  | 'connection_init'
+  | 'connection_ack'
+  | 'request'
+  | 'response'
+  | 'notification'
+  | 'subscribe'
+  | 'next'
+  | 'error'
+  | 'complete'
+  | 'unsubscribe'
+  | 'ping'
+  | 'pong'
+  | 'receipt_response'
+  | 'disconnect'
+  | 'status';
+
+/** Method names carried in the envelope `method` field (RFC-450 §9.2). */
+export type MethodName =
+  | 'loop_list'
+  | 'loop_get'
+  | 'loop_tree'
+  | 'loop_prune'
+  | 'loop_delete'
+  | 'loop_new'
+  | 'loop_reattach'
+  | 'loop_input'
+  | 'loop_messages'
+  | 'loop_state_get'
+  | 'loop_state_update'
+  | 'loop_cards_fetch'
+  | 'loop_events'
+  | 'autopilot_events'
+  | 'job_create'
+  | 'job_status'
+  | 'job_pause'
+  | 'job_resume'
+  | 'job_cancel'
+  | 'job_dag'
+  | 'job_guidance'
+  | 'daemon_status'
+  | 'daemon_shutdown'
+  | 'config_get'
+  | 'skills_list'
+  | 'invoke_skill'
+  | 'models_list'
+  | 'mcp_status'
+  | 'auth'
+  | 'auth_refresh'
+  | 'slash_command'
+  | 'rpc_command'
+  | 'disconnect';
+
+// ---------------------------------------------------------------------------
+// Envelope interfaces (RFC-450 §5.2)
+// ---------------------------------------------------------------------------
+
+/** Base fields shared by every protocol-1 message. */
+export interface BaseEnvelope {
+  proto: string;
+  type: MessageType;
 }
 
+/** A client→server RPC request (expects a `response` correlated by `id`). */
+export interface RequestEnvelope extends BaseEnvelope {
+  type: 'request';
+  method: MethodName;
+  params?: Record<string, unknown>;
+  id: string;
+}
+
+/** A server→client RPC success response. */
+export interface ResponseEnvelope extends BaseEnvelope {
+  type: 'response';
+  result?: Record<string, unknown>;
+  id?: string;
+}
+
+/** A fire-and-forget client→server notification (no `id`, no response). */
+export interface NotificationEnvelope extends BaseEnvelope {
+  type: 'notification';
+  method: MethodName;
+  params?: Record<string, unknown>;
+  /** Optional receipt id for delivery confirmation (RFC-450 §5.7). */
+  receipt?: string;
+}
+
+/** Start a subscription stream (events arrive as `next`). */
+export interface SubscribeEnvelope extends BaseEnvelope {
+  type: 'subscribe';
+  method: 'loop_events' | 'autopilot_events';
+  params?: Record<string, unknown>;
+  id: string;
+}
+
+/** A stream event for an active subscription. */
+export interface NextEnvelope extends BaseEnvelope {
+  type: 'next';
+  payload?: Record<string, unknown>;
+  id?: string;
+}
+
+/** Structured error response (terminates the operation). */
+export interface ErrorEnvelope extends BaseEnvelope {
+  type: 'error';
+  error: { code: number; message: string; data?: unknown };
+  id?: string;
+}
+
+/** Explicit stream-completion signal. */
+export interface CompleteEnvelope extends BaseEnvelope {
+  type: 'complete';
+  id?: string;
+}
+
+/** Cancel a subscription by `id`. */
+export interface UnsubscribeEnvelope extends BaseEnvelope {
+  type: 'unsubscribe';
+  id: string;
+}
+
+/** Connection handshake (client→server, first message). */
+export interface ConnectionInitEnvelope extends BaseEnvelope {
+  type: 'connection_init';
+  params?: {
+    client_version: string;
+    client_name?: string;
+    accept_proto?: string[];
+    capabilities?: string[];
+  };
+}
+
+/** Connection handshake response (server→client). */
+export interface ConnectionAckEnvelope extends BaseEnvelope {
+  type: 'connection_ack';
+  result?: {
+    server_version?: string;
+    protocol_version?: string;
+    capabilities?: string[];
+    readiness_state?: string;
+    heartbeat_interval_ms?: number;
+  };
+}
+
+/** Heartbeat ping (either direction). */
+export interface PingEnvelope extends BaseEnvelope {
+  type: 'ping';
+}
+
+/** Heartbeat pong response. */
+export interface PongEnvelope extends BaseEnvelope {
+  type: 'pong';
+}
+
+/** Delivery confirmation for a notification that carried a `receipt`. */
+export interface ReceiptResponseEnvelope extends BaseEnvelope {
+  type: 'receipt_response';
+  receipt: string;
+}
+
+/** Clean connection close (daemon keeps loops running). */
+export interface DisconnectEnvelope extends BaseEnvelope {
+  type: 'disconnect';
+}
+
+/**
+ * A daemon status frame. `status` is a defined protocol-1 top-level type
+ * (RFC-450 §9.1): it passes through the daemon's legacy→`next` translator
+ * unchanged, so it is NOT wrapped in a `next` envelope.
+ */
+export interface StatusFrame extends BaseEnvelope {
+  type: 'status';
+  state?: string;
+  loop_id?: string;
+  workspace?: string;
+  input_history?: string[];
+  conversation_history?: unknown[];
+  [key: string]: unknown;
+}
+
+/** Discriminated union of all decoded protocol-1 messages. */
+export type DecodedMessage =
+  | RequestEnvelope
+  | ResponseEnvelope
+  | NotificationEnvelope
+  | SubscribeEnvelope
+  | NextEnvelope
+  | ErrorEnvelope
+  | CompleteEnvelope
+  | UnsubscribeEnvelope
+  | ConnectionInitEnvelope
+  | ConnectionAckEnvelope
+  | PingEnvelope
+  | PongEnvelope
+  | ReceiptResponseEnvelope
+  | DisconnectEnvelope
+  | StatusFrame
+  | Record<string, unknown>;
+
 // ---------------------------------------------------------------------------
-// Client → Daemon messages (Loop-first architecture, RFC-503)
+// Typed request/notification payload interfaces (params shapes)
 // ---------------------------------------------------------------------------
 
-/** Loop-scoped user input. */
-export interface LoopInputMessage extends BaseMessage {
-  type: 'loop_input';
+/** Params for `loop_input` (notification or request). */
+export interface LoopInputParams {
   loop_id: string;
   content: string;
   autonomous?: boolean;
@@ -30,42 +236,13 @@ export interface LoopInputMessage extends BaseMessage {
   model?: string;
   model_params?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
-}
-
-export interface CommandMessage extends BaseMessage {
-  type: 'command';
-  cmd: string;
-}
-
-export interface DaemonStatusMessage extends BaseMessage {
-  type: 'daemon_status';
-}
-
-export interface DaemonShutdownMessage extends BaseMessage {
-  type: 'daemon_shutdown';
-}
-
-export interface ConfigGetMessage extends BaseMessage {
-  type: 'config_get';
-  section: string;
-}
-
-// Loop lifecycle messages (RFC-503)
-
-export interface LoopNewMessage extends BaseMessage {
-  type: 'loop_new';
-  /** Project directory; runner uses this path directly when set. */
-  client_workspace?: string;
-  /** Stable scope for persisted sandbox when client_workspace is unset. */
-  client_workspace_id?: string;
-  /** User segment under $SOOTHE_HOME/workspaces/ (empty → anonymous). */
-  user_id?: string;
-  /** When true, loop execution data is GC'd after idle period (workspace retained). */
-  is_ephemeral?: boolean;
-  /**
-   * @deprecated Use `client_workspace`. Still accepted by the daemon as an alias.
-   */
-  workspace?: string;
+  intent_hint?: string;
+  response_schema?: Record<string, unknown>;
+  response_schema_name?: string;
+  response_schema_strict?: boolean;
+  clarification_mode?: string;
+  clarification_answer?: boolean;
+  clarification_answers?: string[];
 }
 
 /** Options for `loop_new` workspace fields. */
@@ -78,467 +255,36 @@ export interface LoopNewOptions {
   workspace?: string;
 }
 
-export interface LoopSubscribeMessage extends BaseMessage {
-  type: 'loop_subscribe';
-  loop_id: string;
-  verbosity: string;
-  stream_delivery?: 'batch' | 'streaming'; // RFC-614 stream shaping
-}
-
-export interface LoopDetachMessage extends BaseMessage {
-  type: 'loop_detach';
-  loop_id: string;
-}
-
-// Loop management RPC messages (RFC-504)
-
-export interface LoopListMessage extends BaseMessage {
-  type: 'loop_list';
-  filter?: Record<string, unknown>;
-  limit?: number;
-}
-
-export interface LoopGetMessage extends BaseMessage {
-  type: 'loop_get';
-  loop_id: string;
-  verbose?: boolean;
-}
-
-export interface LoopTreeMessage extends BaseMessage {
-  type: 'loop_tree';
-  loop_id: string;
-  format?: string;
-}
-
-export interface LoopPruneMessage extends BaseMessage {
-  type: 'loop_prune';
-  loop_id: string;
-  retention_days?: number;
-  dry_run?: boolean;
-}
-
-export interface LoopDeleteMessage extends BaseMessage {
-  type: 'loop_delete';
-  loop_id: string;
-}
-
-export interface LoopReattachMessage extends BaseMessage {
-  type: 'loop_reattach';
-  loop_id: string;
-}
-
-// Other messages
-
-export interface SkillsListMessage extends BaseMessage {
-  type: 'skills_list';
-}
-
-export interface ModelsListMessage extends BaseMessage {
-  type: 'models_list';
-}
-
-export interface InvokeSkillMessage extends BaseMessage {
-  type: 'invoke_skill';
-  skill: string;
-  args?: string;
-}
-
-export interface DetachMessage extends BaseMessage {
-  type: 'detach';
-}
-
 // ---------------------------------------------------------------------------
-// RFC-228: Autopilot Job IPC messages
+// Stream-event payload helpers (RFC-450 §9.3)
 // ---------------------------------------------------------------------------
 
-// Job creation
-export interface JobCreateMessage extends BaseMessage {
-  type: 'job_create';
-  goal: string;
-  verification_rules?: string;
+/**
+ * Shape of a `next` payload when the daemon wraps a legacy free-form frame.
+ * The original frame type becomes `mode`; `data` carries the frame body with
+ * `loop_id` preserved.
+ */
+export interface StreamEventPayload {
+  namespace?: unknown;
+  mode?: string;
+  data?: Record<string, unknown>;
 }
-
-export interface JobCreateResponse extends BaseMessage {
-  type: 'job_create_response';
-  job_id: string;
-  status: string;
-}
-
-// Job status
-export interface JobStatusMessage extends BaseMessage {
-  type: 'job_status';
-  job_id: string;
-}
-
-export interface JobStatusResponse extends BaseMessage {
-  type: 'job_status_response';
-  job_id: string;
-  status: string;
-  active_goals: number;
-  completed_goals: number;
-  failed_goals: number;
-  total_goals: number;
-  workers: Array<{ goal_id: string; loop_id: string }>;
-  last_error?: string;
-}
-
-// Job pause/resume/cancel
-export interface JobPauseMessage extends BaseMessage {
-  type: 'job_pause';
-  job_id: string;
-}
-
-export interface JobPauseResponse extends BaseMessage {
-  type: 'job_pause_response';
-  job_id: string;
-  status: string;
-}
-
-export interface JobResumeMessage extends BaseMessage {
-  type: 'job_resume';
-  job_id: string;
-}
-
-export interface JobResumeResponse extends BaseMessage {
-  type: 'job_resume_response';
-  job_id: string;
-  status: string;
-}
-
-export interface JobCancelMessage extends BaseMessage {
-  type: 'job_cancel';
-  job_id: string;
-}
-
-export interface JobCancelResponse extends BaseMessage {
-  type: 'job_cancel_response';
-  job_id: string;
-  status: string;
-}
-
-// Job DAG visualization
-export interface JobDagMessage extends BaseMessage {
-  type: 'job_dag';
-  job_id: string;
-}
-
-export interface DagNode {
-  id: string;
-  description: string;
-  status: string;
-  priority: number;
-  depends_on: string[];
-  assigned_loop_id?: string;
-  steps_completed: number;
-  steps_total: number;
-  tool_calls: number;
-  summary?: string;
-  findings?: string[];
-}
-
-export interface DagEdge {
-  source: string;
-  target: string;
-}
-
-export interface JobDagResponse extends BaseMessage {
-  type: 'job_dag_response';
-  job_id: string;
-  dag: {
-    nodes: DagNode[];
-    edges: DagEdge[];
-    root_id: string;
-  };
-}
-
-// Job guidance (LOR comments)
-export interface JobGuidanceMessage extends BaseMessage {
-  type: 'job_guidance';
-  job_id: string;
-  goal_id?: string;
-  text: string;
-}
-
-export interface JobGuidanceResponse extends BaseMessage {
-  type: 'job_guidance_response';
-  job_id: string;
-  goal_id?: string;
-  absorbed: boolean;
-}
-
-// Autopilot subscription (worker events bypass)
-export interface AutopilotSubscribeMessage extends BaseMessage {
-  type: 'autopilot_subscribe';
-}
-
-export interface AutopilotSubscribeResponse extends BaseMessage {
-  type: 'autopilot_subscribe_response';
-  client_id: string;
-  subscribed: boolean;
-}
-
-export interface AutopilotUnsubscribeMessage extends BaseMessage {
-  type: 'autopilot_unsubscribe';
-}
-
-export interface AutopilotUnsubscribeResponse extends BaseMessage {
-  type: 'autopilot_unsubscribe_response';
-  client_id: string;
-  subscribed: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Daemon → Client messages
-// ---------------------------------------------------------------------------
-
-export interface EventMessage extends BaseMessage {
-  type: 'event';
-  loop_id?: string;
-  namespace: string;
-  data: Record<string, unknown>;
-  timestamp?: string;
-}
-
-export interface StatusResponse extends BaseMessage {
-  type: 'status';
-  state: string;
-  loop_id?: string;
-  workspace: string;
-  input_history?: string[];
-  conversation_history?: unknown[];
-}
-
-export interface SubscriptionConfirmedResponse extends BaseMessage {
-  type: 'subscription_confirmed';
-  loop_id?: string;
-  client_id: string;
-  verbosity: string;
-}
-
-export interface ErrorResponse extends BaseMessage {
-  type: 'error';
-  code: string;
-  message: string;
-}
-
-export interface DaemonReadyResponse extends BaseMessage {
-  type: 'daemon_ready';
-  state: string;
-  message?: string;
-}
-
-export interface DaemonStatusResponse extends BaseMessage {
-  type: 'daemon_status_response';
-  running: boolean;
-  port_live: boolean;
-  active_loops: number;
-  daemon_version?: string;
-  core_version?: string;
-}
-
-export interface ShutdownAckResponse extends BaseMessage {
-  type: 'shutdown_ack';
-  status: string;
-}
-
-// Loop lifecycle responses (RFC-503)
-
-export interface LoopNewResponse extends BaseMessage {
-  type: 'loop_new_response';
-  loop_id: string;
-  success?: boolean;
-  is_ephemeral?: boolean;
-}
-
-export interface LoopSubscribeResponse extends BaseMessage {
-  type: 'loop_subscribe_response';
-  loop_id?: string;
-  success: boolean;
-  message?: string;
-}
-
-export interface LoopDetachResponse extends BaseMessage {
-  type: 'loop_detach_response';
-  loop_id?: string;
-  success: boolean;
-}
-
-// Loop management responses (RFC-504)
-
-export interface LoopListResponse extends BaseMessage {
-  type: 'loop_list_response';
-  loops?: Record<string, unknown>[];
-  total?: number;
-}
-
-export interface LoopGetResponse extends BaseMessage {
-  type: 'loop_get_response';
-  loop?: Record<string, unknown>;
-}
-
-export interface LoopTreeResponse extends BaseMessage {
-  type: 'loop_tree_response';
-  tree?: Record<string, unknown>;
-}
-
-export interface LoopPruneResponse extends BaseMessage {
-  type: 'loop_prune_response';
-  result?: Record<string, unknown>;
-}
-
-export interface LoopDeleteResponse extends BaseMessage {
-  type: 'loop_delete_response';
-  success: boolean;
-  message?: string;
-}
-
-export interface LoopReattachResponse extends BaseMessage {
-  type: 'loop_reattach_response';
-  loop_id?: string;
-  success?: boolean;
-}
-
-// History replay messages (RFC-411, legacy — superseded by card.* frames)
-
-export interface HistoryReplayMessage extends BaseMessage {
-  type: 'history_replay';
-  loop_id?: string;
-  events?: Record<string, unknown>[];
-  total_events?: number;
-}
-
-export interface HistoryReplayCompleteMessage extends BaseMessage {
-  type: 'history_replay_complete';
-  loop_id?: string;
-}
-
-export interface ReplayCompleteMessage extends BaseMessage {
-  type: 'replay_complete';
-  loop_id?: string;
-  event_count?: number;
-}
-
-export interface LoopReattachedWireMessage extends BaseMessage {
-  type: 'loop_reattached';
-  loop_id?: string;
-  timestamp?: string;
-}
-
-// Card ledger replay frames (RFC-413, card_binder design)
-
-/** Signals the start of a card ledger replay. */
-export interface CardReplayBeginMessage extends BaseMessage {
-  type: 'card.replay_begin';
-  loop_id: string;
-  total_cards: number;
-  latest_seq: number;
-}
-
-/** Carries one display card during ledger replay. */
-export interface CardCreatedMessage extends BaseMessage {
-  type: 'card.created';
-  loop_id: string;
-  seq: number;
-  card_id: string;
-  kind: string;
-  data: Record<string, unknown>;
-}
-
-/** Signals the end of a card ledger replay. */
-export interface CardReplayEndMessage extends BaseMessage {
-  type: 'card.replay_end';
-  loop_id: string;
-  latest_seq: number;
-  card_count: number;
-}
-
-// Other responses
-
-export interface SkillsListResponse extends BaseMessage {
-  type: 'skills_list_response';
-  skills?: Record<string, unknown>[];
-}
-
-export interface ModelsListResponse extends BaseMessage {
-  type: 'models_list_response';
-  models?: Record<string, unknown>[];
-}
-
-// Discriminated union for all decoded messages
-export type DecodedMessage =
-  | LoopInputMessage
-  | CommandMessage
-  | DaemonStatusMessage
-  | DaemonShutdownMessage
-  | ConfigGetMessage
-  | LoopNewMessage
-  | LoopSubscribeMessage
-  | LoopDetachMessage
-  | LoopListMessage
-  | LoopGetMessage
-  | LoopTreeMessage
-  | LoopPruneMessage
-  | LoopDeleteMessage
-  | LoopReattachMessage
-  | SkillsListMessage
-  | ModelsListMessage
-  | InvokeSkillMessage
-  | DetachMessage
-  | JobCreateMessage
-  | JobCreateResponse
-  | JobStatusMessage
-  | JobStatusResponse
-  | JobPauseMessage
-  | JobPauseResponse
-  | JobResumeMessage
-  | JobResumeResponse
-  | JobCancelMessage
-  | JobCancelResponse
-  | JobDagMessage
-  | JobDagResponse
-  | JobGuidanceMessage
-  | JobGuidanceResponse
-  | AutopilotSubscribeMessage
-  | AutopilotSubscribeResponse
-  | AutopilotUnsubscribeMessage
-  | AutopilotUnsubscribeResponse
-  | EventMessage
-  | StatusResponse
-  | SubscriptionConfirmedResponse
-  | ErrorResponse
-  | DaemonReadyResponse
-  | DaemonStatusResponse
-  | ShutdownAckResponse
-  | LoopNewResponse
-  | LoopSubscribeResponse
-  | LoopDetachResponse
-  | LoopListResponse
-  | LoopGetResponse
-  | LoopTreeResponse
-  | LoopPruneResponse
-  | LoopDeleteResponse
-  | LoopReattachResponse
-  | HistoryReplayMessage
-  | HistoryReplayCompleteMessage
-  | ReplayCompleteMessage
-  | LoopReattachedWireMessage
-  | CardReplayBeginMessage
-  | CardCreatedMessage
-  | CardReplayEndMessage
-  | SkillsListResponse
-  | ModelsListResponse
-  | Record<string, unknown>;
 
 // ---------------------------------------------------------------------------
 // Encode / Decode
 // ---------------------------------------------------------------------------
 
-/** Encodes a message as JSON with newline delimiter. */
+/** Encodes a message as JSON with a newline delimiter (NDJSON frame). */
 export function encodeMessage(msg: unknown): string {
   return JSON.stringify(msg) + '\n';
 }
 
-/** Decodes a JSON message and returns a typed object. Unknown types return a raw map. */
+/**
+ * Decodes a JSON message and returns a typed object. Unknown types return a
+ * raw map. The decoder is permissive: it accepts protocol-1 envelopes and
+ * surfaces `response.result` / `next.payload` for consumers that read them,
+ * but always returns the full envelope so callers can inspect `type`/`id`.
+ */
 export function decodeMessage(data: string): DecodedMessage | null {
   if (!data || data.length === 0) return null;
 
@@ -549,93 +295,120 @@ export function decodeMessage(data: string): DecodedMessage | null {
     throw new Error(`invalid JSON: ${data}`);
   }
 
-  const type = parsed.type as string | undefined;
+  if (!parsed || typeof parsed !== 'object') return parsed;
+
+  const type = parsed.type as MessageType | undefined;
   if (!type) return parsed;
 
   switch (type) {
-    // Client → Daemon (loop-first)
-    case 'loop_input': return { ...parsed } as unknown as LoopInputMessage;
-    case 'command': return { ...parsed } as unknown as CommandMessage;
-    case 'daemon_status': return { ...parsed } as unknown as DaemonStatusMessage;
-    case 'daemon_shutdown': return { ...parsed } as unknown as DaemonShutdownMessage;
-    case 'config_get': return { ...parsed } as unknown as ConfigGetMessage;
-    case 'loop_new': return { ...parsed } as unknown as LoopNewMessage;
-    case 'loop_subscribe': return { ...parsed } as unknown as LoopSubscribeMessage;
-    case 'loop_detach': return { ...parsed } as unknown as LoopDetachMessage;
-    case 'loop_list': return { ...parsed } as unknown as LoopListMessage;
-    case 'loop_get': return { ...parsed } as unknown as LoopGetMessage;
-    case 'loop_tree': return { ...parsed } as unknown as LoopTreeMessage;
-    case 'loop_prune': return { ...parsed } as unknown as LoopPruneMessage;
-    case 'loop_delete': return { ...parsed } as unknown as LoopDeleteMessage;
-    case 'loop_reattach': return { ...parsed } as unknown as LoopReattachMessage;
-    case 'skills_list': return { ...parsed } as unknown as SkillsListMessage;
-    case 'models_list': return { ...parsed } as unknown as ModelsListMessage;
-    case 'invoke_skill': return { ...parsed } as unknown as InvokeSkillMessage;
-    case 'detach': return { ...parsed } as unknown as DetachMessage;
-
-    // RFC-228: Autopilot Job messages
-    case 'job_create': return { ...parsed } as unknown as JobCreateMessage;
-    case 'job_create_response': return { ...parsed } as unknown as JobCreateResponse;
-    case 'job_status': return { ...parsed } as unknown as JobStatusMessage;
-    case 'job_status_response': return { ...parsed } as unknown as JobStatusResponse;
-    case 'job_pause': return { ...parsed } as unknown as JobPauseMessage;
-    case 'job_pause_response': return { ...parsed } as unknown as JobPauseResponse;
-    case 'job_resume': return { ...parsed } as unknown as JobResumeMessage;
-    case 'job_resume_response': return { ...parsed } as unknown as JobResumeResponse;
-    case 'job_cancel': return { ...parsed } as unknown as JobCancelMessage;
-    case 'job_cancel_response': return { ...parsed } as unknown as JobCancelResponse;
-    case 'job_dag': return { ...parsed } as unknown as JobDagMessage;
-    case 'job_dag_response': return { ...parsed } as unknown as JobDagResponse;
-    case 'job_guidance': return { ...parsed } as unknown as JobGuidanceMessage;
-    case 'job_guidance_response': return { ...parsed } as unknown as JobGuidanceResponse;
-    case 'autopilot_subscribe': return { ...parsed } as unknown as AutopilotSubscribeMessage;
-    case 'autopilot_subscribe_response': return { ...parsed } as unknown as AutopilotSubscribeResponse;
-    case 'autopilot_unsubscribe': return { ...parsed } as unknown as AutopilotUnsubscribeMessage;
-    case 'autopilot_unsubscribe_response': return { ...parsed } as unknown as AutopilotUnsubscribeResponse;
-
-    // Daemon → Client
-    case 'event': return { ...parsed } as unknown as EventMessage;
+    case 'connection_init':
+      return { ...parsed } as unknown as ConnectionInitEnvelope;
+    case 'connection_ack':
+      return { ...parsed } as unknown as ConnectionAckEnvelope;
+    case 'request':
+      return { ...parsed } as unknown as RequestEnvelope;
+    case 'response':
+      return { ...parsed } as unknown as ResponseEnvelope;
+    case 'notification':
+      return { ...parsed } as unknown as NotificationEnvelope;
+    case 'subscribe':
+      return { ...parsed } as unknown as SubscribeEnvelope;
+    case 'next':
+      return { ...parsed } as unknown as NextEnvelope;
+    case 'error':
+      return { ...parsed } as unknown as ErrorEnvelope;
+    case 'complete':
+      return { ...parsed } as unknown as CompleteEnvelope;
+    case 'unsubscribe':
+      return { ...parsed } as unknown as UnsubscribeEnvelope;
+    case 'ping':
+      return { ...parsed } as unknown as PingEnvelope;
+    case 'pong':
+      return { ...parsed } as unknown as PongEnvelope;
+    case 'receipt_response':
+      return { ...parsed } as unknown as ReceiptResponseEnvelope;
+    case 'disconnect':
+      return { ...parsed } as unknown as DisconnectEnvelope;
     case 'status': {
-      const msg = { ...parsed } as unknown as StatusResponse;
-      if (!msg.loop_id && parsed.loopId && typeof parsed.loopId === 'string') {
-        msg.loop_id = parsed.loopId;
+      const msg = { ...parsed } as unknown as StatusFrame;
+      // Tolerate camelCase loopId from some daemon builds.
+      if ((!msg.loop_id || msg.loop_id === '') && typeof parsed.loopId === 'string') {
+        msg.loop_id = parsed.loopId as string;
       }
       return msg;
     }
-    case 'subscription_confirmed': return { ...parsed } as unknown as SubscriptionConfirmedResponse;
-    case 'error': return { ...parsed } as unknown as ErrorResponse;
-    case 'daemon_ready': return { ...parsed } as unknown as DaemonReadyResponse;
-    case 'daemon_status_response': return { ...parsed } as unknown as DaemonStatusResponse;
-    case 'shutdown_ack': return { ...parsed } as unknown as ShutdownAckResponse;
-    case 'loop_new_response': return { ...parsed } as unknown as LoopNewResponse;
-    case 'loop_subscribe_response': return { ...parsed } as unknown as LoopSubscribeResponse;
-    case 'loop_detach_response': return { ...parsed } as unknown as LoopDetachResponse;
-    case 'loop_list_response': return { ...parsed } as unknown as LoopListResponse;
-    case 'loop_get_response': return { ...parsed } as unknown as LoopGetResponse;
-    case 'loop_tree_response': return { ...parsed } as unknown as LoopTreeResponse;
-    case 'loop_prune_response': return { ...parsed } as unknown as LoopPruneResponse;
-    case 'loop_delete_response': return { ...parsed } as unknown as LoopDeleteResponse;
-    case 'loop_reattach_response': return { ...parsed } as unknown as LoopReattachResponse;
-    case 'history_replay': return { ...parsed } as unknown as HistoryReplayMessage;
-    case 'history_replay_complete':
-    case 'replay_complete':
-      return { ...parsed } as unknown as ReplayCompleteMessage;
-    case 'loop_reattached':
-      return { ...parsed } as unknown as LoopReattachedWireMessage;
-    case 'config_get_response':
-    case 'invoke_skill_response':
-      return parsed;
-    case 'skills_list_response': return { ...parsed } as unknown as SkillsListResponse;
-    case 'models_list_response': return { ...parsed } as unknown as ModelsListResponse;
-
-    // Card ledger replay (RFC-413)
-    case 'card.replay_begin': return { ...parsed } as unknown as CardReplayBeginMessage;
-    case 'card.created': return { ...parsed } as unknown as CardCreatedMessage;
-    case 'card.replay_end': return { ...parsed } as unknown as CardReplayEndMessage;
-
     default:
       return parsed;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Envelope factory helpers (RFC-450 §5)
+// ---------------------------------------------------------------------------
+
+/** Builds a `request` envelope. */
+export function requestEnvelope(
+  method: MethodName,
+  params?: Record<string, unknown>,
+  id?: string,
+): RequestEnvelope {
+  return { proto: PROTO_VERSION, type: 'request', method, params, id: id ?? newRequestID() };
+}
+
+/** Builds a `notification` envelope (no `id`). */
+export function notificationEnvelope(
+  method: MethodName,
+  params?: Record<string, unknown>,
+): NotificationEnvelope {
+  return { proto: PROTO_VERSION, type: 'notification', method, params };
+}
+
+/** Builds a `subscribe` envelope. */
+export function subscribeEnvelope(
+  method: 'loop_events' | 'autopilot_events',
+  params?: Record<string, unknown>,
+  id?: string,
+): SubscribeEnvelope {
+  return { proto: PROTO_VERSION, type: 'subscribe', method, params, id: id ?? newRequestID() };
+}
+
+/** Builds an `unsubscribe` envelope. */
+export function unsubscribeEnvelope(id: string): UnsubscribeEnvelope {
+  return { proto: PROTO_VERSION, type: 'unsubscribe', id };
+}
+
+/** Builds a `connection_init` handshake envelope. */
+export function connectionInitEnvelope(opts?: {
+  client_version?: string;
+  client_name?: string;
+  accept_proto?: string[];
+  capabilities?: string[];
+}): ConnectionInitEnvelope {
+  return {
+    proto: PROTO_VERSION,
+    type: 'connection_init',
+    params: {
+      client_version: opts?.client_version ?? CLIENT_VERSION,
+      client_name: opts?.client_name ?? 'soothe-client-ts',
+      accept_proto: opts?.accept_proto ?? [PROTO_VERSION],
+      capabilities: opts?.capabilities ?? DEFAULT_CLIENT_CAPABILITIES,
+    },
+  };
+}
+
+/** Builds a `ping` heartbeat envelope. */
+export function pingEnvelope(): PingEnvelope {
+  return { proto: PROTO_VERSION, type: 'ping' };
+}
+
+/** Builds a `pong` heartbeat envelope. */
+export function pongEnvelope(): PongEnvelope {
+  return { proto: PROTO_VERSION, type: 'pong' };
+}
+
+/** Builds a `disconnect` notification envelope. */
+export function disconnectEnvelope(): DisconnectEnvelope {
+  return { proto: PROTO_VERSION, type: 'disconnect' };
 }
 
 // ---------------------------------------------------------------------------
@@ -651,13 +424,37 @@ export function splitWirePayload(data: string): string[] {
   return lines.length > 0 ? lines : [data];
 }
 
+// ---------------------------------------------------------------------------
+// Event/loop extraction helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Returns the StrangeLoop id when present in a message.
- * Prefers loop_id field.
+ *
+ * Under protocol-1, loop-scoped stream events arrive as `next` envelopes
+ * whose `payload.data` carries the original frame (with `loop_id`). Raw
+ * `status` frames carry `loop_id` at the top level. This helper inspects
+ * both shapes.
  */
 export function extractSootheLoopID(msg: unknown): [string, boolean] {
   if (!msg || typeof msg !== 'object') return ['', false];
   const m = msg as Record<string, unknown>;
+
+  // `next` envelope: dig into payload.data.loop_id.
+  if (m.type === 'next') {
+    const payload = m.payload as Record<string, unknown> | undefined;
+    if (payload && typeof payload === 'object') {
+      const data = payload.data as Record<string, unknown> | undefined;
+      if (data && typeof data === 'object') {
+        const id = (data.loop_id ?? data.loopId) as string | undefined;
+        if (id && id !== '') return [id, true];
+      }
+      // Some payloads carry loop_id directly.
+      const pid = (payload.loop_id ?? payload.loopId) as string | undefined;
+      if (pid && pid !== '') return [pid, true];
+    }
+    return ['', false];
+  }
 
   if (m.type === 'status') {
     const id = m.loop_id as string | undefined;
@@ -665,18 +462,8 @@ export function extractSootheLoopID(msg: unknown): [string, boolean] {
     return ['', false];
   }
 
-  if (m.type === 'event') {
-    const top = m.loop_id as string | undefined;
-    if (top && top !== '') return [top, true];
-
-    const data = m.data as Record<string, unknown> | undefined;
-    if (data && typeof data === 'object') {
-      const dataId = (data['loop_id'] ?? data['loopId']) as string | undefined;
-      if (dataId && dataId !== '') return [dataId, true];
-    }
-  }
-
-  const generic = (m['loop_id'] ?? m['loopId']) as string | undefined;
+  // Generic fallback: top-level loop_id / loopId.
+  const generic = (m.loop_id ?? m.loopId) as string | undefined;
   if (generic && generic !== '') return [generic, true];
 
   return ['', false];
@@ -686,56 +473,46 @@ export function extractSootheLoopID(msg: unknown): [string, boolean] {
 // Message factory functions
 // ---------------------------------------------------------------------------
 
-/** Generates a new UUID request ID. */
+/** Generates a new UUID correlation ID (RFC-450 §5.2 `id`). */
 export function newRequestID(): string {
   return randomUUID();
 }
 
-/** Creates a loop_input message with required fields. */
-export function newLoopInputMessage(loopID: string, content: string): LoopInputMessage {
-  return {
-    request_id: newRequestID(),
-    type: 'loop_input',
-    loop_id: loopID,
-    content,
-    autonomous: false,
-  };
+/** Creates a `loop_input` notification envelope. */
+export function newLoopInputMessage(loopID: string, content: string): NotificationEnvelope {
+  return notificationEnvelope('loop_input', { loop_id: loopID, content, autonomous: false });
 }
 
-/** Creates a loop_new message. */
-export function newLoopNewMessage(opts?: LoopNewOptions | string): LoopNewMessage {
+/** Creates a `loop_new` request envelope. */
+export function newLoopNewMessage(opts?: LoopNewOptions | string): RequestEnvelope {
   const options: LoopNewOptions =
     typeof opts === 'string' ? { client_workspace: opts } : opts ?? {};
   const clientWorkspace = options.client_workspace ?? options.workspace;
-  const msg: LoopNewMessage = {
-    request_id: newRequestID(),
-    type: 'loop_new',
-  };
+  const params: Record<string, unknown> = {};
   if (clientWorkspace?.trim()) {
-    msg.client_workspace = clientWorkspace.trim();
+    params.client_workspace = clientWorkspace.trim();
   }
   if (options.user_id?.trim()) {
-    msg.user_id = options.user_id.trim();
+    params.user_id = options.user_id.trim();
   }
   if (options.client_workspace_id?.trim()) {
-    msg.client_workspace_id = options.client_workspace_id.trim();
+    params.client_workspace_id = options.client_workspace_id.trim();
   }
   if (options.is_ephemeral) {
-    msg.is_ephemeral = true;
+    params.is_ephemeral = true;
   }
-  return msg;
+  return requestEnvelope('loop_new', params);
 }
 
-/** Creates a loop_subscribe message. */
-export function newLoopSubscribeMessage(loopID: string, verbosity: string, streamDelivery?: 'batch' | 'streaming'): LoopSubscribeMessage {
-  const msg: LoopSubscribeMessage = {
-    request_id: newRequestID(),
-    type: 'loop_subscribe',
-    loop_id: loopID,
-    verbosity,
-  };
+/** Creates a `loop_events` subscribe envelope. */
+export function newLoopSubscribeMessage(
+  loopID: string,
+  verbosity: string,
+  streamDelivery?: 'batch' | 'adaptive' | 'streaming',
+): SubscribeEnvelope {
+  const params: Record<string, unknown> = { loop_id: loopID, verbosity };
   if (streamDelivery) {
-    msg.stream_delivery = streamDelivery;
+    params.stream_delivery = streamDelivery;
   }
-  return msg;
+  return subscribeEnvelope('loop_events', params);
 }
