@@ -52,3 +52,56 @@ export class TimeoutError extends Error {
     this.duration = duration;
   }
 }
+
+/**
+ * Distinguishes clean vs unclean connection loss (RFC-450 §4, §8.3).
+ *
+ * A clean drop follows a `disconnect` notification (loops keep running
+ * server-side); an unclean drop is a read/write error or a missed pong
+ * (in-flight queries are cancelled). Pair with the Client's `'disconnected'`
+ * event: the cause is emitted exactly once when the connection drops.
+ */
+export enum DisconnectCause {
+  /** Abrupt loss: read/write error or missed pong (RFC-450 §8.3). */
+  Unclean = 0,
+  /** Graceful peer-initiated `disconnect` notification (RFC-450 §9.2). */
+  Clean = 1,
+}
+
+/** Human-readable cause name for logging. */
+export function disconnectCauseName(cause: DisconnectCause): string {
+  return cause === DisconnectCause.Clean ? "clean" : "unclean";
+}
+
+/** Indicates a failed reconnection attempt sequence. */
+export class ReconnectError extends Error {
+  readonly url: string;
+  readonly attempts: number;
+  readonly cause: Error;
+
+  constructor(url: string, attempts: number, cause: Error) {
+    super(`reconnect to ${url} failed after ${attempts} attempts: ${cause.message}`);
+    this.name = "ReconnectError";
+    this.url = url;
+    this.attempts = attempts;
+    this.cause = cause;
+  }
+}
+
+/**
+ * Returned by `reattachAndProbe` when a loop accepts the reattach handshake
+ * but fails the `loop_get` liveness probe. Callers should fall back to a
+ * fresh `loop_new` bootstrap.
+ */
+export class StaleLoopError extends Error {
+  readonly loopID: string;
+  readonly cause?: Error;
+
+  constructor(loopID: string, cause?: Error) {
+    const detail = cause ? `: ${cause.message}` : "";
+    super(`stale loop ${loopID}: reattach accepted but liveness probe failed${detail}`);
+    this.name = "StaleLoopError";
+    this.loopID = loopID;
+    this.cause = cause;
+  }
+}

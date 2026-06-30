@@ -10,7 +10,8 @@ import { EventEmitter } from "node:events";
 import WebSocket from "ws";
 import type { Config } from "./config.js";
 import { defaultConfig } from "./config.js";
-import { DaemonError } from "./errors.js";
+import { DaemonError, DisconnectCause, ReconnectError, StaleLoopError } from "./errors.js";
+import { Multiplexer } from "./multiplexer.js";
 import {
   CLIENT_VERSION,
   DEFAULT_CLIENT_CAPABILITIES,
@@ -77,6 +78,14 @@ export class Client extends EventEmitter {
   private heartbeatIntervalMs = 0;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private lastPongMonotonic = 0;
+  // Mid-session drop signal (RFC-450 §8.3). The 'disconnected' event is
+  // emitted exactly once when the connection drops, carrying a DisconnectCause
+  // that distinguishes clean (peer `disconnect`) from unclean (read/write
+  // error or missed pong). `disconnFired` guards the once-only delivery.
+  private disconnFired = false;
+  // Pending-request/subscription multiplexer (RFC-629 constraint #1). Routes
+  // inbound frames by (type, id) instead of discarding non-matching events.
+  private mux = new Multiplexer();
 
   constructor(url: string, config?: Config) {
     super();
@@ -100,6 +109,11 @@ export class Client extends EventEmitter {
 
       ws.on("open", () => {
         this.ws = ws;
+        // Reset the drop signal and multiplexer for a fresh connection so
+        // reconnect() on the same Client starts with a clean slate.
+        this.disconnFired = false;
+        this._lastCause = null;
+        this.mux = new Multiplexer();
         // Kick off the protocol-1 handshake; resolve connect() once ready.
         this._performHandshake()
           .then((ack) => {
@@ -124,6 +138,10 @@ export class Client extends EventEmitter {
       });
 
       ws.on("error", (err) => {
+        // A write/read error indicates a broken connection — signal an unclean
+        // drop so consumers (e.g. ConnectionPool) can reconnect + reattach.
+        // Idempotent if the close handler already fired.
+        this._signalDisconnect(DisconnectCause.Unclean);
         if (!this.ws) {
           reject(new Error(`soothe dial: ${err.message}`));
         }
@@ -150,6 +168,19 @@ export class Client extends EventEmitter {
             this.lastPongMonotonic = Date.now();
             continue;
           }
+          // A `disconnect` notification is a clean peer-initiated drop
+          // (RFC-450 §9.2); loops keep running server-side.
+          if (m.type === "disconnect") {
+            this._signalDisconnect(DisconnectCause.Clean);
+            // Still surface it to listeners (existing behavior) before close.
+          }
+
+          // Route solicited frames (response/error/next/complete/receipt with
+          // a matching pending multiplexer waiter) to their waiters; do not
+          // forward to the resolver queue (RFC-629 constraint #1).
+          if (this.mux.route(m)) {
+            continue;
+          }
 
           // If a reader is waiting, deliver directly; otherwise buffer for
           // later readEvent/receiveMessages calls. Never do both — a single
@@ -168,6 +199,9 @@ export class Client extends EventEmitter {
         this.ws = null;
         this._stopHeartbeat();
         this.handshakeComplete = false;
+        // Signal an unclean drop (a close without a `disconnect` notification
+        // is an abrupt loss). Idempotent if a clean signal already fired.
+        this._signalDisconnect(DisconnectCause.Unclean);
         this.emit("close");
         // Resolve any pending readEvent calls with null.
         for (const resolver of this.resolvers) {
@@ -202,6 +236,142 @@ export class Client extends EventEmitter {
       this.ws.readyState === WebSocket.OPEN &&
       this.handshakeComplete
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mid-session drop signal + reconnect/reattach (RFC-450 §8.3, RFC-629 L0)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns whether the connection has dropped (the `'disconnected'` event has
+   * fired). Pair with the `'disconnected'` event for the signal. Use
+   * `disconnectCause()` to read the cause.
+   */
+  isDisconnected(): boolean {
+    return this.disconnFired;
+  }
+
+  /**
+   * Returns the cause of the most recent drop, or `null` if the connection has
+   * not dropped. Clean follows a `disconnect` notification (loops keep running
+   * server-side); unclean is a read/write error or missed pong.
+   */
+  disconnectCause(): DisconnectCause | null {
+    if (!this.disconnFired) return null;
+    return this._lastCause ?? DisconnectCause.Unclean;
+  }
+
+  private _lastCause: DisconnectCause | null = null;
+
+  /**
+   * Delivers the disconnect cause exactly once via the `'disconnected'` event.
+   * Safe to call from any path; subsequent calls are no-ops. Listeners receive
+   * the cause as the event argument.
+   */
+  private _signalDisconnect(cause: DisconnectCause): void {
+    if (this.disconnFired) return;
+    this.disconnFired = true;
+    this._lastCause = cause;
+    // Emit synchronously so a listener wired during the same message-handler
+    // tick receives it. Callers that attach a listener after the drop can poll
+    // isDisconnected()/disconnectCause() instead — mirroring Go's closed
+    // buffered channel, which unblocks late readers immediately.
+    try {
+      this.emit("disconnected", cause);
+    } catch {
+      // Listener errors must not propagate into the read loop.
+    }
+  }
+
+  /**
+   * Re-dials the daemon and re-handshakes after a connection drop (RFC-450
+   * §8.3). Does not re-establish loop subscriptions; follow with
+   * `reattachAndProbe()` to resume a loop session. The caller should invoke
+   * this after the `'disconnected'` event fires. Reuses the same Client,
+   * resetting the drop signal and multiplexer.
+   *
+   * Performs bounded-retry backoff using the configured reconnect knobs.
+   */
+  async reconnect(): Promise<void> {
+    const maxAttempts = this.config.reconnectMaxAttempts || 10;
+    const initialDelay = this.config.reconnectInitialDelay || 500;
+    const maxDelay = this.config.reconnectMaxDelay || 10_000;
+
+    let lastErr: Error | null = null;
+    let delay = initialDelay;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        // connect() resets disconnFired / mux and performs the
+        // connection_init/connection_ack handshake with readiness retry.
+        await this.connect();
+        return;
+      } catch (err) {
+        lastErr = err as Error;
+      }
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay = Math.min(delay * 2, maxDelay);
+      }
+    }
+    throw new ReconnectError(this.url, maxAttempts, lastErr ?? new Error("unknown error"));
+  }
+
+  /**
+   * Resumes an existing loop after a reconnect: issues `loop_reattach`,
+   * re-subscribes to `loop_events`, then runs a `loop_get` liveness probe to
+   * detect stale loops that accept the handshake but silently drop input.
+   * Returns a `StaleLoopError` when the probe fails; callers should fall back
+   * to a fresh `loop_new` bootstrap.
+   *
+   * Per RFC-629: connection-level readiness is the handshake's readiness_state
+   * (+ daemon_status); loop_get is a loop-scoped probe only, not a readiness
+   * probe.
+   */
+  async reattachAndProbe(loopID: string): Promise<void> {
+    if (!loopID || !loopID.trim()) {
+      throw new Error("soothe: reattachAndProbe requires a loop id");
+    }
+    const lid = loopID.trim();
+
+    // 1. loop_reattach (RFC-450 §9.2): reconstruct event history and replay.
+    const reattachTimeout = this.config.loopStatusTimeout || 15_000;
+    try {
+      await this.requestResponse(
+        "loop_reattach" as unknown as MethodName,
+        { loop_id: lid },
+        "loop_reattach",
+        reattachTimeout,
+      );
+    } catch (err) {
+      throw new Error(`loop_reattach: ${(err as Error).message}`);
+    }
+
+    // 2. Re-subscribe to the loop event stream (RFC-450 §9.4: subscribe +
+    //    method:"loop_events"). Confirmation arrives as a `next` frame.
+    const subTimeout = this.config.subscriptionTimeout || 10_000;
+    try {
+      await this.subscribe(
+        "loop_events",
+        { loop_id: lid, verbosity: this.config.verbosityLevel },
+        subTimeout,
+      );
+    } catch (err) {
+      throw new Error(`loop events subscription failed: ${(err as Error).message}`);
+    }
+
+    // 3. loop_get liveness probe — side-effect-free read (RFC-450 §9.2).
+    //    A LOOP_NOT_FOUND (-32200) or timeout means the loop is stale: it
+    //    accepted the reattach handshake but is not actually live.
+    const probeTimeout = this.config.reattachProbeTimeout || 5_000;
+    try {
+      await this.getLoop(lid, probeTimeout);
+    } catch (err) {
+      if (err instanceof DaemonError && err.code === -32200) {
+        throw new StaleLoopError(lid, err);
+      }
+      // Timeout or other error during probe → treat as stale.
+      throw new StaleLoopError(lid, err as Error);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -293,7 +463,9 @@ export class Client extends EventEmitter {
     const timeoutMs = Math.max(10_000, intervalMs * 2);
     const now = Date.now();
     if (now - (this.lastPongMonotonic || now) > intervalMs + timeoutMs) {
-      // Dead connection — force close.
+      // Dead connection (missed pong, RFC-450 §8.3) — signal an unclean drop
+      // and force close so consumers can reconnect + reattach.
+      this._signalDisconnect(DisconnectCause.Unclean);
       try {
         this.ws.close(1001, "heartbeat timeout");
       } catch {
@@ -325,8 +497,15 @@ export class Client extends EventEmitter {
       }
       const payload = JSON.stringify(msg);
       this.ws.send(payload, (err) => {
-        if (err) reject(err);
-        else resolve();
+        if (err) {
+          // Write failure indicates a broken connection — signal an unclean
+          // drop so consumers can reconnect. Idempotent if the read loop
+          // already fired.
+          this._signalDisconnect(DisconnectCause.Unclean);
+          reject(err);
+        } else {
+          resolve();
+        }
       });
     });
   }
@@ -440,11 +619,14 @@ export class Client extends EventEmitter {
 
   /**
    * Sends a `request` envelope and waits for the matching `response` (or
-   * `error`) correlated by `id`. Returns the `result` object.
+   * `error`) correlated by `id` (RFC-450 §5/§9). Returns the `result` object.
    *
-   * Reads from the live socket (not `messageBuffer`) so an active subscription
-   * stream cannot starve the RPC wait. Non-matching frames (stream events,
-   * status) are buffered for `readEvent()`/`receiveMessages()` consumers.
+   * Multiplexer-aware (RFC-629 constraint #1): registers a pending RPC wait
+   * keyed by the request id so that, even when a `receiveMessages()` reader
+   * is concurrently active, the matching `response`/`error` is routed to
+   * this caller instead of being discarded or buffered behind a stream.
+   * Non-matching frames are routed to their own waiters by the multiplexer
+   * or flow on to the resolver queue for stream readers.
    */
   async requestResponse(
     method: MethodName,
@@ -454,42 +636,55 @@ export class Client extends EventEmitter {
   ): Promise<Record<string, unknown>> {
     const req = requestEnvelope(method, params);
     const rid = req.id;
-    await this.sendMessage(req);
-
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) break;
-
-      const ev = await this.readLiveEventWithTimeout(remaining);
-      if (ev === null) break; // timeout or connection closed
-
-      const evId = ev.id as string | undefined;
-      if (evId !== rid) {
-        // Not our response — buffer for stream readers, keep waiting on live socket.
-        this.messageBuffer.push(ev as DecodedMessage);
-        continue;
-      }
-
-      const typ = ev.type as string;
-      if (typ === "error") {
-        const errObj =
-          (ev.error as { code?: number; message?: string; data?: unknown }) ??
-          {};
-        throw new DaemonError(
-          errObj.code ?? -32603,
-          errObj.message ?? "daemon error",
-          errObj.data,
-        );
-      }
-      if (typ === "response") {
-        return (ev.result as Record<string, unknown>) ?? ev;
-      }
+    // Register the RPC waiter BEFORE sending so a fast echo response is not
+    // routed before the waiter exists (RFC-629 constraint #1 ordering).
+    const { call, unregister } = this.mux.registerRPC(rid);
+    const label = responseType ?? method;
+    try {
+      await this.sendMessage(req);
+      const result = await this._raceRPC(call, timeout, label);
+      return result;
+    } finally {
+      unregister();
     }
+  }
 
-    throw new Error(
-      `timeout after ${timeout}ms waiting for ${responseType ?? method}`,
-    );
+  /**
+   * Races the multiplexer's RPC promise against a timeout and the connection
+   * drop signal. Resolves with the `result` on `response`; rejects with a
+   * `DaemonError` on `error`; rejects with a timeout/close error otherwise.
+   * The disconnect listener is always removed to avoid accumulating handlers.
+   */
+  private async _raceRPC(
+    call: Promise<Record<string, unknown>>,
+    timeout: number,
+    label: string,
+  ): Promise<Record<string, unknown>> {
+    let timer: NodeJS.Timeout | undefined;
+    let cleanupDisconnect: () => void = () => {};
+    const timeoutP = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`timeout after ${timeout}ms waiting for ${label}`)),
+        timeout,
+      );
+    });
+    const closedP = new Promise<never>((_, reject) => {
+      if (this.disconnFired) {
+        reject(new Error(`connection closed waiting for ${label}`));
+        return;
+      }
+      const onDisconnect = () => {
+        reject(new Error(`connection closed waiting for ${label}`));
+      };
+      this.once("disconnected", onDisconnect);
+      cleanupDisconnect = () => this.removeListener("disconnected", onDisconnect);
+    });
+    try {
+      return await Promise.race([call, timeoutP, closedP]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      cleanupDisconnect();
+    }
   }
 
   /** Sends a fire-and-forget `notification` envelope (no response expected). */
@@ -629,10 +824,10 @@ export class Client extends EventEmitter {
     });
   }
 
-  /** Detaches from a loop (unsubscribe). */
+  /** Detaches from a loop (unsubscribe by subscription id). */
   sendLoopDetach(loopID: string): Promise<void> {
-    // loop_detach is modelled as unsubscribe by subscription id; to preserve the
-    // loopID-based signature we send an unsubscribe carrying the loop-derived id.
+    // To preserve the loopID-based signature we send an unsubscribe envelope
+    // carrying the loop-derived subscription id.
     return this.sendMessage(unsubscribeEnvelope(loopID));
   }
 

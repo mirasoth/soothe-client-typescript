@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Client } from "../src/client.js";
+import { DisconnectCause, StaleLoopError } from "../src/errors.js";
 import {
   createTestServer,
   echoHandler,
@@ -424,6 +425,240 @@ describe("Client", () => {
       expect(client2.isConnected()).toBe(true);
       client2.close();
     } finally {
+      await server.close();
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Layer 0: disconnect signal + reconnect/reattach (RFC-629)
+  // ---------------------------------------------------------------------------
+
+  it("emits 'disconnected' with Clean cause on peer disconnect notification", async () => {
+    // Server that sends a `disconnect` notification right after handshake.
+    const server = createTestServer((ws: WebSocket) => {
+      ws.on("message", (raw) => {
+        let m: Record<string, unknown>;
+        try {
+          m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+        if (m.type === "connection_init") {
+          ws.send(
+            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+          );
+          // Immediately send a clean disconnect notification.
+          ws.send(JSON.stringify({ proto: "1", type: "disconnect" }));
+          return;
+        }
+      });
+    });
+    const client = new Client(server.url);
+    try {
+      // Register the listener BEFORE connect so the drop during handshake is
+      // not missed (the disconnect notification arrives inside connect()).
+      const causeP = new Promise<DisconnectCause>((resolve) => {
+        client.once("disconnected", (c: DisconnectCause) => resolve(c));
+      });
+      await client.connect();
+      const cause = await causeP;
+      expect(cause).toBe(DisconnectCause.Clean);
+      expect(client.isDisconnected()).toBe(true);
+      expect(client.disconnectCause()).toBe(DisconnectCause.Clean);
+    } finally {
+      client.close();
+      await server.close();
+    }
+  });
+
+  it("emits 'disconnected' with Unclean cause on abrupt close", async () => {
+    // Server that abruptly terminates the socket right after handshake (no
+    // `disconnect` notification) → unclean drop.
+    const server = createTestServer((ws: WebSocket) => {
+      ws.on("message", (raw) => {
+        let m: Record<string, unknown>;
+        try {
+          m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+        if (m.type === "connection_init") {
+          ws.send(
+            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+          );
+          // Abruptly terminate the socket (simulates a network drop / server kill).
+          ws.terminate();
+          return;
+        }
+      });
+    });
+    const client = new Client(server.url);
+    try {
+      const causeP = new Promise<DisconnectCause>((resolve) => {
+        client.once("disconnected", (c: DisconnectCause) => resolve(c));
+      });
+      await client.connect();
+      const cause = await causeP;
+      expect(cause).toBe(DisconnectCause.Unclean);
+      expect(client.isDisconnected()).toBe(true);
+    } finally {
+      client.close();
+      await server.close();
+    }
+  });
+
+  it("reconnect re-dials and re-handshakes after a drop", async () => {
+    // Server that terminates the socket after handshake → unclean drop.
+    const server = createTestServer((ws: WebSocket) => {
+      ws.on("message", (raw) => {
+        let m: Record<string, unknown>;
+        try {
+          m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+        if (m.type === "connection_init") {
+          ws.send(
+            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+          );
+          ws.terminate();
+          return;
+        }
+      });
+    });
+    // Short retry backoff so the test doesn't wait 55s.
+    const cfg = {
+      daemonURL: server.url,
+      verbosityLevel: "normal" as const,
+      maxRetries: 5,
+      reconnectDelay: 50,
+      heartbeatInterval: 30000,
+      daemonReadyTimeout: 2000,
+      loopStatusTimeout: 5000,
+      subscriptionTimeout: 5000,
+      reconnectMaxAttempts: 3,
+      reconnectInitialDelay: 50,
+      reconnectMaxDelay: 200,
+      reattachProbeTimeout: 1000,
+    };
+    const client = new Client(server.url, cfg);
+    try {
+      const dropped = new Promise<void>((resolve) => {
+        client.once("disconnected", () => resolve());
+      });
+      await client.connect();
+      await dropped;
+      expect(client.isDisconnected()).toBe(true);
+      // The server is still accepting connections, so reconnect() re-dials and
+      // re-handshakes successfully on the same Client.
+      await client.reconnect();
+      expect(client.isConnected()).toBe(true);
+      expect(client.isDisconnected()).toBe(false);
+    } finally {
+      client.close();
+      await server.close();
+    }
+  });
+
+  it("reattachAndProbe returns StaleLoopError on LOOP_NOT_FOUND", async () => {
+    const server = createTestServer((ws: WebSocket) => {
+      ws.on("message", (raw) => {
+        let m: Record<string, unknown>;
+        try {
+          m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+        if (m.type === "connection_init") {
+          ws.send(
+            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+          );
+          return;
+        }
+        const typ = m.type as string;
+        const id = m.id;
+        const method = m.method as string | undefined;
+        const params = (m.params as Record<string, unknown> | undefined) ?? {};
+        if (typ === "request" && method === "loop_reattach") {
+          // Accept the reattach...
+          ws.send(JSON.stringify({ proto: "1", type: "response", result: { ok: true }, id }));
+          return;
+        }
+        if (typ === "subscribe" && method === "loop_events") {
+          ws.send(
+            JSON.stringify({
+              proto: "1",
+              type: "next",
+              id,
+              payload: { loop_id: params.loop_id, event: "subscribed", success: true },
+            }),
+          );
+          return;
+        }
+        if (typ === "request" && method === "loop_get") {
+          // ...but the liveness probe says the loop is gone.
+          ws.send(
+            JSON.stringify({
+              proto: "1",
+              type: "error",
+              error: { code: -32200, message: "loop not found" },
+              id,
+            }),
+          );
+          return;
+        }
+      });
+    });
+    const client = new Client(server.url);
+    try {
+      await client.connect();
+      await expect(client.reattachAndProbe("ghost-loop")).rejects.toBeInstanceOf(
+        StaleLoopError,
+      );
+    } finally {
+      client.close();
+      await server.close();
+    }
+  });
+
+  it("concurrent RPCs route to the correct caller by id", async () => {
+    const server = createTestServer((ws: WebSocket) => {
+      ws.on("message", (raw) => {
+        let m: Record<string, unknown>;
+        try {
+          m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+        if (m.type === "connection_init") {
+          ws.send(
+            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+          );
+          return;
+        }
+        const typ = m.type as string;
+        const id = m.id;
+        if (typ === "request") {
+          // Answer each request with a result echoing its id, out of order.
+          const result = { echoed_id: id };
+          // Delay slightly; responses may interleave.
+          setTimeout(() => {
+            ws.send(JSON.stringify({ proto: "1", type: "response", result, id }));
+          }, 5);
+        }
+      });
+    });
+    const client = new Client(server.url);
+    try {
+      await client.connect();
+      const [r1, r2] = await Promise.all([
+        client.requestResponse("daemon_status", { tag: 1 } as unknown as Record<string, unknown>, "r1", 3000),
+        client.requestResponse("daemon_status", { tag: 2 } as unknown as Record<string, unknown>, "r2", 3000),
+      ]);
+      // Each caller must receive its own response, not the other's.
+      expect(r1.echoed_id).not.toBe(r2.echoed_id);
+    } finally {
+      client.close();
       await server.close();
     }
   });

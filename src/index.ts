@@ -7,7 +7,15 @@
  */
 
 // Errors
-export { ConnectionError, DaemonError, TimeoutError } from "./errors.js";
+export {
+  ConnectionError,
+  DaemonError,
+  TimeoutError,
+  ReconnectError,
+  StaleLoopError,
+  DisconnectCause,
+  disconnectCauseName,
+} from "./errors.js";
 
 // Verbosity
 export {
@@ -118,6 +126,9 @@ export {
 export { Client } from "./client.js";
 export type { InputOptions, NegotiatedCapabilities } from "./client.js";
 
+// Multiplexer (RFC-629 Layer 0)
+export { Multiplexer } from "./multiplexer.js";
+
 // Helpers
 export {
   checkDaemonStatus,
@@ -136,3 +147,6 @@ export {
   waitSubscriptionConfirmed,
   connectWithRetries,
 } from "./session.js";
+
+// appkit (RFC-629 Layer 1)
+export * from "./appkit/index.js";

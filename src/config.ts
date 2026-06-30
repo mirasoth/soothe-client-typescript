@@ -19,8 +19,18 @@ export interface Config {
   daemonReadyTimeout: number;
   /** Bootstrap: wait for status with loop_id in ms */
   loopStatusTimeout: number;
-  /** After loop_subscribe: wait for confirmation in ms */
+  /** After subscribe(method:"loop_events"): wait for confirmation in ms */
   subscriptionTimeout: number;
+
+  // Mid-session reconnect (RFC-450 §8.3 dead-connection detection).
+  /** Max reconnection attempts on a mid-session drop (0 = infinite). */
+  reconnectMaxAttempts: number;
+  /** Initial backoff delay (ms) between reconnect attempts. */
+  reconnectInitialDelay: number;
+  /** Cap (ms) on exponential backoff delay between reconnect attempts. */
+  reconnectMaxDelay: number;
+  /** `loop_get` liveness probe timeout (ms) in reattachAndProbe. */
+  reattachProbeTimeout: number;
 }
 
 /** Returns default configuration. */
@@ -34,6 +44,11 @@ export function defaultConfig(): Config {
     daemonReadyTimeout: 20000,
     loopStatusTimeout: 60000,
     subscriptionTimeout: 10000,
+
+    reconnectMaxAttempts: 10,
+    reconnectInitialDelay: 500,
+    reconnectMaxDelay: 10000,
+    reattachProbeTimeout: 5000,
   };
 }
 
