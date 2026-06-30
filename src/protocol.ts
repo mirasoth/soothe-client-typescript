@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import type { LoopInputIntentHint } from "./intent_hints.js";
 
 /** Protocol version string (RFC-450 §8.1). */
 export const PROTO_VERSION = "1";
@@ -241,7 +242,7 @@ export interface LoopInputParams {
   model?: string;
   model_params?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
-  intent_hint?: string;
+  intent_hint?: LoopInputIntentHint;
   response_schema?: Record<string, unknown>;
   response_schema_name?: string;
   response_schema_strict?: boolean;

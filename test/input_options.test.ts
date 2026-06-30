@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import { Client, InputOptions } from "../src/client.js";
+import { INTENT_HINT_TEXT_COMPLETION } from "../src/intent_hints.js";
 
 describe("InputOptions", () => {
   it("requires loopID", async () => {
@@ -49,9 +50,9 @@ describe("InputOptions", () => {
   it("accepts intentHint", () => {
     const opts: InputOptions = {
       loopID: "test-loop-id",
-      intentHint: "quiz",
+      intentHint: INTENT_HINT_TEXT_COMPLETION,
     };
-    expect(opts.intentHint).toBe("quiz");
+    expect(opts.intentHint).toBe(INTENT_HINT_TEXT_COMPLETION);
   });
 
   it("accepts responseSchema", () => {
@@ -91,7 +92,7 @@ describe("InputOptions", () => {
       maxIterations: 10,
       subagent: "coder",
       model: "openai:gpt-4",
-      intentHint: "quiz",
+      intentHint: INTENT_HINT_TEXT_COMPLETION,
       clarificationMode: "manual",
       clarificationAnswer: true,
       clarificationAnswers: ["a", "b"],
@@ -102,7 +103,7 @@ describe("InputOptions", () => {
     expect(opts.maxIterations).toBe(10);
     expect(opts.subagent).toBe("coder");
     expect(opts.model).toBe("openai:gpt-4");
-    expect(opts.intentHint).toBe("quiz");
+    expect(opts.intentHint).toBe(INTENT_HINT_TEXT_COMPLETION);
     expect(opts.clarificationMode).toBe("manual");
     expect(opts.clarificationAnswer).toBe(true);
     expect(opts.clarificationAnswers).toEqual(["a", "b"]);

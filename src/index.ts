@@ -75,6 +75,17 @@ export type {
   LoopNewOptions,
   StreamEventPayload,
 } from "./protocol.js";
+export type { IntentHint, LoopAssistantOutputPhase, LoopInputIntentHint, RemovedIntentHint } from "./intent_hints.js";
+export {
+  DEFAULT_DELIVERABLE_PHASES,
+  INTENT_HINT_EMBED,
+  INTENT_HINT_IMAGE_TO_TEXT,
+  INTENT_HINT_OCR,
+  INTENT_HINT_TEXT_COMPLETION,
+  LOOP_ASSISTANT_OUTPUT_PHASES,
+  REMOVED_INTENT_HINTS,
+  validateLoopInputIntentHint,
+} from "./intent_hints.js";
 
 // Events
 export {

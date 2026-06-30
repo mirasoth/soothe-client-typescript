@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DEFAULT_DELIVERABLE_PHASES, INTENT_HINT_TEXT_COMPLETION } from "../src/intent_hints.js";
 import type { AbortSignal } from "node:events";
 import type { DecodedMessage } from "../src/protocol.js";
 import { DisconnectCause } from "../src/errors.js";
@@ -202,7 +203,7 @@ describe("SSEBroadcaster", () => {
 
 function triarchClassifier(): EventClassifier {
   return new EventClassifier({
-    deliverablePhases: new Set(["quiz", "goal_completion", "direct_model"]),
+    deliverablePhases: DEFAULT_DELIVERABLE_PHASES,
   });
 }
 
@@ -344,7 +345,7 @@ describe("ConnectionPool", () => {
 describe("TurnRunner", () => {
   it("deliverable turn end-to-end", async () => {
     const store = new MemStore();
-    const deliverable = deliverableNext("quiz", "This is a substantive final answer.");
+    const deliverable = deliverableNext("text_completion", "This is a substantive final answer.");
     const fake = new FakeClient([deliverable]);
     const pool = newTestPool(store, fake);
     const gate = new QueryGate();
@@ -354,7 +355,7 @@ describe("TurnRunner", () => {
     const { iterable } = b.subscribe("s1");
     const reader = iterable[Symbol.asyncIterator]();
 
-    const opts: InputOpts = { intentHint: "quiz" };
+    const opts: InputOpts = { intentHint: INTENT_HINT_TEXT_COMPLETION };
     await tr.execute("s1", "what is 2+2", "user-1", "ws-1", null, opts);
 
     // Expect a complete SSE event with the deliverable content.
@@ -368,7 +369,7 @@ describe("TurnRunner", () => {
     expect(fake.sendCapture.length).toBeGreaterThan(0);
     const sent = fake.sendCapture[0];
     expect(sent.type).toBe("loop_input");
-    expect(sent.intent_hint).toBe("quiz");
+    expect(sent.intent_hint).toBe(INTENT_HINT_TEXT_COMPLETION);
   });
 
   it("timeout when no deliverable arrives", async () => {
@@ -396,13 +397,13 @@ describe("TurnRunner", () => {
 describe("inputMessageForLoop", () => {
   it("builds loop_input with opts", () => {
     const msg = inputMessageForLoop("hi", "loop-1", undefined, {
-      intentHint: "quiz",
+      intentHint: INTENT_HINT_TEXT_COMPLETION,
       preferredSubagent: "explore",
     });
     expect(msg.type).toBe("loop_input");
     expect(msg.content).toBe("hi");
     expect(msg.loop_id).toBe("loop-1");
-    expect(msg.intent_hint).toBe("quiz");
+    expect(msg.intent_hint).toBe(INTENT_HINT_TEXT_COMPLETION);
     expect(msg.preferred_subagent).toBe("explore");
   });
 

@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import { Client } from "../src/client.js";
 import { defaultConfig, loadConfigFromEnv } from "../src/config.js";
+import { INTENT_HINT_TEXT_COMPLETION } from "../src/intent_hints.js";
 import {
   bootstrapLoopSession,
   checkDaemonStatus,
@@ -383,7 +384,7 @@ describe.skipIf(skip())("Integration", () => {
 
     await client.sendInput("Hello world", {
       loopID,
-      intentHint: "quiz",
+      intentHint: INTENT_HINT_TEXT_COMPLETION,
     });
 
     let eventCount = 0;

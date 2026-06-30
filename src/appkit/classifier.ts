@@ -45,7 +45,8 @@ export interface ChatEventResult {
 /**
  * Product-specific decisions an EventClassifier needs. The DeliverablePhases
  * set is the key product knob: which message `phase` values count as
- * user-facing deliverables (triarch uses {quiz, goal_completion, direct_model};
+ * user-facing deliverables (triarch uses quiz, goal_completion, direct_model, and
+ * direct intent_hint phases text_completion, image_to_text, ocr, embed;
  * other apps pass their own).
  */
 export interface ClassifierConfig {
@@ -364,8 +365,8 @@ export class EventClassifier {
 
   /**
    * Extracts plain assistant text from mode="messages" events that carry a
-   * terminal AIMessage without loop-tagged phase metadata (direct_llm turns,
-   * including vision attachments).
+   * terminal AIMessage without loop-tagged phase metadata (legacy direct_llm turns
+   * before phase tagging; prefer deliverablePhases including text_completion).
    */
   private messagesModeAssistantContent(data: unknown): [string, boolean] {
     if (!Array.isArray(data) || data.length === 0) return ["", false];

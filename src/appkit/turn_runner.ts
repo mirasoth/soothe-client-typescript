@@ -14,6 +14,8 @@ import { type EventClassifier, ChatEventTerminal } from "./classifier.js";
 import { type QueryGate } from "./query_gate.js";
 import { type SSEBroadcaster, SSEEvent } from "./broadcaster.js";
 import type { SessionStore, SessionMessage } from "./session_store.js";
+import type { LoopInputIntentHint } from "../intent_hints.js";
+import { validateLoopInputIntentHint } from "../intent_hints.js";
 import type { DecodedMessage } from "../protocol.js";
 
 /** Returned when a turn exceeds the configured timeout. */
@@ -32,7 +34,7 @@ export interface TurnConfig {
 
 /** Carries optional daemon hints on a loop_input payload. */
 export interface InputOpts {
-  intentHint?: string;
+  intentHint?: LoopInputIntentHint;
   preferredSubagent?: string;
   responseSchema?: Record<string, unknown>;
   responseSchemaName?: string;
@@ -56,7 +58,13 @@ export function inputMessageForLoop(
   if (loopID) msg.loop_id = loopID;
   if (attachments && attachments.length > 0) msg.attachments = attachments;
   if (opts) {
-    if (opts.intentHint?.trim()) msg.intent_hint = opts.intentHint.trim();
+    if (opts.intentHint?.trim()) {
+      const hintError = validateLoopInputIntentHint(opts.intentHint);
+      if (hintError) {
+        throw new Error(hintError);
+      }
+      msg.intent_hint = opts.intentHint.trim();
+    }
     if (opts.preferredSubagent?.trim()) msg.preferred_subagent = opts.preferredSubagent.trim();
     if (opts.responseSchema && Object.keys(opts.responseSchema).length > 0) {
       msg.response_schema = opts.responseSchema;

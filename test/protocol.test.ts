@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { INTENT_HINT_TEXT_COMPLETION } from "../src/intent_hints.js";
 import {
   PROTO_VERSION,
   encodeMessage,
@@ -330,7 +331,7 @@ describe("factory functions", () => {
       max_iterations: 5,
       preferred_subagent: "coder",
       model: "openai:gpt-4",
-      intent_hint: "quiz",
+      intent_hint: INTENT_HINT_TEXT_COMPLETION,
       clarification_mode: "manual",
       clarification_answer: true,
       clarification_answers: ["a", "b"],

@@ -12,6 +12,8 @@ import type { Config } from "./config.js";
 import { defaultConfig } from "./config.js";
 import { DaemonError, DisconnectCause, ReconnectError, StaleLoopError } from "./errors.js";
 import { Multiplexer } from "./multiplexer.js";
+import type { LoopInputIntentHint } from "./intent_hints.js";
+import { validateLoopInputIntentHint } from "./intent_hints.js";
 import {
   CLIENT_VERSION,
   DEFAULT_CLIENT_CAPABILITIES,
@@ -45,9 +47,9 @@ export interface InputOptions {
   model?: string;
   modelParams?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
-  /** Intent hint: "quiz" bypasses in-agent classification. */
-  intentHint?: string;
-  /** JSON Schema for structured output (direct_llm only). */
+  /** Daemon direct-model hint or agent-path pass-through (resume_clarification, skill:foo). */
+  intentHint?: LoopInputIntentHint;
+  /** JSON Schema for structured output (text_completion or image_to_text). */
   responseSchema?: Record<string, unknown>;
   /** Provider schema name for structured output. */
   responseSchemaName?: string;
@@ -782,7 +784,13 @@ export class Client extends EventEmitter {
     if (options?.model) params.model = options.model;
     if (options?.modelParams) params.model_params = options.modelParams;
     if (options?.attachments) params.attachments = options.attachments;
-    if (options?.intentHint) params.intent_hint = options.intentHint;
+    if (options?.intentHint) {
+      const hintError = validateLoopInputIntentHint(options.intentHint);
+      if (hintError) {
+        return Promise.reject(new Error(hintError));
+      }
+      params.intent_hint = options.intentHint;
+    }
     if (options?.responseSchema)
       params.response_schema = options.responseSchema;
     if (options?.responseSchemaName)
