@@ -72,12 +72,7 @@ import type { LoopNewOptions } from "../protocol.js";
 
 /** Default bootstrap: loop_new + subscribe(loop_events). */
 export function defaultBootstrapFunc(): BootstrapFunc {
-  return async (
-    client: ManagedClient,
-    workspaceID: string,
-    userID: string,
-    config?: Config,
-  ) => {
+  return async (client: ManagedClient, workspaceID: string, userID: string, config?: Config) => {
     // bootstrapLoopSession expects a Client; cast through unknown.
     const c = client as unknown as Client;
     const opts: LoopNewOptions = {

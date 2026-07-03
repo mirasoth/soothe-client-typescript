@@ -10,19 +10,11 @@ export async function checkDaemonStatus(
   client: Client,
   timeout?: number,
 ): Promise<Record<string, unknown>> {
-  return client.requestResponse(
-    "daemon_status",
-    {},
-    "daemon_status",
-    timeout ?? 5_000,
-  );
+  return client.requestResponse("daemon_status", {}, "daemon_status", timeout ?? 5_000);
 }
 
 /** Performs a composite health check: connect + handshake + status RPC. */
-export async function isDaemonLive(
-  wsURL: string,
-  timeout?: number,
-): Promise<boolean> {
+export async function isDaemonLive(wsURL: string, timeout?: number): Promise<boolean> {
   const { Client } = await import("./client.js");
   const t = timeout ?? 5_000;
   const client = new Client(wsURL, defaultConfig());
@@ -44,10 +36,7 @@ export async function isDaemonLive(
 }
 
 /** Requests daemon shutdown via RPC. */
-export async function requestDaemonShutdown(
-  client: Client,
-  timeout?: number,
-): Promise<void> {
+export async function requestDaemonShutdown(client: Client, timeout?: number): Promise<void> {
   const resp = await client.requestResponse(
     "daemon_shutdown",
     {},
@@ -64,17 +53,10 @@ export async function fetchSkillsCatalog(
   client: Client,
   timeout?: number,
 ): Promise<Record<string, unknown>[]> {
-  const resp = await client.requestResponse(
-    "skills_list",
-    {},
-    "skills_list",
-    timeout ?? 15_000,
-  );
+  const resp = await client.requestResponse("skills_list", {}, "skills_list", timeout ?? 15_000);
   const skillsRaw = resp.skills;
   if (!skillsRaw || !Array.isArray(skillsRaw)) return [];
-  return skillsRaw.filter(
-    (s): s is Record<string, unknown> => typeof s === "object" && s !== null,
-  );
+  return skillsRaw.filter((s): s is Record<string, unknown> => typeof s === "object" && s !== null);
 }
 
 /** Fetches a daemon config section via RPC. */

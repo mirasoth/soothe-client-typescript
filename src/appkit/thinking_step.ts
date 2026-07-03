@@ -97,10 +97,7 @@ export function extractThinkingStep(
   return [line, true];
 }
 
-function formatPlanStepLine(
-  data: Record<string, unknown>,
-  suffix: string,
-): string {
+function formatPlanStepLine(data: Record<string, unknown>, suffix: string): string {
   const stepID = strField(data, "step_id");
   const desc = strField(data, "description");
   if (stepID && suffix) return `Step ${stepID}: ${suffix}`;
@@ -112,10 +109,7 @@ function formatPlanStepLine(
   return "";
 }
 
-function formatAgentStepLine(
-  data: Record<string, unknown>,
-  suffix: string,
-): string {
+function formatAgentStepLine(data: Record<string, unknown>, suffix: string): string {
   const stepID = strField(data, "step_id");
   const desc = strField(data, "description");
   if (stepID && desc) return `Step ${stepID}: ${desc}`;
@@ -125,10 +119,7 @@ function formatAgentStepLine(
 }
 
 /** Returns the first non-empty trimmed string field among `keys`. */
-function strField(
-  data: Record<string, unknown>,
-  ...keys: string[]
-): string {
+function strField(data: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
     const v = data[key];
     if (typeof v === "string") {

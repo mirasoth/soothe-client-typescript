@@ -63,32 +63,22 @@ export async function bootstrapLoopSession(
  * Blocks until connection_ack reports readiness "ready". Resolves immediately
  * if the handshake already completed during connect().
  */
-export async function waitDaemonReady(
-  client: Client,
-  timeout: number,
-): Promise<void> {
+export async function waitDaemonReady(client: Client, timeout: number): Promise<void> {
   if (client.isConnected()) return;
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = (await client.readEventWithTimeout(remaining)) as Record<
-      string,
-      unknown
-    > | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
     if (ev === null) break;
     if (ev.type === "connection_ack") {
       const result = (ev.result as Record<string, unknown> | undefined) ?? {};
       const state = result.readiness_state as string | undefined;
       if (state === "ready") return;
-      throw new Error(
-        `daemon not ready: state=${JSON.stringify(state ?? "unknown")}`,
-      );
+      throw new Error(`daemon not ready: state=${JSON.stringify(state ?? "unknown")}`);
     }
   }
-  throw new Error(
-    `timeout after ${timeout}ms waiting for connection_ack (ready)`,
-  );
+  throw new Error(`timeout after ${timeout}ms waiting for connection_ack (ready)`);
 }
 
 /** Waits for connection_ack using messages from an AsyncIterable (e.g. receiveMessages()). */
@@ -104,16 +94,12 @@ export async function waitDaemonReadyFromStream(
         const result = (m.result as Record<string, unknown> | undefined) ?? {};
         const state = result.readiness_state as string | undefined;
         if (state === "ready") return;
-        throw new Error(
-          `daemon not ready: state=${JSON.stringify(state ?? "unknown")}`,
-        );
+        throw new Error(`daemon not ready: state=${JSON.stringify(state ?? "unknown")}`);
       }
     }
     if (Date.now() >= deadline) break;
   }
-  throw new Error(
-    `timeout after ${timeout}ms waiting for connection_ack (ready)`,
-  );
+  throw new Error(`timeout after ${timeout}ms waiting for connection_ack (ready)`);
 }
 
 /** Waits for a status message with a non-empty loop_id. */
@@ -125,18 +111,12 @@ export async function waitLoopStatusWithID(
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = (await client.readEventWithTimeout(remaining)) as Record<
-      string,
-      unknown
-    > | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
     if (ev === null) break;
 
     if (ev.type === "error") {
       const errObj = (ev.error as { code?: number; message?: string }) ?? {};
-      throw new DaemonError(
-        errObj.code ?? -32603,
-        errObj.message ?? "daemon error",
-      );
+      throw new DaemonError(errObj.code ?? -32603, errObj.message ?? "daemon error");
     }
 
     if (ev.type === "status") {
@@ -160,10 +140,7 @@ export async function waitSubscriptionConfirmed(
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const ev = (await client.readEventWithTimeout(remaining)) as Record<
-      string,
-      unknown
-    > | null;
+    const ev = (await client.readEventWithTimeout(remaining)) as Record<string, unknown> | null;
     if (ev === null) break;
     if (ev.type === "next") {
       const payload = (ev.payload as Record<string, unknown> | undefined) ?? {};
@@ -173,14 +150,10 @@ export async function waitSubscriptionConfirmed(
     }
     if (ev.type === "error") {
       const errObj = (ev.error as { message?: string }) ?? {};
-      throw new Error(
-        `daemon error: ${errObj.message ?? "subscription failed"}`,
-      );
+      throw new Error(`daemon error: ${errObj.message ?? "subscription failed"}`);
     }
   }
-  throw new Error(
-    `timeout after ${timeout}ms waiting for subscription confirmation`,
-  );
+  throw new Error(`timeout after ${timeout}ms waiting for subscription confirmation`);
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +177,7 @@ export async function connectWithRetries(
     } catch (err) {
       lastErr = err as Error;
     }
-    await new Promise((resolve) => setTimeout(resolve, delay));
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
   throw new Error(
     `failed to connect after ${retries} attempts: ${lastErr?.message ?? "unknown error"}`,

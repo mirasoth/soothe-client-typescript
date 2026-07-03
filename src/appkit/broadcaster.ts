@@ -62,8 +62,8 @@ export class SSEBroadcaster {
             if (sub.closed) {
               return Promise.resolve({ value: undefined as unknown as SSEEvent, done: true });
             }
-            return new Promise<IteratorResult<SSEEvent>>((resolve) => {
-              sub.waiters.push((ev) => {
+            return new Promise<IteratorResult<SSEEvent>>(resolve => {
+              sub.waiters.push(ev => {
                 if (ev === null) {
                   resolve({ value: undefined as unknown as SSEEvent, done: true });
                 } else {

@@ -70,7 +70,8 @@ export function inputMessageForLoop(
       msg.response_schema = opts.responseSchema;
     }
     if (opts.responseSchemaName?.trim()) msg.response_schema_name = opts.responseSchemaName.trim();
-    if (opts.responseSchemaStrict !== undefined) msg.response_schema_strict = opts.responseSchemaStrict;
+    if (opts.responseSchemaStrict !== undefined)
+      msg.response_schema_strict = opts.responseSchemaStrict;
   }
   return msg;
 }
@@ -185,7 +186,12 @@ export class TurnRunner {
 
     try {
       // Send loop_input.
-      const inputMsg = this.buildInput(message, loopID, attachments ?? undefined, opts ?? undefined);
+      const inputMsg = this.buildInput(
+        message,
+        loopID,
+        attachments ?? undefined,
+        opts ?? undefined,
+      );
       try {
         await conn.client.sendMessage(inputMsg);
       } catch (err) {
@@ -210,7 +216,7 @@ export class TurnRunner {
       // A promise that resolves when the per-turn timeout OR the caller's
       // abort signal fires, so the stream-wait loop can race against it
       // instead of blocking forever on a stalled stream.
-      const abortRace = new Promise<"timeout" | "caller">((resolve) => {
+      const abortRace = new Promise<"timeout" | "caller">(resolve => {
         const onTimeout = () => resolve("timeout");
         timeoutController.signal.addEventListener("abort", onTimeout, { once: true });
         if (signal) {
@@ -220,12 +226,12 @@ export class TurnRunner {
       });
 
       const iterator = eventStream[Symbol.asyncIterator]();
-      // eslint-disable-next-line no-constant-condition
+
       while (true) {
         const next = iterator.next();
         const raced = await Promise.race([
-          next.then((res) => ({ tag: "msg" as const, res })),
-          abortRace.then((tag) => ({ tag })),
+          next.then(res => ({ tag: "msg" as const, res })),
+          abortRace.then(tag => ({ tag })),
         ]);
 
         if ("tag" in raced && raced.tag !== "msg") {
@@ -280,7 +286,13 @@ export class TurnRunner {
         );
         if (deliverable) {
           const elapsedMs = Date.now() - startedAt;
-          await this.persistResponse(sessionID, loopID, final, startedAt, eventResult.completionEvent ?? "");
+          await this.persistResponse(
+            sessionID,
+            loopID,
+            final,
+            startedAt,
+            eventResult.completionEvent ?? "",
+          );
           this.broadcastComplete(sessionID, final);
           this.onComplete?.(sessionID, loopID, final, eventResult.completionEvent ?? "", elapsedMs);
           return;
@@ -326,11 +338,7 @@ export class TurnRunner {
     await this.store.appendMessage(sessionID, msg).catch(() => {});
   }
 
-  private async persistFailed(
-    sessionID: string,
-    _loopID: string,
-    err: Error,
-  ): Promise<void> {
+  private async persistFailed(sessionID: string, _loopID: string, err: Error): Promise<void> {
     const msg: SessionMessage = {
       role: "error",
       content: err.message,

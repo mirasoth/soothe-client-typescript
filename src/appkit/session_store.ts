@@ -63,9 +63,7 @@ export interface SessionStore {
    * Returns the daemon loop id for sessionID and whether one is on file.
    * ok===false triggers a fresh loop_new bootstrap.
    */
-  getLoopIDForSession(
-    sessionID: string,
-  ): Promise<{ loopID: string; ok: boolean }>;
+  getLoopIDForSession(sessionID: string): Promise<{ loopID: string; ok: boolean }>;
 
   /** Writes a message row (assistant reply, error, etc.) for the session. */
   appendMessage(sessionID: string, message: SessionMessage): Promise<void>;

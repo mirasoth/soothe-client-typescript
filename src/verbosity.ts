@@ -26,10 +26,7 @@ const verbosityLevelValues: Record<VerbosityLevel, number> = {
 };
 
 /** Returns true if content at the given tier is visible at the given verbosity. */
-export function shouldShow(
-  tier: VerbosityTier,
-  verbosity: VerbosityLevel,
-): boolean {
+export function shouldShow(tier: VerbosityTier, verbosity: VerbosityLevel): boolean {
   if (tier === VerbosityTier.Internal) {
     return false;
   }

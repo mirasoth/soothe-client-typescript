@@ -33,10 +33,7 @@ export {
   type ChatEventResult,
   type ClassifierConfig,
 } from "./classifier.js";
-export {
-  DEFAULT_THINKING_STEP_EVENTS,
-  extractThinkingStep,
-} from "./thinking_step.js";
+export { DEFAULT_THINKING_STEP_EVENTS, extractThinkingStep } from "./thinking_step.js";
 
 // Single-flight query gate.
 export { ErrQueryBusy, QueryGate } from "./query_gate.js";

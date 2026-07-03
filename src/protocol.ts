@@ -14,12 +14,7 @@ import type { LoopInputIntentHint } from "./intent_hints.js";
 export const PROTO_VERSION = "1";
 
 /** Default client capabilities declared in the connection_init handshake. */
-export const DEFAULT_CLIENT_CAPABILITIES = [
-  "streaming",
-  "batch",
-  "heartbeat",
-  "receipts",
-];
+export const DEFAULT_CLIENT_CAPABILITIES = ["streaming", "batch", "heartbeat", "receipts"];
 
 /** Client version reported in the connection_init handshake. */
 export const CLIENT_VERSION = "0.1.0";
@@ -338,10 +333,7 @@ export function decodeMessage(data: string): DecodedMessage | null {
     case "status": {
       const msg = { ...parsed } as unknown as StatusFrame;
       // Tolerate camelCase loopId from some daemon builds.
-      if (
-        (!msg.loop_id || msg.loop_id === "") &&
-        typeof parsed.loopId === "string"
-      ) {
+      if ((!msg.loop_id || msg.loop_id === "") && typeof parsed.loopId === "string") {
         msg.loop_id = parsed.loopId as string;
       }
       return msg;
@@ -443,8 +435,8 @@ export function splitWirePayload(data: string): string[] {
 
   const lines = trimmed
     .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l !== "");
+    .map(l => l.trim())
+    .filter(l => l !== "");
   return lines.length > 0 ? lines : [data];
 }
 
@@ -503,10 +495,7 @@ export function newRequestID(): string {
 }
 
 /** Creates a `loop_input` notification envelope. */
-export function newLoopInputMessage(
-  loopID: string,
-  content: string,
-): NotificationEnvelope {
+export function newLoopInputMessage(loopID: string, content: string): NotificationEnvelope {
   return notificationEnvelope("loop_input", {
     loop_id: loopID,
     content,
@@ -515,9 +504,7 @@ export function newLoopInputMessage(
 }
 
 /** Creates a `loop_new` request envelope. */
-export function newLoopNewMessage(
-  opts?: LoopNewOptions | string,
-): RequestEnvelope {
+export function newLoopNewMessage(opts?: LoopNewOptions | string): RequestEnvelope {
   const options: LoopNewOptions =
     typeof opts === "string" ? { client_workspace: opts } : (opts ?? {});
   const clientWorkspace = options.client_workspace ?? options.workspace;

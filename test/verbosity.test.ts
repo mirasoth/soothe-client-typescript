@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  shouldShow,
-  isValidVerbosityLevel,
-  VerbosityTier,
-} from "../src/verbosity.js";
+import { shouldShow, isValidVerbosityLevel, VerbosityTier } from "../src/verbosity.js";
 import type { VerbosityLevel } from "../src/verbosity.js";
 
 describe("isValidVerbosityLevel", () => {
@@ -56,11 +52,7 @@ describe("shouldShow", () => {
   });
 
   it("invalid verbosity defaults to normal", () => {
-    expect(shouldShow(VerbosityTier.Quiet, "invalid" as VerbosityLevel)).toBe(
-      true,
-    );
-    expect(
-      shouldShow(VerbosityTier.Detailed, "invalid" as VerbosityLevel),
-    ).toBe(false);
+    expect(shouldShow(VerbosityTier.Quiet, "invalid" as VerbosityLevel)).toBe(true);
+    expect(shouldShow(VerbosityTier.Detailed, "invalid" as VerbosityLevel)).toBe(false);
   });
 });

@@ -7,10 +7,7 @@ import {
   fetchSkillsCatalog,
   fetchConfigSection,
 } from "../src/helpers.js";
-import {
-  createTestServer,
-  requestResponseHandler,
-} from "./helpers/ws-server.js";
+import { createTestServer, requestResponseHandler } from "./helpers/ws-server.js";
 import type { WebSocket } from "ws";
 
 describe("checkDaemonStatus", () => {
@@ -51,9 +48,7 @@ describe("requestDaemonShutdown", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(
-        requestDaemonShutdown(client, 3000),
-      ).resolves.toBeUndefined();
+      await expect(requestDaemonShutdown(client, 3000)).resolves.toBeUndefined();
       client.close();
     } finally {
       await server.close();
@@ -62,7 +57,7 @@ describe("requestDaemonShutdown", () => {
 
   it("fails when not acknowledged", async () => {
     const server = createTestServer((ws: WebSocket) => {
-      ws.on("message", (raw) => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -105,9 +100,7 @@ describe("requestDaemonShutdown", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(requestDaemonShutdown(client, 3000)).rejects.toThrow(
-        "not acknowledged",
-      );
+      await expect(requestDaemonShutdown(client, 3000)).rejects.toThrow("not acknowledged");
       client.close();
     } finally {
       await server.close();
@@ -132,7 +125,7 @@ describe("fetchSkillsCatalog", () => {
 
   it("returns empty array when no skills", async () => {
     const server = createTestServer((ws: WebSocket) => {
-      ws.on("message", (raw) => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;

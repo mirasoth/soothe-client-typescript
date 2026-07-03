@@ -11,9 +11,6 @@ import {
   subscribeEnvelope,
   unsubscribeEnvelope,
   connectionInitEnvelope,
-  pingEnvelope,
-  pongEnvelope,
-  disconnectEnvelope,
   newLoopInputMessage,
   newLoopNewMessage,
   newLoopSubscribeMessage,
@@ -35,9 +32,7 @@ import {
 
 describe("encodeMessage", () => {
   it("appends newline", () => {
-    const encoded = encodeMessage(
-      requestEnvelope("loop_get", { loop_id: "abc" }),
-    );
+    const encoded = encodeMessage(requestEnvelope("loop_get", { loop_id: "abc" }));
     expect(encoded.endsWith("\n")).toBe(true);
   });
 });
@@ -59,9 +54,7 @@ describe("decodeMessage", () => {
 describe("round-trip", () => {
   it("requestEnvelope carries proto/type/method/params/id", () => {
     const env = requestEnvelope("loop_get", { loop_id: "abc", verbose: true });
-    const decoded = decodeMessage(
-      encodeMessage(env).slice(0, -1),
-    ) as RequestEnvelope;
+    const decoded = decodeMessage(encodeMessage(env).slice(0, -1)) as RequestEnvelope;
     expect(decoded.proto).toBe(PROTO_VERSION);
     expect(decoded.type).toBe("request");
     expect(decoded.method).toBe("loop_get");
@@ -74,9 +67,7 @@ describe("round-trip", () => {
       loop_id: "L1",
       content: "hi",
     });
-    const decoded = decodeMessage(
-      encodeMessage(env).slice(0, -1),
-    ) as NotificationEnvelope;
+    const decoded = decodeMessage(encodeMessage(env).slice(0, -1)) as NotificationEnvelope;
     expect(decoded.type).toBe("notification");
     expect(decoded.method).toBe("loop_input");
     expect(decoded.id).toBeUndefined();
@@ -101,9 +92,7 @@ describe("round-trip", () => {
 
   it("connectionInitEnvelope carries params with accept_proto", () => {
     const env = connectionInitEnvelope();
-    const decoded = decodeMessage(
-      encodeMessage(env).slice(0, -1),
-    ) as ConnectionInitEnvelope;
+    const decoded = decodeMessage(encodeMessage(env).slice(0, -1)) as ConnectionInitEnvelope;
     expect(decoded.type).toBe("connection_init");
     expect(decoded.params?.accept_proto).toEqual(["1"]);
     expect(decoded.params?.capabilities).toContain("streaming");
@@ -179,9 +168,7 @@ describe("round-trip", () => {
 
 describe("splitWirePayload", () => {
   it("single JSON", () => {
-    const lines = splitWirePayload(
-      `{"proto":"1","type":"status","state":"idle"}`,
-    );
+    const lines = splitWirePayload(`{"proto":"1","type":"status","state":"idle"}`);
     expect(lines).toHaveLength(1);
   });
 

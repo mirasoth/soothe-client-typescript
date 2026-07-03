@@ -94,7 +94,7 @@ export class Multiplexer {
     unregister: () => void;
   } {
     let resolveDone!: () => void;
-    const done = new Promise<void>((resolve) => {
+    const done = new Promise<void>(resolve => {
       resolveDone = resolve;
     });
     const pending: PendingSubscription = {
@@ -135,7 +135,7 @@ export class Multiplexer {
     unregister: () => void;
   } {
     let resolveWait!: (frame: Record<string, unknown>) => void;
-    const wait = new Promise<Record<string, unknown>>((resolve) => {
+    const wait = new Promise<Record<string, unknown>>(resolve => {
       resolveWait = resolve;
     });
     this.receipts.set(receipt, resolveWait);
@@ -150,10 +150,7 @@ export class Multiplexer {
    * Client right after `registerSubscription` to install the channel/queue the
    * application reads from.
    */
-  setSubscriptionSink(
-    id: string,
-    sink: (frame: Record<string, unknown>) => void,
-  ): void {
+  setSubscriptionSink(id: string, sink: (frame: Record<string, unknown>) => void): void {
     const sub = this.subs.get(id);
     if (sub) sub.push = sink;
   }
@@ -174,17 +171,17 @@ export class Multiplexer {
       const pc = this.rpcs.get(id);
       if (!pc) return false;
       if (typ === "error") {
-        const errObj = (frame.error as {
-          code?: number;
-          message?: string;
-          data?: unknown;
-        }) ?? {};
+        const errObj =
+          (frame.error as {
+            code?: number;
+            message?: string;
+            data?: unknown;
+          }) ?? {};
         const code = typeof errObj.code === "number" ? errObj.code : -32603;
         const message = errObj.message ?? "daemon error";
         pc.reject(new DaemonError(code, message, errObj.data));
       } else {
-        const result =
-          (frame.result as Record<string, unknown> | undefined) ?? frame;
+        const result = (frame.result as Record<string, unknown> | undefined) ?? frame;
         pc.resolve(result);
       }
       // Waiter is single-shot; remove so a duplicate late frame is dropped.

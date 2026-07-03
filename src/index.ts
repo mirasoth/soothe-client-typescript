@@ -18,11 +18,7 @@ export {
 } from "./errors.js";
 
 // Verbosity
-export {
-  VerbosityTier,
-  shouldShow,
-  isValidVerbosityLevel,
-} from "./verbosity.js";
+export { VerbosityTier, shouldShow, isValidVerbosityLevel } from "./verbosity.js";
 export type { VerbosityLevel } from "./verbosity.js";
 
 // Config
@@ -75,7 +71,12 @@ export type {
   LoopNewOptions,
   StreamEventPayload,
 } from "./protocol.js";
-export type { IntentHint, LoopAssistantOutputPhase, LoopInputIntentHint, RemovedIntentHint } from "./intent_hints.js";
+export type {
+  IntentHint,
+  LoopAssistantOutputPhase,
+  LoopInputIntentHint,
+  RemovedIntentHint,
+} from "./intent_hints.js";
 export {
   DEFAULT_DELIVERABLE_PHASES,
   INTENT_HINT_EMBED,

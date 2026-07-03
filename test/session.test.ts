@@ -8,11 +8,7 @@ import {
   connectWithRetries,
 } from "../src/session.js";
 import { defaultConfig } from "../src/config.js";
-import {
-  createTestServer,
-  fullBootstrapHandler,
-  echoHandler,
-} from "./helpers/ws-server.js";
+import { createTestServer, fullBootstrapHandler, echoHandler } from "./helpers/ws-server.js";
 
 describe("bootstrapLoopSession", () => {
   it("runs loop_new + subscribe (handshake in connect)", async () => {
@@ -35,11 +31,7 @@ describe("bootstrapLoopSession", () => {
       const client = new Client(server.url, defaultConfig());
       await client.connect();
 
-      const loopID = await bootstrapLoopSession(
-        client,
-        "existing-loop",
-        defaultConfig(),
-      );
+      const loopID = await bootstrapLoopSession(client, "existing-loop", defaultConfig());
       expect(loopID).toBe("existing-loop");
       client.close();
     } finally {
@@ -62,7 +54,7 @@ describe("waitDaemonReady", () => {
   });
 
   it("times out when no connection_ack arrives", async () => {
-    const server = createTestServer((ws) => {
+    const server = createTestServer(ws => {
       ws.on("message", () => {
         // Never handshake
       });
@@ -100,8 +92,8 @@ describe("waitLoopStatusWithID", () => {
   });
 
   it("fails on error response", async () => {
-    const server = createTestServer((ws) => {
-      ws.on("message", (raw) => {
+    const server = createTestServer(ws => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -146,9 +138,7 @@ describe("waitLoopStatusWithID", () => {
       const client = new Client(server.url);
       await client.connect();
       await client.sendInput("test", { loopID: "test-loop" });
-      await expect(waitLoopStatusWithID(client, 3000)).rejects.toThrow(
-        "daemon error",
-      );
+      await expect(waitLoopStatusWithID(client, 3000)).rejects.toThrow("daemon error");
       client.close();
     } finally {
       await server.close();
@@ -162,11 +152,7 @@ describe("waitSubscriptionConfirmed", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.subscribe(
-        "loop_events",
-        { loop_id: "loop-abc", verbosity: "normal" },
-        3000,
-      );
+      await client.subscribe("loop_events", { loop_id: "loop-abc", verbosity: "normal" }, 3000);
       await expect(
         waitSubscriptionConfirmed(client, "loop-abc", "normal", 3000),
       ).resolves.toBeUndefined();
@@ -181,14 +167,10 @@ describe("waitSubscriptionConfirmed", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.subscribe(
-        "loop_events",
-        { loop_id: "different", verbosity: "normal" },
-        3000,
+      await client.subscribe("loop_events", { loop_id: "different", verbosity: "normal" }, 3000);
+      await expect(waitSubscriptionConfirmed(client, "loop-abc", "normal", 500)).rejects.toThrow(
+        "timeout",
       );
-      await expect(
-        waitSubscriptionConfirmed(client, "loop-abc", "normal", 500),
-      ).rejects.toThrow("timeout");
       client.close();
     } finally {
       await server.close();
@@ -211,9 +193,7 @@ describe("connectWithRetries", () => {
 
   it("fails after max retries", async () => {
     const client = new Client("ws://localhost:59999");
-    await expect(connectWithRetries(client, 3, 50)).rejects.toThrow(
-      "failed to connect",
-    );
+    await expect(connectWithRetries(client, 3, 50)).rejects.toThrow("failed to connect");
   });
 
   it("uses defaults when zero values passed", async () => {

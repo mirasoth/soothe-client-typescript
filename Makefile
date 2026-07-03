@@ -51,6 +51,26 @@ typecheck: ## Run tsc --noEmit
 	npm run typecheck
 
 # ---------------------------------------------------------------------------
+# Format / lint
+# ---------------------------------------------------------------------------
+
+.PHONY: format
+format: ## Format source and tests with Prettier
+	npm run format
+
+.PHONY: format-check
+format-check: ## Check formatting (for CI)
+	npm run format:check
+
+.PHONY: lint
+lint: ## Lint source and tests with ESLint
+	npm run lint
+
+.PHONY: lint-fix
+lint-fix: ## Auto-fix lint issues and re-format
+	npm run lint:fix
+
+# ---------------------------------------------------------------------------
 # Test
 # ---------------------------------------------------------------------------
 

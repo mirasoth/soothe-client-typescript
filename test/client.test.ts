@@ -30,9 +30,7 @@ describe("Client", () => {
 
   it("send when not connected throws", async () => {
     const client = new Client("ws://localhost:9999");
-    await expect(client.sendMessage({ type: "test" })).rejects.toThrow(
-      "not connected",
-    );
+    await expect(client.sendMessage({ type: "test" })).rejects.toThrow("not connected");
   });
 
   it("send and receive echo (notification envelope)", async () => {
@@ -109,12 +107,7 @@ describe("Client", () => {
       const client = new Client(server.url);
       await client.connect();
 
-      const resp = await client.requestResponse(
-        "daemon_status",
-        {},
-        "daemon_status",
-        3000,
-      );
+      const resp = await client.requestResponse("daemon_status", {}, "daemon_status", 3000);
       expect(resp.running).toBe(true);
       expect(resp.port_live).toBe(true);
       client.close();
@@ -129,7 +122,7 @@ describe("Client", () => {
         // Never respond (but still handshake so connect succeeds)
       });
       // Perform the handshake only.
-      ws.on("message", (raw) => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -177,9 +170,9 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(
-        client.requestResponse("error_test", {}, "error_test", 3000),
-      ).rejects.toThrow("daemon error");
+      await expect(client.requestResponse("error_test", {}, "error_test", 3000)).rejects.toThrow(
+        "daemon error",
+      );
       client.close();
     } finally {
       await server.close();
@@ -436,7 +429,7 @@ describe("Client", () => {
   it("emits 'disconnected' with Clean cause on peer disconnect notification", async () => {
     // Server that sends a `disconnect` notification right after handshake.
     const server = createTestServer((ws: WebSocket) => {
-      ws.on("message", (raw) => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -445,7 +438,11 @@ describe("Client", () => {
         }
         if (m.type === "connection_init") {
           ws.send(
-            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+            JSON.stringify({
+              proto: "1",
+              type: "connection_ack",
+              result: { readiness_state: "ready" },
+            }),
           );
           // Immediately send a clean disconnect notification.
           ws.send(JSON.stringify({ proto: "1", type: "disconnect" }));
@@ -457,7 +454,7 @@ describe("Client", () => {
     try {
       // Register the listener BEFORE connect so the drop during handshake is
       // not missed (the disconnect notification arrives inside connect()).
-      const causeP = new Promise<DisconnectCause>((resolve) => {
+      const causeP = new Promise<DisconnectCause>(resolve => {
         client.once("disconnected", (c: DisconnectCause) => resolve(c));
       });
       await client.connect();
@@ -475,7 +472,7 @@ describe("Client", () => {
     // Server that abruptly terminates the socket right after handshake (no
     // `disconnect` notification) → unclean drop.
     const server = createTestServer((ws: WebSocket) => {
-      ws.on("message", (raw) => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -484,7 +481,11 @@ describe("Client", () => {
         }
         if (m.type === "connection_init") {
           ws.send(
-            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+            JSON.stringify({
+              proto: "1",
+              type: "connection_ack",
+              result: { readiness_state: "ready" },
+            }),
           );
           // Abruptly terminate the socket (simulates a network drop / server kill).
           ws.terminate();
@@ -494,7 +495,7 @@ describe("Client", () => {
     });
     const client = new Client(server.url);
     try {
-      const causeP = new Promise<DisconnectCause>((resolve) => {
+      const causeP = new Promise<DisconnectCause>(resolve => {
         client.once("disconnected", (c: DisconnectCause) => resolve(c));
       });
       await client.connect();
@@ -510,7 +511,7 @@ describe("Client", () => {
   it("reconnect re-dials and re-handshakes after a drop", async () => {
     // Server that terminates the socket after handshake → unclean drop.
     const server = createTestServer((ws: WebSocket) => {
-      ws.on("message", (raw) => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -519,7 +520,11 @@ describe("Client", () => {
         }
         if (m.type === "connection_init") {
           ws.send(
-            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+            JSON.stringify({
+              proto: "1",
+              type: "connection_ack",
+              result: { readiness_state: "ready" },
+            }),
           );
           ws.terminate();
           return;
@@ -543,7 +548,7 @@ describe("Client", () => {
     };
     const client = new Client(server.url, cfg);
     try {
-      const dropped = new Promise<void>((resolve) => {
+      const dropped = new Promise<void>(resolve => {
         client.once("disconnected", () => resolve());
       });
       await client.connect();
@@ -562,7 +567,7 @@ describe("Client", () => {
 
   it("reattachAndProbe returns StaleLoopError on LOOP_NOT_FOUND", async () => {
     const server = createTestServer((ws: WebSocket) => {
-      ws.on("message", (raw) => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -571,7 +576,11 @@ describe("Client", () => {
         }
         if (m.type === "connection_init") {
           ws.send(
-            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+            JSON.stringify({
+              proto: "1",
+              type: "connection_ack",
+              result: { readiness_state: "ready" },
+            }),
           );
           return;
         }
@@ -612,9 +621,7 @@ describe("Client", () => {
     const client = new Client(server.url);
     try {
       await client.connect();
-      await expect(client.reattachAndProbe("ghost-loop")).rejects.toBeInstanceOf(
-        StaleLoopError,
-      );
+      await expect(client.reattachAndProbe("ghost-loop")).rejects.toBeInstanceOf(StaleLoopError);
     } finally {
       client.close();
       await server.close();
@@ -623,7 +630,7 @@ describe("Client", () => {
 
   it("concurrent RPCs route to the correct caller by id", async () => {
     const server = createTestServer((ws: WebSocket) => {
-      ws.on("message", (raw) => {
+      ws.on("message", raw => {
         let m: Record<string, unknown>;
         try {
           m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -632,7 +639,11 @@ describe("Client", () => {
         }
         if (m.type === "connection_init") {
           ws.send(
-            JSON.stringify({ proto: "1", type: "connection_ack", result: { readiness_state: "ready" } }),
+            JSON.stringify({
+              proto: "1",
+              type: "connection_ack",
+              result: { readiness_state: "ready" },
+            }),
           );
           return;
         }
@@ -652,8 +663,18 @@ describe("Client", () => {
     try {
       await client.connect();
       const [r1, r2] = await Promise.all([
-        client.requestResponse("daemon_status", { tag: 1 } as unknown as Record<string, unknown>, "r1", 3000),
-        client.requestResponse("daemon_status", { tag: 2 } as unknown as Record<string, unknown>, "r2", 3000),
+        client.requestResponse(
+          "daemon_status",
+          { tag: 1 } as unknown as Record<string, unknown>,
+          "r1",
+          3000,
+        ),
+        client.requestResponse(
+          "daemon_status",
+          { tag: 2 } as unknown as Record<string, unknown>,
+          "r2",
+          3000,
+        ),
       ]);
       // Each caller must receive its own response, not the other's.
       expect(r1.echoed_id).not.toBe(r2.echoed_id);

@@ -15,14 +15,12 @@ export const EventPlanCreated = "soothe.cognition.plan.created";
 // Explore subagent events (built-in wire, IG-339)
 export const EventExploreStarted = "soothe.subagent.explore.started";
 export const EventExploreMilestone = "soothe.subagent.explore.milestone";
-export const EventExploreStepCompleted =
-  "soothe.subagent.explore.step.completed";
+export const EventExploreStepCompleted = "soothe.subagent.explore.step.completed";
 export const EventExploreCompleted = "soothe.subagent.explore.completed";
 
 // Tacitus subagent events (built-in wire, IG-339)
 export const EventTacitusStarted = "soothe.subagent.tacitus.started";
-export const EventTacitusGatherSummary =
-  "soothe.subagent.tacitus.gather.summary";
+export const EventTacitusGatherSummary = "soothe.subagent.tacitus.gather.summary";
 export const EventTacitusCompleted = "soothe.subagent.tacitus.completed";
 
 // Control-plane wire envelopes (not soothe.* catalog events)
@@ -45,28 +43,20 @@ export const EventToolCallUpdatesBatch = "tool_call_updates_batch";
 
 // StrangeLoop events (cognition domain)
 export const EventStrangeLoopStarted = "soothe.cognition.strange_loop.started";
-export const EventStrangeLoopCompleted =
-  "soothe.cognition.strange_loop.completed";
-export const EventStrangeLoopPlanDecision =
-  "soothe.cognition.strange_loop.plan.decision";
-export const EventStrangeLoopReasoned =
-  "soothe.cognition.strange_loop.reasoned";
-export const EventStrangeLoopStepStarted =
-  "soothe.cognition.strange_loop.step.started";
-export const EventStrangeLoopStepQueued =
-  "soothe.cognition.strange_loop.step.queued";
-export const EventStrangeLoopStepCompleted =
-  "soothe.cognition.strange_loop.step.completed";
-export const EventStrangeLoopContextCompacted =
-  "soothe.cognition.strange_loop.context.compacted";
+export const EventStrangeLoopCompleted = "soothe.cognition.strange_loop.completed";
+export const EventStrangeLoopPlanDecision = "soothe.cognition.strange_loop.plan.decision";
+export const EventStrangeLoopReasoned = "soothe.cognition.strange_loop.reasoned";
+export const EventStrangeLoopStepStarted = "soothe.cognition.strange_loop.step.started";
+export const EventStrangeLoopStepQueued = "soothe.cognition.strange_loop.step.queued";
+export const EventStrangeLoopStepCompleted = "soothe.cognition.strange_loop.step.completed";
+export const EventStrangeLoopContextCompacted = "soothe.cognition.strange_loop.context.compacted";
 
 // Message protocol events (client stream metadata)
 export const EventMessageReceived = "soothe.protocol.message.received";
 export const EventMessageSent = "soothe.protocol.message.sent";
 
 // Output events
-export const EventFinalReport =
-  "soothe.output.autonomous.final_report.reported";
+export const EventFinalReport = "soothe.output.autonomous.final_report.reported";
 
 // Autopilot events (RFC-228)
 export const EventAutopilotGoalStatus = "soothe.autopilot.goal.status";
@@ -74,8 +64,7 @@ export const EventAutopilotGoalProgress = "soothe.autopilot.goal.progress";
 export const EventAutopilotGoalCreated = "soothe.autopilot.goal.created";
 export const EventAutopilotGoalCompleted = "soothe.autopilot.goal.completed";
 export const EventAutopilotWorkerAssigned = "soothe.autopilot.worker.assigned";
-export const EventAutopilotWorkerUnassigned =
-  "soothe.autopilot.worker.unassigned";
+export const EventAutopilotWorkerUnassigned = "soothe.autopilot.worker.unassigned";
 
 // Error events
 export const EventGeneralFailed = "soothe.error.general.failed";
@@ -116,18 +105,12 @@ function splitNamespace(ns: string): string[] {
 // ---------------------------------------------------------------------------
 
 /** Returns the VerbosityTier for a given event type string. */
-export function classifyEventVerbosity(
-  eventTypeOrNamespace: string,
-): VerbosityTier {
+export function classifyEventVerbosity(eventTypeOrNamespace: string): VerbosityTier {
   const parsed = parseNamespace(eventTypeOrNamespace);
   if (!parsed) {
     return classifyByEventTypeString(eventTypeOrNamespace);
   }
-  return classifyByDomainAndComponent(
-    parsed.domain,
-    parsed.component,
-    eventTypeOrNamespace,
-  );
+  return classifyByDomainAndComponent(parsed.domain, parsed.component, eventTypeOrNamespace);
 }
 
 function classifyByDomainAndComponent(

@@ -135,7 +135,7 @@ export class ConnectionPool {
     sessionID: string,
     workspaceID: string,
     userID: string,
-    signal?: AbortSignal,
+    _signal?: AbortSignal,
   ): Promise<PooledConn> {
     // 1. Reuse active connection when still live.
     const existing = this.activeSlots.get(sessionID);
@@ -163,21 +163,17 @@ export class ConnectionPool {
         // Fresh bootstrap.
         await conn.client.connect();
         finalLoopID = await this.bootstrapNew(conn, workspaceID, userID);
-        await this.store
-          .createSession(workspaceID, sessionID, finalLoopID, "")
-          .catch(() => {});
+        await this.store.createSession(workspaceID, sessionID, finalLoopID, "").catch(() => {});
       } else {
         // Reattach.
         try {
           await this.resumeAndReattach(conn, loopID);
           finalLoopID = loopID;
-        } catch (err) {
+        } catch {
           // Reattach failed (incl. StaleLoopError) → fresh bootstrap.
           await conn.client.connect();
           finalLoopID = await this.bootstrapNew(conn, workspaceID, userID);
-          await this.store
-            .createSession(workspaceID, sessionID, finalLoopID, "")
-            .catch(() => {});
+          await this.store.createSession(workspaceID, sessionID, finalLoopID, "").catch(() => {});
         }
       }
     } catch (err) {

@@ -21,7 +21,7 @@ export function createTestServer(handler: (ws: WebSocket) => void): {
     url: `ws://localhost:${port}`,
     close: () =>
       new Promise((resolve, reject) => {
-        wss.close((err) => (err ? reject(err) : resolve()));
+        wss.close(err => (err ? reject(err) : resolve()));
       }),
   };
 }
@@ -45,7 +45,7 @@ function sendHandshake(ws: WebSocket, m: Record<string, unknown>): void {
   const params = (m.params as Record<string, unknown> | undefined) ?? {};
   const clientCaps = (params.capabilities as string[] | undefined) ?? [];
   const daemonCaps = ["streaming", "batch", "heartbeat", "receipts"];
-  const negotiated = daemonCaps.filter((c) => clientCaps.includes(c));
+  const negotiated = daemonCaps.filter(c => clientCaps.includes(c));
   ws.send(
     JSON.stringify({
       proto: "1",
@@ -63,7 +63,7 @@ function sendHandshake(ws: WebSocket, m: Record<string, unknown>): void {
 
 /** Echo handler: handshakes, then sends back any message it receives. */
 export function echoHandler(ws: WebSocket): void {
-  ws.on("message", (raw) => {
+  ws.on("message", raw => {
     let m: Record<string, unknown>;
     try {
       m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -79,11 +79,7 @@ export function echoHandler(ws: WebSocket): void {
 }
 
 /** Responds to a request envelope with a `response` carrying `result`. */
-function sendResponse(
-  ws: WebSocket,
-  id: unknown,
-  result: Record<string, unknown>,
-): void {
+function sendResponse(ws: WebSocket, id: unknown, result: Record<string, unknown>): void {
   ws.send(JSON.stringify({ proto: "1", type: "response", result, id }));
 }
 
@@ -105,7 +101,7 @@ function sendError(
  * subscribe / loop_detach with protocol-1 response/next envelopes.
  */
 export function fullBootstrapHandler(ws: WebSocket): void {
-  ws.on("message", (raw) => {
+  ws.on("message", raw => {
     let m: Record<string, unknown>;
     try {
       m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -168,7 +164,7 @@ export function fullBootstrapHandler(ws: WebSocket): void {
 
 /** NDJSON handler: handshakes, then sends multiple JSON objects in one frame. */
 export function ndjsonHandler(ws: WebSocket): void {
-  ws.once("message", (raw) => {
+  ws.once("message", raw => {
     let m: Record<string, unknown>;
     try {
       m = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -194,7 +190,7 @@ export function ndjsonHandler(ws: WebSocket): void {
  * loop_list / loop_get / loop_delete / invoke_skill.
  */
 export function requestResponseHandler(ws: WebSocket): void {
-  ws.on("message", (raw) => {
+  ws.on("message", raw => {
     let m: Record<string, unknown>;
     try {
       m = JSON.parse(raw.toString()) as Record<string, unknown>;

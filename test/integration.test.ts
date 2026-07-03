@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import { Client } from "../src/client.js";
-import { defaultConfig, loadConfigFromEnv } from "../src/config.js";
+import { loadConfigFromEnv } from "../src/config.js";
 import { INTENT_HINT_TEXT_COMPLETION } from "../src/intent_hints.js";
 import {
   bootstrapLoopSession,
@@ -62,10 +62,7 @@ describe.skipIf(skip())("Integration", () => {
     const loopID = await bootstrapLoopSession(client, null, cfg);
     expect(loopID).toBeTruthy();
 
-    await client.sendInput(
-      "Hello, this is a test message from TypeScript client",
-      { loopID },
-    );
+    await client.sendInput("Hello, this is a test message from TypeScript client", { loopID });
 
     // Read some events for a short time.
     let eventCount = 0;
@@ -82,12 +79,7 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const resp = await client.requestResponse(
-      "daemon_status",
-      {},
-      "daemon_status",
-      5000,
-    );
+    const resp = await client.requestResponse("daemon_status", {}, "daemon_status", 5000);
     expect(resp.running).toBe(true);
     client.close();
   });
@@ -216,12 +208,7 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const createResp = await client.createJob(
-      "List files",
-      undefined,
-      undefined,
-      30_000,
-    );
+    const createResp = await client.createJob("List files", undefined, undefined, 30_000);
     const jobId = createResp.job_id as string;
 
     const resp = await client.getJobStatus(jobId, 15_000);
@@ -235,12 +222,7 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const createResp = await client.createJob(
-      "Count slowly",
-      undefined,
-      undefined,
-      30_000,
-    );
+    const createResp = await client.createJob("Count slowly", undefined, undefined, 30_000);
     const jobId = createResp.job_id as string;
 
     const pauseResp = await client.pauseJob(jobId, 15_000);
@@ -257,12 +239,7 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const createResp = await client.createJob(
-      "Task to cancel",
-      undefined,
-      undefined,
-      30_000,
-    );
+    const createResp = await client.createJob("Task to cancel", undefined, undefined, 30_000);
     const jobId = createResp.job_id as string;
 
     const cancelResp = await client.cancelJob(jobId, 15_000);
@@ -274,12 +251,7 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const createResp = await client.createJob(
-      "Simple task",
-      undefined,
-      undefined,
-      30_000,
-    );
+    const createResp = await client.createJob("Simple task", undefined, undefined, 30_000);
     const jobId = createResp.job_id as string;
 
     const dagResp = await client.getJobDag(jobId, 15_000);

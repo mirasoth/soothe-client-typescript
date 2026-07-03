@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Client } from "../src/client.js";
 import { inputMessageForLoop } from "../src/appkit/turn_runner.js";
-import {
-  INTENT_HINT_TEXT_COMPLETION,
-  validateLoopInputIntentHint,
-} from "../src/intent_hints.js";
+import { INTENT_HINT_TEXT_COMPLETION, validateLoopInputIntentHint } from "../src/intent_hints.js";
 
 describe("validateLoopInputIntentHint", () => {
   it("rejects removed direct_llm and quiz", () => {
@@ -29,8 +26,8 @@ describe("legacy intent_hint rejection", () => {
   });
 
   it("inputMessageForLoop rejects quiz", () => {
-    expect(() =>
-      inputMessageForLoop("hello", "loop-1", undefined, { intentHint: "quiz" }),
-    ).toThrow(/quiz is removed/);
+    expect(() => inputMessageForLoop("hello", "loop-1", undefined, { intentHint: "quiz" })).toThrow(
+      /quiz is removed/,
+    );
   });
 });

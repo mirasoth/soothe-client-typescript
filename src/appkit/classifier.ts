@@ -16,10 +16,7 @@
 
 import { DaemonError } from "../errors.js";
 import { EventFinalReport } from "../events.js";
-import {
-  DEFAULT_THINKING_STEP_EVENTS,
-  extractThinkingStep,
-} from "./thinking_step.js";
+import { DEFAULT_THINKING_STEP_EVENTS, extractThinkingStep } from "./thinking_step.js";
 
 /** How a processed event should end the query loop. */
 export enum ChatEventTerminal {
@@ -74,9 +71,8 @@ export class EventClassifier {
       throw new Error("appkit: ClassifierConfig.deliverablePhases must not be nil");
     }
     this.deliverablePhases = cfg.deliverablePhases;
-    this.minDeliverableRunes = cfg.minDeliverableRunes && cfg.minDeliverableRunes > 0
-      ? cfg.minDeliverableRunes
-      : 8;
+    this.minDeliverableRunes =
+      cfg.minDeliverableRunes && cfg.minDeliverableRunes > 0 ? cfg.minDeliverableRunes : 8;
     this.thinkingStepEvents = cfg.thinkingStepEvents;
   }
 
@@ -203,11 +199,7 @@ export class EventClassifier {
     // Fallback: payload itself carries mode/data directly.
     const mode = (payload.mode as string) ?? "";
     if (mode) {
-      return this.classifyEventPayload(
-        (payload.namespace as unknown) ?? null,
-        mode,
-        payload.data,
-      );
+      return this.classifyEventPayload((payload.namespace as unknown) ?? null, mode, payload.data);
     }
     return { terminal: ChatEventTerminal.Continue };
   }
@@ -216,11 +208,7 @@ export class EventClassifier {
    * Classifies an event payload by (namespace, mode, phase). `data` may be a
    * map or an array of messages (mode="messages").
    */
-  private classifyEventPayload(
-    namespace: unknown,
-    mode: string,
-    data: unknown,
-  ): ChatEventResult {
+  private classifyEventPayload(namespace: unknown, mode: string, data: unknown): ChatEventResult {
     // Normalize namespace to a string for matching.
     const ns = namespaceToString(namespace);
 
@@ -257,7 +245,10 @@ export class EventClassifier {
     if (!completionEvent) completionEvent = ns;
 
     // soothe.output / responded namespaces.
-    if (isNamespaceMatch(ns, dataType, "soothe.output") || isNamespaceMatch(ns, dataType, "responded")) {
+    if (
+      isNamespaceMatch(ns, dataType, "soothe.output") ||
+      isNamespaceMatch(ns, dataType, "responded")
+    ) {
       const [content, ok] = extractContentFromData(dataMap);
       if (ok) {
         if (this.isFinalOutputEvent(dataType, ns)) {
@@ -315,15 +306,11 @@ export class EventClassifier {
   }
 
   /** Classifies a mode="messages" payload (array of message objects). */
-  private classifyMessagesMode(
-    data: unknown,
-    _ns: string,
-  ): ChatEventResult | null {
+  private classifyMessagesMode(data: unknown, _ns: string): ChatEventResult | null {
     const items = Array.isArray(data) ? data : null;
     if (!items || items.length === 0) return null;
     const first = items[0];
     if (!first || typeof first !== "object") return null;
-    const msgMap = first as Record<string, unknown>;
 
     const [msgType, rawContent, phase, hasPayload] = firstMessagePayload(data);
     if (hasPayload && rawContent && isStreamingMessageType(msgType)) {
@@ -338,7 +325,10 @@ export class EventClassifier {
         if (isStreamingMessageType(loopMsg.type)) {
           return this.continueResult(content);
         }
-        if (this.isDeliverableLoopPhase(loopMsg.phase) && this.isSubstantiveAssistantReply(content)) {
+        if (
+          this.isDeliverableLoopPhase(loopMsg.phase) &&
+          this.isSubstantiveAssistantReply(content)
+        ) {
           return this.deliverableResult(content, "soothe.protocol.message." + loopMsg.phase);
         }
         return this.continueResult(content);
@@ -405,9 +395,7 @@ function isTerminalMessageType(msgType: string): boolean {
 }
 
 /** Extracts the first message's (type, content, phase, hasPayload). */
-function firstMessagePayload(
-  data: unknown,
-): [string, string, string, boolean] {
+function firstMessagePayload(data: unknown): [string, string, string, boolean] {
   if (!Array.isArray(data) || data.length === 0) return ["", "", "", false];
   const msgMap = data[0] as Record<string, unknown>;
   if (!msgMap || typeof msgMap !== "object") return ["", "", "", false];
@@ -418,9 +406,7 @@ function firstMessagePayload(
 }
 
 /** Extracts a loop-tagged assistant message (type, content, phase). */
-function loopAIMessage(
-  data: unknown,
-): { type: string; content: string; phase: string } | null {
+function loopAIMessage(data: unknown): { type: string; content: string; phase: string } | null {
   if (!Array.isArray(data) || data.length === 0) return null;
   const msgMap = data[0] as Record<string, unknown>;
   if (!msgMap || typeof msgMap !== "object") return null;
@@ -464,9 +450,7 @@ function extractContentFromMessage(msgMap: Record<string, unknown>): string {
   return "";
 }
 
-function extractContentFromData(
-  data: Record<string, unknown>,
-): [string, boolean] {
+function extractContentFromData(data: Record<string, unknown>): [string, boolean] {
   for (const key of [
     "final_stdout_message",
     "completion_summary",
@@ -507,14 +491,12 @@ function isNamespaceMatch(ns: string, dataType: string, pattern: string): boolea
 /** Normalizes a namespace value (string or string[]) to a dotted string. */
 function namespaceToString(namespace: unknown): string {
   if (typeof namespace === "string") return namespace;
-  if (Array.isArray(namespace)) return namespace.filter((s) => typeof s === "string").join(".");
+  if (Array.isArray(namespace)) return namespace.filter(s => typeof s === "string").join(".");
   return "";
 }
 
 /** Normalizes event data to a map. Strings are parsed as JSON. */
-function normalizeEventData(
-  data: unknown,
-): Record<string, unknown> | null {
+function normalizeEventData(data: unknown): Record<string, unknown> | null {
   if (data == null) return null;
   if (typeof data === "object" && !Array.isArray(data)) {
     return data as Record<string, unknown>;

@@ -49,40 +49,24 @@ describe("parseNamespace", () => {
 describe("classifyEventVerbosity", () => {
   it("quiet tier", () => {
     expect(classifyEventVerbosity(EventFinalReport)).toBe(VerbosityTier.Quiet);
-    expect(classifyEventVerbosity(EventGeneralFailed)).toBe(
-      VerbosityTier.Quiet,
-    );
+    expect(classifyEventVerbosity(EventGeneralFailed)).toBe(VerbosityTier.Quiet);
   });
 
   it("normal tier", () => {
     expect(classifyEventVerbosity(EventPlanCreated)).toBe(VerbosityTier.Normal);
-    expect(classifyEventVerbosity(EventStrangeLoopReasoned)).toBe(
-      VerbosityTier.Normal,
-    );
-    expect(classifyEventVerbosity(EventExploreStarted)).toBe(
-      VerbosityTier.Normal,
-    );
-    expect(classifyEventVerbosity(EventExploreCompleted)).toBe(
-      VerbosityTier.Normal,
-    );
-    expect(classifyEventVerbosity(EventTacitusStarted)).toBe(
-      VerbosityTier.Normal,
-    );
-    expect(classifyEventVerbosity(EventTacitusCompleted)).toBe(
-      VerbosityTier.Normal,
-    );
+    expect(classifyEventVerbosity(EventStrangeLoopReasoned)).toBe(VerbosityTier.Normal);
+    expect(classifyEventVerbosity(EventExploreStarted)).toBe(VerbosityTier.Normal);
+    expect(classifyEventVerbosity(EventExploreCompleted)).toBe(VerbosityTier.Normal);
+    expect(classifyEventVerbosity(EventTacitusStarted)).toBe(VerbosityTier.Normal);
+    expect(classifyEventVerbosity(EventTacitusCompleted)).toBe(VerbosityTier.Normal);
   });
 
   it("detailed tier", () => {
-    expect(classifyEventVerbosity(EventExploreStepCompleted)).toBe(
-      VerbosityTier.Detailed,
-    );
+    expect(classifyEventVerbosity(EventExploreStepCompleted)).toBe(VerbosityTier.Detailed);
   });
 
   it("internal tier", () => {
-    expect(classifyEventVerbosity(EventToolStarted)).toBe(
-      VerbosityTier.Internal,
-    );
+    expect(classifyEventVerbosity(EventToolStarted)).toBe(VerbosityTier.Internal);
   });
 });
 

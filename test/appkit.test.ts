@@ -10,7 +10,6 @@ import {
   ErrQueryBusy,
   ErrQueryTimeout,
   EventClassifier,
-  PooledConn,
   QueryGate,
   SSEBroadcaster,
   TurnRunner,
@@ -236,10 +235,7 @@ describe("EventClassifier", () => {
 
   it("error envelope → FailedComplete", () => {
     const cl = triarchClassifier();
-    const r = cl.classify(
-      { type: "error", error: { code: -32603, message: "boom" } },
-      "",
-    );
+    const r = cl.classify({ type: "error", error: { code: -32603, message: "boom" } }, "");
     expect(r.terminal).toBe(ChatEventTerminal.FailedComplete);
     expect(r.err?.message).toContain("boom");
   });
@@ -290,7 +286,13 @@ function newTestPool(store: MemStore, fake: FakeClient): ConnectionPool {
   const pool = new ConnectionPool(
     "ws://localhost:0",
     store,
-    { poolSize: 4, queryTimeout: 5_000, connectionTimeout: 1000, maxIdleTime: 1000, healthCheckInterval: 1000 },
+    {
+      poolSize: 4,
+      queryTimeout: 5_000,
+      connectionTimeout: 1000,
+      maxIdleTime: 1000,
+      healthCheckInterval: 1000,
+    },
     null,
     () => fake as unknown as ManagedClient,
   );
@@ -326,7 +328,13 @@ describe("ConnectionPool", () => {
     const pool = new ConnectionPool(
       "ws://localhost:0",
       store,
-      { poolSize: 1, queryTimeout: 5_000, connectionTimeout: 1000, maxIdleTime: 1000, healthCheckInterval: 1000 },
+      {
+        poolSize: 1,
+        queryTimeout: 5_000,
+        connectionTimeout: 1000,
+        maxIdleTime: 1000,
+        healthCheckInterval: 1000,
+      },
       null,
       () => fake as unknown as ManagedClient,
     );
@@ -381,9 +389,9 @@ describe("TurnRunner", () => {
     const tr = new TurnRunner(pool, gate, cl, store, new SSEBroadcaster(), {
       queryTimeout: 100,
     });
-    await expect(
-      tr.execute("s1", "stalled", "user-1", "ws-1", null, null),
-    ).rejects.toBeInstanceOf(ErrQueryTimeout);
+    await expect(tr.execute("s1", "stalled", "user-1", "ws-1", null, null)).rejects.toBeInstanceOf(
+      ErrQueryTimeout,
+    );
     const msgs = store.messages("s1");
     expect(msgs.length).toBeGreaterThan(0);
     expect(msgs[0].role).toBe("error");
