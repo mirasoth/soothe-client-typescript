@@ -4,7 +4,6 @@ import {
   classifyEventVerbosity,
   isCompletionEvent,
   isSubagentProgressEvent,
-  ESSENTIAL_EVENT_TYPES,
   EventPlanCreated,
   EventExploreStarted,
   EventExploreCompleted,
@@ -95,24 +94,5 @@ describe("isSubagentProgressEvent", () => {
   it("non-progress events", () => {
     expect(isSubagentProgressEvent(EventExploreStepCompleted)).toBe(false);
     expect(isSubagentProgressEvent(EventPlanCreated)).toBe(false);
-  });
-});
-
-describe("ESSENTIAL_EVENT_TYPES", () => {
-  it("contains essential events", () => {
-    const essential = [
-      EventStrangeLoopReasoned,
-      EventGeneralFailed,
-      EventPlanCreated,
-      EventExploreStarted,
-      EventTacitusStarted,
-    ];
-    for (const ev of essential) {
-      expect(ESSENTIAL_EVENT_TYPES.has(ev)).toBe(true);
-    }
-  });
-
-  it("does not contain non-essential events", () => {
-    expect(ESSENTIAL_EVENT_TYPES.has(EventExploreStepCompleted)).toBe(false);
   });
 });

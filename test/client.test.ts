@@ -384,6 +384,79 @@ describe("Client", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // New daemon API methods (loop_history_fetch, config_reload, auth, auth_refresh)
+  // ---------------------------------------------------------------------------
+
+  it("fetchLoopHistory sends request and returns response", async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.fetchLoopHistory("l1", 3000);
+      expect(resp.echoed).toBe("loop_history_fetch");
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("sendLoopHistoryFetch sends a request envelope", async () => {
+    const server = createTestServer(echoHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      await client.sendLoopHistoryFetch("l1");
+      const ev = await client.readEvent();
+      expect(ev).not.toBeNull();
+      expect(ev!.type).toBe("request");
+      expect(ev!.method).toBe("loop_history_fetch");
+      expect((ev!.params as Record<string, unknown>).loop_id).toBe("l1");
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("reloadConfig sends request and returns response", async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.reloadConfig(3000);
+      expect(resp.echoed).toBe("config_reload");
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("authenticate sends request with credentials", async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.authenticate("ak-123", "sk-456", 3000);
+      expect(resp.echoed).toBe("auth");
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("refreshAuthToken sends request with refresh token", async () => {
+    const server = createTestServer(requestResponseHandler);
+    try {
+      const client = new Client(server.url);
+      await client.connect();
+      const resp = await client.refreshAuthToken("rt-789", 3000);
+      expect(resp.echoed).toBe("auth_refresh");
+      client.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // WaitForDaemonReady
   // ---------------------------------------------------------------------------
 

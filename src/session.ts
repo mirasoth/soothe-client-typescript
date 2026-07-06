@@ -9,7 +9,6 @@
 import type { Client } from "./client.js";
 import type { Config } from "./config.js";
 import { defaultConfig } from "./config.js";
-import type { DecodedMessage } from "./protocol.js";
 import { newLoopNewMessage } from "./protocol.js";
 import { DaemonError } from "./errors.js";
 
@@ -77,27 +76,6 @@ export async function waitDaemonReady(client: Client, timeout: number): Promise<
       if (state === "ready") return;
       throw new Error(`daemon not ready: state=${JSON.stringify(state ?? "unknown")}`);
     }
-  }
-  throw new Error(`timeout after ${timeout}ms waiting for connection_ack (ready)`);
-}
-
-/** Waits for connection_ack using messages from an AsyncIterable (e.g. receiveMessages()). */
-export async function waitDaemonReadyFromStream(
-  eventStream: AsyncIterable<DecodedMessage>,
-  timeout: number,
-): Promise<void> {
-  const deadline = Date.now() + timeout;
-  for await (const msg of eventStream) {
-    if (msg && typeof msg === "object") {
-      const m = msg as Record<string, unknown>;
-      if (m.type === "connection_ack") {
-        const result = (m.result as Record<string, unknown> | undefined) ?? {};
-        const state = result.readiness_state as string | undefined;
-        if (state === "ready") return;
-        throw new Error(`daemon not ready: state=${JSON.stringify(state ?? "unknown")}`);
-      }
-    }
-    if (Date.now() >= deadline) break;
   }
   throw new Error(`timeout after ${timeout}ms waiting for connection_ack (ready)`);
 }

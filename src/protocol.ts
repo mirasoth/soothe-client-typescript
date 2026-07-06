@@ -54,6 +54,7 @@ export type MethodName =
   | "loop_state_get"
   | "loop_state_update"
   | "loop_cards_fetch"
+  | "loop_history_fetch"
   | "loop_events"
   | "autopilot_events"
   | "job_create"
@@ -66,6 +67,7 @@ export type MethodName =
   | "daemon_status"
   | "daemon_shutdown"
   | "config_get"
+  | "config_reload"
   | "skills_list"
   | "invoke_skill"
   | "models_list"
@@ -74,6 +76,10 @@ export type MethodName =
   | "auth_refresh"
   | "slash_command"
   | "rpc_command"
+  | "cron_add"
+  | "cron_list"
+  | "cron_show"
+  | "cron_cancel"
   | "disconnect";
 
 // ---------------------------------------------------------------------------

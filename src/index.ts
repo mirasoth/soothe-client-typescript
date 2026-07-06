@@ -130,8 +130,6 @@ export {
   classifyEventVerbosity,
   isCompletionEvent,
   isSubagentProgressEvent,
-  isCardReplayFrame,
-  ESSENTIAL_EVENT_TYPES,
 } from "./events.js";
 
 // Client
@@ -146,15 +144,18 @@ export {
   checkDaemonStatus,
   isDaemonLive,
   requestDaemonShutdown,
+  requestDaemonConfigReload,
   fetchSkillsCatalog,
   fetchConfigSection,
+  fetchLoopHistory,
+  authenticate,
+  refreshAuthToken,
 } from "./helpers.js";
 
 // Session
 export {
   bootstrapLoopSession,
   waitDaemonReady,
-  waitDaemonReadyFromStream,
   waitLoopStatusWithID,
   waitSubscriptionConfirmed,
   connectWithRetries,

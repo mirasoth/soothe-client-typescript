@@ -22,6 +22,7 @@ import {
   decodeMessage,
   disconnectEnvelope,
   newLoopNewMessage,
+  newRequestID,
   notificationEnvelope,
   pingEnvelope,
   pongEnvelope,
@@ -670,6 +671,27 @@ export class Client extends EventEmitter {
     }
   }
 
+  /**
+   * Sends a pre-built envelope (e.g. `unsubscribe`) that carries an `id` and
+   * waits for the matching `response`/`error`. Used for envelope types that
+   * are not `request` (e.g. `unsubscribe` → `autopilot_unsubscribe`) but still
+   * expect a correlated response from the daemon.
+   */
+  private async _requestResponseForEnvelope(
+    env: { id: string; proto?: string; type?: string },
+    label: string,
+    timeout: number,
+  ): Promise<Record<string, unknown>> {
+    const rid = env.id;
+    const { call, unregister } = this.mux.registerRPC(rid);
+    try {
+      await this.sendMessage(env);
+      return await this._raceRPC(call, timeout, label);
+    } finally {
+      unregister();
+    }
+  }
+
   /** Sends a fire-and-forget `notification` envelope (no response expected). */
   notify(method: MethodName, params: Record<string, unknown>): Promise<void> {
     return this.sendMessage(notificationEnvelope(method, params));
@@ -915,9 +937,31 @@ export class Client extends EventEmitter {
     return this.sendMessage(requestEnvelope("loop_cards_fetch", { loop_id: loopID }));
   }
 
+  /** Requests the full loop history (RFC-631). */
+  sendLoopHistoryFetch(loopID: string): Promise<void> {
+    return this.sendMessage(requestEnvelope("loop_history_fetch", { loop_id: loopID }));
+  }
+
   /** Requests MCP server status. */
   sendMCPStatus(): Promise<void> {
     return this.sendMessage(requestEnvelope("mcp_status", {}));
+  }
+
+  /** Requests daemon config reload. */
+  sendConfigReload(): Promise<void> {
+    return this.sendMessage(requestEnvelope("config_reload", {}));
+  }
+
+  /** Submits credentials for daemon-side authentication. */
+  sendAuth(accessKey: string, secretKey: string): Promise<void> {
+    return this.sendMessage(
+      requestEnvelope("auth", { access_key: accessKey, secret_key: secretKey }),
+    );
+  }
+
+  /** Refreshes the daemon-side auth token. */
+  sendAuthRefresh(refreshToken: string): Promise<void> {
+    return this.sendMessage(requestEnvelope("auth_refresh", { refresh_token: refreshToken }));
   }
 
   /** Requests persisted messages and waits for response. */
@@ -975,6 +1019,45 @@ export class Client extends EventEmitter {
   /** Requests MCP status and waits for response. */
   getMCPStatus(timeout?: number): Promise<Record<string, unknown>> {
     return this.requestResponse("mcp_status", {}, "mcp_status", timeout ?? 15_000);
+  }
+
+  /** Requests loop history and waits for response. */
+  fetchLoopHistory(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "loop_history_fetch",
+      { loop_id: loopID },
+      "loop_history_fetch",
+      timeout ?? 15_000,
+    );
+  }
+
+  /** Requests daemon config reload and waits for response. */
+  reloadConfig(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse("config_reload", {}, "config_reload", timeout ?? 15_000);
+  }
+
+  /** Submits credentials for daemon-side authentication and waits for response. */
+  authenticate(
+    accessKey: string,
+    secretKey: string,
+    timeout?: number,
+  ): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "auth",
+      { access_key: accessKey, secret_key: secretKey },
+      "auth",
+      timeout ?? 15_000,
+    );
+  }
+
+  /** Refreshes the daemon-side auth token and waits for response. */
+  refreshAuthToken(refreshToken: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "auth_refresh",
+      { refresh_token: refreshToken },
+      "auth_refresh",
+      timeout ?? 15_000,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1038,12 +1121,11 @@ export class Client extends EventEmitter {
 
   /** Unsubscribes from autopilot worker events. */
   autopilotUnsubscribe(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "autopilot_unsubscribe",
-      {},
-      "autopilot_unsubscribe",
-      timeout ?? 15_000,
-    );
+    // Send an unsubscribe envelope (no loop_id in params → daemon infers
+    // autopilot_unsubscribe). The daemon sends a `response` correlated by
+    // the envelope id; wait for it via requestResponse semantics.
+    const req = unsubscribeEnvelope(newRequestID());
+    return this._requestResponseForEnvelope(req, "autopilot_unsubscribe", timeout ?? 15_000);
   }
 
   // ---------------------------------------------------------------------------
@@ -1104,34 +1186,5 @@ export class Client extends EventEmitter {
       throw new Error(`daemon not ready: state=${state ?? "unknown"}`);
     }
     throw new Error(`timeout after ${t}ms waiting for connection_ack`);
-  }
-
-  /** Waits for a subscription confirmation `next` matching the loop id. */
-  async waitForSubscriptionConfirmed(
-    loopID: string,
-    _verbosity: string,
-    timeout?: number,
-  ): Promise<void> {
-    const t = timeout ?? 5_000;
-    const deadline = Date.now() + t;
-    while (Date.now() < deadline) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) break;
-      const ev = await this.readEventWithTimeout(remaining);
-      if (ev === null) break;
-      // Subscription confirmation arrives as a `next` frame whose payload
-      // carries {event:"subscribed", loop_id, success}.
-      if (ev.type === "next") {
-        const payload = (ev.payload as Record<string, unknown> | undefined) ?? {};
-        const lid = String(payload.loop_id ?? "");
-        if (lid === loopID && payload.success === true) return;
-        continue;
-      }
-      if (ev.type === "error") {
-        const errObj = (ev.error as { message?: string }) ?? {};
-        throw new Error(`daemon error: ${errObj.message ?? "subscription failed"}`);
-      }
-    }
-    throw new Error(`timeout after ${t}ms waiting for subscription confirmation`);
   }
 }

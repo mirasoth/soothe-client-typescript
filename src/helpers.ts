@@ -77,3 +77,54 @@ export async function fetchConfigSection(
   }
   return resp;
 }
+
+/** Requests daemon config reload via RPC. */
+export async function requestDaemonConfigReload(
+  client: Client,
+  timeout?: number,
+): Promise<Record<string, unknown>> {
+  return client.requestResponse("config_reload", {}, "config_reload", timeout ?? 15_000);
+}
+
+/** Requests loop history (RFC-631) and waits for the response. */
+export async function fetchLoopHistory(
+  client: Client,
+  loopID: string,
+  timeout?: number,
+): Promise<Record<string, unknown>> {
+  return client.requestResponse(
+    "loop_history_fetch",
+    { loop_id: loopID },
+    "loop_history_fetch",
+    timeout ?? 15_000,
+  );
+}
+
+/** Submits credentials for daemon-side authentication and waits for the response. */
+export async function authenticate(
+  client: Client,
+  accessKey: string,
+  secretKey: string,
+  timeout?: number,
+): Promise<Record<string, unknown>> {
+  return client.requestResponse(
+    "auth",
+    { access_key: accessKey, secret_key: secretKey },
+    "auth",
+    timeout ?? 15_000,
+  );
+}
+
+/** Refreshes the daemon-side auth token and waits for the response. */
+export async function refreshAuthToken(
+  client: Client,
+  refreshToken: string,
+  timeout?: number,
+): Promise<Record<string, unknown>> {
+  return client.requestResponse(
+    "auth_refresh",
+    { refresh_token: refreshToken },
+    "auth_refresh",
+    timeout ?? 15_000,
+  );
+}

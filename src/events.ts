@@ -180,25 +180,3 @@ export function isSubagentProgressEvent(eventType: string): boolean {
   }
   return parsed.action === "started" || parsed.action === "completed";
 }
-
-/** Essential progress event types for minimal UI surfaces. */
-export const ESSENTIAL_EVENT_TYPES: ReadonlySet<string> = new Set([
-  EventStrangeLoopStarted,
-  EventStrangeLoopCompleted,
-  EventStrangeLoopReasoned,
-  EventPlanCreated,
-  EventExploreStarted,
-  EventExploreCompleted,
-  EventTacitusStarted,
-  EventTacitusCompleted,
-  EventGeneralFailed,
-]);
-
-/** Returns true if the message type is a card ledger replay frame (RFC-413). */
-export function isCardReplayFrame(messageType: string): boolean {
-  return (
-    messageType === EventCardReplayBegin ||
-    messageType === EventCardCreated ||
-    messageType === EventCardReplayEnd
-  );
-}
