@@ -137,10 +137,11 @@ describe("round-trip", () => {
     expect(decoded.loop_id).toBe("loop-xyz");
   });
 
-  it("StatusFrame with camelCase loopId fallback", () => {
+  it("StatusFrame does not tolerate camelCase loopId (protocol-1 strict)", () => {
     const raw = `{"proto":"1","type":"status","state":"idle","loopId":"loop-camel"}`;
     const decoded = decodeMessage(raw) as StatusFrame;
-    expect(decoded.loop_id).toBe("loop-camel");
+    // Protocol-1 uses snake_case; camelCase loopId is not normalized.
+    expect(decoded.loop_id).toBeUndefined();
   });
 
   it("ping/pong/disconnect decode", () => {
@@ -228,14 +229,15 @@ describe("extractSootheLoopID", () => {
     expect(id).toBe("data-loop");
   });
 
-  it("from next payload.data.loopId (camelCase)", () => {
+  it("from next payload.data.loopId (camelCase) - protocol-1 uses snake_case", () => {
     const [id, ok] = extractSootheLoopID({
       proto: "1",
       type: "next",
       payload: { data: { loopId: "camel-loop" } },
     });
-    expect(ok).toBe(true);
-    expect(id).toBe("camel-loop");
+    // Protocol-1 strict: camelCase loopId is not normalized.
+    expect(ok).toBe(false);
+    expect(id).toBe("");
   });
 
   it("returns false for non-object", () => {

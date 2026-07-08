@@ -43,6 +43,7 @@ export interface InputOptions {
   autonomous?: boolean;
   maxIterations?: number;
   subagent?: string;
+  /** @deprecated Ignored by daemon; loop_input always uses non-interactive autonomous mode. */
   interactive?: boolean;
   model?: string;
   modelParams?: Record<string, unknown>;
@@ -780,7 +781,6 @@ export class Client extends EventEmitter {
     };
     if (options?.maxIterations !== undefined) params.max_iterations = options.maxIterations;
     if (options?.subagent) params.preferred_subagent = options.subagent;
-    if (options?.interactive) params.interactive = true;
     if (options?.model) params.model = options.model;
     if (options?.modelParams) params.model_params = options.modelParams;
     if (options?.attachments) params.attachments = options.attachments;

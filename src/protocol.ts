@@ -49,6 +49,7 @@ export type MethodName =
   | "loop_delete"
   | "loop_new"
   | "loop_reattach"
+  | "loop_detach"
   | "loop_input"
   | "loop_messages"
   | "loop_state_get"
@@ -76,6 +77,7 @@ export type MethodName =
   | "auth_refresh"
   | "slash_command"
   | "rpc_command"
+  | "delivery_ack"
   | "cron_add"
   | "cron_list"
   | "cron_show"
@@ -120,7 +122,14 @@ export interface NotificationEnvelope extends BaseEnvelope {
 export interface SubscribeEnvelope extends BaseEnvelope {
   type: "subscribe";
   method: "loop_events" | "autopilot_events";
-  params?: Record<string, unknown>;
+  params?: {
+    loop_id?: string;
+    verbosity?: string;
+    /** Stream delivery mode: batch (coalesce until turn end), adaptive (small payloads passthrough), streaming (real-time chunks). */
+    stream_delivery?: "batch" | "adaptive" | "streaming";
+    /** Wire serialization tier: full (all fields), compact (essential fields only). */
+    wire_tier?: "full" | "compact";
+  } & Record<string, unknown>;
   id: string;
 }
 
@@ -232,13 +241,13 @@ export type DecodedMessage =
 // Typed request/notification payload interfaces (params shapes)
 // ---------------------------------------------------------------------------
 
-/** Params for `loop_input` (notification or request). */
 export interface LoopInputParams {
   loop_id: string;
   content: string;
   autonomous?: boolean;
   max_iterations?: number;
   preferred_subagent?: string;
+  /** @deprecated Ignored by daemon; loop_input always uses non-interactive autonomous mode. */
   interactive?: boolean;
   model?: string;
   model_params?: Record<string, unknown>;
@@ -336,14 +345,8 @@ export function decodeMessage(data: string): DecodedMessage | null {
       return { ...parsed } as unknown as ReceiptResponseEnvelope;
     case "disconnect":
       return { ...parsed } as unknown as DisconnectEnvelope;
-    case "status": {
-      const msg = { ...parsed } as unknown as StatusFrame;
-      // Tolerate camelCase loopId from some daemon builds.
-      if ((!msg.loop_id || msg.loop_id === "") && typeof parsed.loopId === "string") {
-        msg.loop_id = parsed.loopId as string;
-      }
-      return msg;
-    }
+    case "status":
+      return { ...parsed } as unknown as StatusFrame;
     default:
       return parsed;
   }
@@ -468,11 +471,11 @@ export function extractSootheLoopID(msg: unknown): [string, boolean] {
     if (payload && typeof payload === "object") {
       const data = payload.data as Record<string, unknown> | undefined;
       if (data && typeof data === "object") {
-        const id = (data.loop_id ?? data.loopId) as string | undefined;
+        const id = data.loop_id as string | undefined;
         if (id && id !== "") return [id, true];
       }
       // Some payloads carry loop_id directly.
-      const pid = (payload.loop_id ?? payload.loopId) as string | undefined;
+      const pid = payload.loop_id as string | undefined;
       if (pid && pid !== "") return [pid, true];
     }
     return ["", false];
@@ -484,13 +487,12 @@ export function extractSootheLoopID(msg: unknown): [string, boolean] {
     return ["", false];
   }
 
-  // Generic fallback: top-level loop_id / loopId.
-  const generic = (m.loop_id ?? m.loopId) as string | undefined;
+  // Generic fallback: top-level loop_id.
+  const generic = m.loop_id as string | undefined;
   if (generic && generic !== "") return [generic, true];
 
   return ["", false];
 }
-
 // ---------------------------------------------------------------------------
 // Message factory functions
 // ---------------------------------------------------------------------------
