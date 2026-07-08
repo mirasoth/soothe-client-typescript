@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
-    testTimeout: 30_000,
+    // Integration tests involve daemon communication and can take longer
+    testTimeout: 60_000,
   },
 });
