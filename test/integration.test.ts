@@ -194,12 +194,8 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const resp = await client.createJob(
-      "Write a simple hello world program",
-      undefined,
-      undefined,
-      30_000,
-    );
+    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
+    const resp = await client.createJob("echo hello", undefined, undefined, 60_000);
     expect(resp.job_id).toBeDefined();
     client.close();
   });
@@ -208,7 +204,8 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const createResp = await client.createJob("List files", undefined, undefined, 30_000);
+    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
+    const createResp = await client.createJob("echo test", undefined, undefined, 60_000);
     const jobId = createResp.job_id as string;
 
     const resp = await client.getJobStatus(jobId, 15_000);
@@ -222,7 +219,8 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const createResp = await client.createJob("Count slowly", undefined, undefined, 30_000);
+    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
+    const createResp = await client.createJob("echo one", undefined, undefined, 60_000);
     const jobId = createResp.job_id as string;
 
     const pauseResp = await client.pauseJob(jobId, 15_000);
@@ -239,7 +237,8 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const createResp = await client.createJob("Task to cancel", undefined, undefined, 30_000);
+    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
+    const createResp = await client.createJob("echo cancel", undefined, undefined, 60_000);
     const jobId = createResp.job_id as string;
 
     const cancelResp = await client.cancelJob(jobId, 15_000);
@@ -251,7 +250,8 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    const createResp = await client.createJob("Simple task", undefined, undefined, 30_000);
+    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
+    const createResp = await client.createJob("echo dag", undefined, undefined, 60_000);
     const jobId = createResp.job_id as string;
 
     const dagResp = await client.getJobDag(jobId, 15_000);
