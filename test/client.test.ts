@@ -107,7 +107,7 @@ describe("Client", () => {
       const client = new Client(server.url);
       await client.connect();
 
-      const resp = await client.requestResponse("daemon_status", {}, "daemon_status", 3000);
+      const resp = await client.requestResponse("daemon_status", {}, "daemon_status", 500);
       expect(resp.running).toBe(true);
       expect(resp.port_live).toBe(true);
       client.close();
@@ -170,7 +170,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(client.requestResponse("error_test", {}, "error_test", 3000)).rejects.toThrow(
+      await expect(client.requestResponse("error_test", {}, "error_test", 500)).rejects.toThrow(
         "daemon error",
       );
       client.close();
@@ -259,7 +259,7 @@ describe("Client", () => {
         "loop_new",
         { client_workspace: "/tmp/workspace" },
         "loop_new",
-        3000,
+        500,
       );
       expect(resp.loop_id).toBe("test-loop-123");
       client.close();
@@ -276,7 +276,7 @@ describe("Client", () => {
       const subId = await client.subscribe(
         "loop_events",
         { loop_id: "loop-abc", verbosity: "normal" },
-        3000,
+        500,
       );
       const ev = await client.readEvent();
       expect(ev!.type).toBe("next");
@@ -310,7 +310,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.listSkills(3000);
+      const resp = await client.listSkills(500);
       expect(resp.skills).toHaveLength(2);
       client.close();
     } finally {
@@ -323,7 +323,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.listModels(3000);
+      const resp = await client.listModels(500);
       expect(resp.models).toHaveLength(2);
       client.close();
     } finally {
@@ -336,7 +336,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.invokeSkill("research", "search for X", 3000);
+      const resp = await client.invokeSkill("research", "search for X", 500);
       expect(resp.echo).toMatchObject({ status: "ok" });
       client.close();
     } finally {
@@ -349,7 +349,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.listLoops(3000);
+      const resp = await client.listLoops(500);
       expect(resp.loops).toHaveLength(2);
       client.close();
     } finally {
@@ -362,7 +362,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.getLoop("l1", 3000);
+      const resp = await client.getLoop("l1", 500);
       expect(resp.loop).toMatchObject({ loop_id: "l1" });
       client.close();
     } finally {
@@ -375,7 +375,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.deleteLoop("l1", 3000);
+      const resp = await client.deleteLoop("l1", 500);
       expect(resp.success).toBe(true);
       client.close();
     } finally {
@@ -392,7 +392,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.fetchLoopHistory("l1", 3000);
+      const resp = await client.fetchLoopHistory("l1", 500);
       expect(resp.echoed).toBe("loop_history_fetch");
       client.close();
     } finally {
@@ -422,7 +422,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.reloadConfig(3000);
+      const resp = await client.reloadConfig(500);
       expect(resp.echoed).toBe("config_reload");
       client.close();
     } finally {
@@ -435,7 +435,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.authenticate("ak-123", "sk-456", 3000);
+      const resp = await client.authenticate("ak-123", "sk-456", 500);
       expect(resp.echoed).toBe("auth");
       client.close();
     } finally {
@@ -448,7 +448,7 @@ describe("Client", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await client.refreshAuthToken("rt-789", 3000);
+      const resp = await client.refreshAuthToken("rt-789", 500);
       expect(resp.echoed).toBe("auth_refresh");
       client.close();
     } finally {
@@ -466,7 +466,7 @@ describe("Client", () => {
       const client = new Client(server.url);
       await client.connect();
       // Handshake already completed in connect(); waitForDaemonReady resolves immediately.
-      const ev = await client.waitForDaemonReady(3000);
+      const ev = await client.waitForDaemonReady(500);
       expect(ev.readiness_state).toBe("ready");
       client.close();
     } finally {
@@ -740,13 +740,13 @@ describe("Client", () => {
           "daemon_status",
           { tag: 1 } as unknown as Record<string, unknown>,
           "r1",
-          3000,
+          500,
         ),
         client.requestResponse(
           "daemon_status",
           { tag: 2 } as unknown as Record<string, unknown>,
           "r2",
-          3000,
+          500,
         ),
       ]);
       // Each caller must receive its own response, not the other's.

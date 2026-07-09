@@ -16,7 +16,7 @@ describe("checkDaemonStatus", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const resp = await checkDaemonStatus(client, 3000);
+      const resp = await checkDaemonStatus(client, 500);
       expect(resp.running).toBe(true);
       client.close();
     } finally {
@@ -29,7 +29,7 @@ describe("isDaemonLive", () => {
   it("returns true when daemon is live", async () => {
     const server = createTestServer(requestResponseHandler);
     try {
-      const result = await isDaemonLive(server.url, 3000);
+      const result = await isDaemonLive(server.url, 500);
       expect(result).toBe(true);
     } finally {
       await server.close();
@@ -48,7 +48,7 @@ describe("requestDaemonShutdown", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(requestDaemonShutdown(client, 3000)).resolves.toBeUndefined();
+      await expect(requestDaemonShutdown(client, 500)).resolves.toBeUndefined();
       client.close();
     } finally {
       await server.close();
@@ -100,7 +100,7 @@ describe("requestDaemonShutdown", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(requestDaemonShutdown(client, 3000)).rejects.toThrow("not acknowledged");
+      await expect(requestDaemonShutdown(client, 500)).rejects.toThrow("not acknowledged");
       client.close();
     } finally {
       await server.close();
@@ -114,7 +114,7 @@ describe("fetchSkillsCatalog", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const skills = await fetchSkillsCatalog(client, 3000);
+      const skills = await fetchSkillsCatalog(client, 500);
       expect(skills).toHaveLength(2);
       expect(skills[0]!.name).toBe("research");
       client.close();
@@ -168,7 +168,7 @@ describe("fetchSkillsCatalog", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const skills = await fetchSkillsCatalog(client, 3000);
+      const skills = await fetchSkillsCatalog(client, 500);
       expect(skills).toHaveLength(0);
       client.close();
     } finally {
@@ -183,7 +183,7 @@ describe("fetchConfigSection", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      const config = await fetchConfigSection(client, "providers", 3000);
+      const config = await fetchConfigSection(client, "providers", 500);
       expect(config.key).toBe("value");
       client.close();
     } finally {

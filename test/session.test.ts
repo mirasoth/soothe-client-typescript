@@ -46,7 +46,7 @@ describe("waitDaemonReady", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await expect(waitDaemonReady(client, 3000)).resolves.toBeUndefined();
+      await expect(waitDaemonReady(client, 500)).resolves.toBeUndefined();
       client.close();
     } finally {
       await server.close();
@@ -83,7 +83,7 @@ describe("waitLoopStatusWithID", () => {
       await client.connect();
       // Send loop_input notification; the handler emits a status frame.
       await client.sendInput("test", { loopID: "test-loop-123" });
-      const status = await waitLoopStatusWithID(client, 3000);
+      const status = await waitLoopStatusWithID(client, 500);
       expect(status.loop_id).toBe("test-loop-123");
       client.close();
     } finally {
@@ -138,7 +138,7 @@ describe("waitLoopStatusWithID", () => {
       const client = new Client(server.url);
       await client.connect();
       await client.sendInput("test", { loopID: "test-loop" });
-      await expect(waitLoopStatusWithID(client, 3000)).rejects.toThrow("daemon error");
+      await expect(waitLoopStatusWithID(client, 500)).rejects.toThrow("daemon error");
       client.close();
     } finally {
       await server.close();
@@ -152,9 +152,9 @@ describe("waitSubscriptionConfirmed", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.subscribe("loop_events", { loop_id: "loop-abc", verbosity: "normal" }, 3000);
+      await client.subscribe("loop_events", { loop_id: "loop-abc", verbosity: "normal" }, 500);
       await expect(
-        waitSubscriptionConfirmed(client, "loop-abc", "normal", 3000),
+        waitSubscriptionConfirmed(client, "loop-abc", "normal", 500),
       ).resolves.toBeUndefined();
       client.close();
     } finally {
@@ -167,7 +167,7 @@ describe("waitSubscriptionConfirmed", () => {
     try {
       const client = new Client(server.url);
       await client.connect();
-      await client.subscribe("loop_events", { loop_id: "different", verbosity: "normal" }, 3000);
+      await client.subscribe("loop_events", { loop_id: "different", verbosity: "normal" }, 500);
       await expect(waitSubscriptionConfirmed(client, "loop-abc", "normal", 500)).rejects.toThrow(
         "timeout",
       );
