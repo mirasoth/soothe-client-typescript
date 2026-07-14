@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OpenSoothe/soothe-client-typescript.git"
+    "url": "git+https://github.com/mirasoth/soothe-client-typescript.git"
   },
   "keywords": ["soothe", "websocket", "client", "daemon", "typescript"],
   "author": "OpenSoothe",
