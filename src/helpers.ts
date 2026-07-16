@@ -128,3 +128,102 @@ export async function refreshAuthToken(
     timeout ?? 15_000,
   );
 }
+
+/** Fetch bound display-card snapshot for a loop. */
+export async function fetchLoopCards(
+  client: Client,
+  loopID: string,
+  timeout?: number,
+): Promise<Record<string, unknown>> {
+  return client.fetchLoopCards(loopID, timeout);
+}
+
+/** Fetch persisted conversation/activity rows for a loop. */
+export async function fetchLoopMessages(
+  client: Client,
+  loopID: string,
+  opts?: { limit?: number; offset?: number; includeEvents?: boolean; timeout?: number },
+): Promise<Record<string, unknown>> {
+  return client.getLoopMessages(
+    loopID,
+    opts?.limit,
+    opts?.offset,
+    opts?.includeEvents,
+    opts?.timeout,
+  );
+}
+
+/**
+ * Connect, handshake, and yield a ready Client. Always closes in finally.
+ */
+export async function connectedWebsocket<T>(
+  wsUrl: string,
+  fn: (client: Client) => Promise<T>,
+  timeoutMs = 30_000,
+): Promise<T> {
+  const { Client } = await import("./client.js");
+  const client = new Client(wsUrl, defaultConfig());
+  const deadline = Date.now() + timeoutMs;
+  try {
+    await client.connect();
+    while (!client.isConnected() && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 25));
+    }
+    if (!client.isConnected()) {
+      throw new Error("Timed out waiting for daemon handshake");
+    }
+    return await fn(client);
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * One-shot protocol-1 RPC / notify / subscribe with dict-style error contract.
+ * Callers check `if ("error" in response)`.
+ */
+export async function protocol1Rpc(
+  wsUrl: string,
+  method: string,
+  params: Record<string, unknown> | null = null,
+  opts: { mode?: "request" | "notify" | "subscribe"; timeoutMs?: number } = {},
+): Promise<Record<string, unknown>> {
+  const mode = opts.mode ?? "request";
+  const timeoutMs = opts.timeoutMs ?? 30_000;
+  try {
+    return await connectedWebsocket(
+      wsUrl,
+      async client => {
+        if (mode === "notify") {
+          await client.notify(method as import("./protocol.js").MethodName, params ?? {});
+          return {};
+        }
+        if (mode === "subscribe") {
+          const subId = await client.subscribe(
+            method as "loop_events" | "autopilot_events",
+            params ?? {},
+            timeoutMs,
+          );
+          return { subscription_id: subId };
+        }
+        const result = await client.requestResponse(
+          method as import("./protocol.js").MethodName,
+          params ?? {},
+          method,
+          timeoutMs,
+        );
+        return result && typeof result === "object" ? result : { result };
+      },
+      timeoutMs,
+    );
+  } catch (exc) {
+    const msg = exc instanceof Error ? exc.message : String(exc);
+    if (msg.toLowerCase().includes("timed out") || msg.toLowerCase().includes("timeout")) {
+      return { error: "Timed out waiting for daemon response" };
+    }
+    if (msg.toLowerCase().includes("connect") || msg.toLowerCase().includes("dial")) {
+      return { error: `Connection error: ${msg}` };
+    }
+    return { error: msg };
+  }
+}

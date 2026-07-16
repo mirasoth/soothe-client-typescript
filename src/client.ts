@@ -14,6 +14,7 @@ import { DaemonError, DisconnectCause, ReconnectError, StaleLoopError } from "./
 import { Multiplexer } from "./multiplexer.js";
 import type { LoopInputIntentHint } from "./intent_hints.js";
 import { validateLoopInputIntentHint } from "./intent_hints.js";
+import { stalePendingFrameLabel } from "./stream_terminal.js";
 import {
   CLIENT_VERSION,
   DEFAULT_CLIENT_CAPABILITIES,
@@ -570,6 +571,32 @@ export class Client extends EventEmitter {
 
       this.resolvers.push(resolver);
     });
+  }
+
+  /**
+   * Remove stale handshake/terminal frames left in `messageBuffer` before a turn.
+   * Returns labels of removed frames (in order).
+   */
+  peelStalePendingControlEvents(): string[] {
+    if (this.messageBuffer.length === 0) return [];
+    const kept: DecodedMessage[] = [];
+    const removed: string[] = [];
+    while (this.messageBuffer.length > 0) {
+      const event = this.messageBuffer.shift()! as Record<string, unknown>;
+      const label = stalePendingFrameLabel(event);
+      if (label !== null) {
+        removed.push(label);
+        continue;
+      }
+      kept.push(event as DecodedMessage);
+    }
+    this.messageBuffer = kept;
+    return removed;
+  }
+
+  /** True when the underlying socket is still open (may not be handshaked). */
+  isConnectionAlive(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
   // ---------------------------------------------------------------------------

@@ -6,13 +6,16 @@ import { DisconnectCause } from "../src/errors.js";
 import {
   ChatEventTerminal,
   ConnectionPool,
+  ErrIdleTimeout,
   ErrPoolExhausted,
   ErrQueryBusy,
   ErrQueryTimeout,
   EventClassifier,
   QueryGate,
   SSEBroadcaster,
+  TimeoutPolicy,
   TurnRunner,
+  idleTimeoutForTurn,
   inputMessageForLoop,
   type ManagedClient,
   type SessionEntry,
@@ -75,6 +78,10 @@ class FakeClient implements ManagedClient {
   sendCapture: Record<string, unknown>[] = [];
   reattachErr: Error | null = null;
   connectErr: Error | null = null;
+  /** When true, the event stream ends after scripted events (for stream-close tests). */
+  endAfterScript = false;
+  /** Delay (ms) before each scripted event. */
+  eventDelayMs = 0;
 
   constructor(events: unknown[] = []) {
     this.scripted = events;
@@ -98,12 +105,14 @@ class FakeClient implements ManagedClient {
   async sendInput(): Promise<void> {}
   receiveMessages(_signal?: AbortSignal): AsyncGenerator<DecodedMessage> {
     const scripted = this.scripted;
+    const endAfter = this.endAfterScript;
+    const delayMs = this.eventDelayMs;
     return (async function* (): AsyncGenerator<DecodedMessage> {
       for (const ev of scripted) {
+        if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
         yield ev as DecodedMessage;
       }
-      // Hold the generator open until aborted; the deliverable event ends the
-      // turn first.
+      if (endAfter) return;
       await new Promise<void>(() => {});
     })();
   }
@@ -120,7 +129,6 @@ class FakeClient implements ManagedClient {
     this.closed = true;
     this.connected = false;
   }
-  /** Test helper: simulate a drop. */
   fireDisconnect(cause: DisconnectCause): void {
     this.disconnFired = true;
     this.cause = cause;
@@ -395,6 +403,96 @@ describe("TurnRunner", () => {
     const msgs = store.messages("s1");
     expect(msgs.length).toBeGreaterThan(0);
     expect(msgs[0].role).toBe("error");
+  });
+
+  it("idle timeout fails when silent", async () => {
+    const store = new MemStore();
+    const fake = new FakeClient([streamingChunkNext("partial content here")]);
+    const pool = newTestPool(store, fake);
+    const tr = new TurnRunner(pool, new QueryGate(), triarchClassifier(), store, null, {
+      queryTimeout: 5_000,
+      idleTimeout: 40,
+    });
+    await expect(tr.execute("s1", "idle", "user-1", "ws-1", null, null)).rejects.toBeInstanceOf(
+      ErrIdleTimeout,
+    );
+  });
+
+  it("idle soft-complete persists accumulated content", async () => {
+    const store = new MemStore();
+    const fake = new FakeClient([streamingChunkNext("This is substantive soft-complete text.")]);
+    const pool = newTestPool(store, fake);
+    const tr = new TurnRunner(pool, new QueryGate(), triarchClassifier(), store, null, {
+      queryTimeout: 5_000,
+      idleTimeout: 40,
+      onIdleTimeout: TimeoutPolicy.SoftComplete,
+    });
+    await tr.execute("s1", "idle-soft", "user-1", "ws-1", null, null);
+    const msgs = store.messages("s1");
+    expect(msgs.some(m => m.role === "assistant")).toBe(true);
+    expect(msgs.find(m => m.role === "assistant")?.metadata?.completion_event).toBe("idle_timeout");
+  });
+
+  it("stream-close soft-complete", async () => {
+    const store = new MemStore();
+    const fake = new FakeClient([streamingChunkNext("Closed stream soft complete content.")]);
+    fake.endAfterScript = true;
+    const pool = newTestPool(store, fake);
+    const tr = new TurnRunner(pool, new QueryGate(), triarchClassifier(), store, null, {
+      queryTimeout: 5_000,
+      onStreamClose: TimeoutPolicy.SoftComplete,
+    });
+    await tr.execute("s1", "close-soft", "user-1", "ws-1", null, null);
+    expect(store.messages("s1").some(m => m.role === "assistant")).toBe(true);
+  });
+
+  it("idleTimeoutForTurn applies attachment floor", () => {
+    expect(
+      idleTimeoutForTurn(
+        { queryTimeout: 1000, idleTimeout: 20, minIdleTimeoutWithAttachments: 70 },
+        true,
+      ),
+    ).toBe(70);
+    expect(
+      idleTimeoutForTurn(
+        { queryTimeout: 1000, idleTimeout: 30, minIdleTimeoutWithAttachments: 90 },
+        false,
+      ),
+    ).toBe(30);
+  });
+});
+
+describe("EventClassifier status idle", () => {
+  it("opt-in status idle after content → DeliverableComplete", () => {
+    const cl = new EventClassifier({
+      deliverablePhases: DEFAULT_DELIVERABLE_PHASES,
+      treatStatusIdleAsComplete: true,
+      minDeliverableRunes: 8,
+    });
+    const r = cl.classify(
+      { type: "status", state: "idle", loop_id: "loop-1" },
+      "This is a substantive assistant reply.",
+    );
+    expect(r.terminal).toBe(ChatEventTerminal.DeliverableComplete);
+    expect(r.completionEvent).toBe("status.idle");
+  });
+
+  it("status idle with no content is ignored even when opt-in", () => {
+    const cl = new EventClassifier({
+      deliverablePhases: DEFAULT_DELIVERABLE_PHASES,
+      treatStatusIdleAsComplete: true,
+    });
+    const r = cl.classify({ type: "status", state: "idle" }, "");
+    expect(r.terminal).toBe(ChatEventTerminal.Continue);
+  });
+
+  it("default config must not complete on status idle", () => {
+    const cl = triarchClassifier();
+    const r = cl.classify(
+      { type: "status", state: "idle" },
+      "This is a substantive assistant reply.",
+    );
+    expect(r.terminal).toBe(ChatEventTerminal.Continue);
   });
 });
 

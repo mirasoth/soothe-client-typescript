@@ -11,13 +11,9 @@
  *
  *   - Layer 0 — the core Client (transport/lifecycle, concurrent multiplexing).
  *   - Layer 1 — this package: ConnectionPool, QueryGate, TurnRunner,
- *     EventClassifier, SSEBroadcaster, SessionStore.
+ *     EventClassifier, SSEBroadcaster, SessionStore, DaemonSession.
  *   - Layer 2 — the application: domain types, persistence implementation,
  *     product config, user-facing copy.
- *
- * Applications construct a TurnRunner from a ConnectionPool, QueryGate,
- * EventClassifier, SessionStore, and SSEBroadcaster, then call execute() per
- * query turn.
  */
 
 // Persistence seam.
@@ -54,14 +50,42 @@ export {
   defaultClientFactory,
 } from "./client.js";
 
+// Attachments.
+export {
+  compactAttachments,
+  compactImageAttachment,
+  type CompactImageOptions,
+} from "./attachments.js";
+
 // Turn execution.
 export {
+  ErrIdleTimeout,
   ErrQueryTimeout,
+  StreamCloseFail,
+  StreamCloseSoftComplete,
+  TimeoutPolicy,
   TurnRunner,
+  idleTimeoutForTurn,
+  inputMessageForLoop,
   type Attachment,
   type InputOpts,
   type OnComplete,
   type OnError,
+  type StreamClosePolicy,
   type TurnConfig,
-  inputMessageForLoop,
 } from "./turn_runner.js";
+
+// DaemonSession (dual-socket TUI/CLI surface).
+export {
+  DEFAULT_POST_IDLE_DRAIN_MS,
+  DaemonSession,
+  type DaemonSessionOptions,
+  type EarlyDropFn,
+  type StatsFactory,
+  type StreamDeliveryResolver,
+  type TurnChunk,
+} from "./daemon_session.js";
+
+export { shouldDropStreamChunkEarly } from "./chunk_filter.js";
+export { isLoopScopedEvent, unwrapNext } from "./events.js";
+export { TurnEventStats } from "./observability.js";

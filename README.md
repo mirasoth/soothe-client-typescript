@@ -2,22 +2,21 @@
 
 TypeScript WebSocket client for the [Soothe](https://github.com/mirasoth/soothe) daemon.
 
-Provides a typed message protocol, session bootstrap, event helpers, and convenience RPCs for
-interacting with a running `soothe-daemon` from Node.js.
+Provides a typed protocol-1 message stack, session bootstrap, reconnect/reattach,
+appkit (connection pool, turn runner, event classifier), and a dual-socket
+`DaemonSession` for streamed turns — matching the production Go and Python clients.
 
 ## Install
 
 ```bash
 npm install @mirasoth/soothe-client
-# or
-pnpm add @mirasoth/soothe-client
-# or
-yarn add @mirasoth/soothe-client
+# optional: real image downscale for CompactAttachmentsBeforeSend
+npm install sharp
 ```
 
 Requires Node.js `>=19`.
 
-## Quick start
+## Quick start (Client)
 
 ```ts
 import { Client, bootstrapLoopSession, defaultConfig } from '@mirasoth/soothe-client';
@@ -28,55 +27,76 @@ const client = new Client(config.daemonURL, config);
 await client.connect();
 const loopId = await bootstrapLoopSession(client, null, config);
 
-client.on('message', (msg) => {
-  console.log('event:', msg);
-});
-
-await client.sendMessage({
-  type: 'loop_input',
-  loop_id: loopId,
-  input: 'hello soothe',
-});
+await client.sendInput('hello soothe', { loopID: loopId });
 ```
+
+## DaemonSession (streamed turns)
+
+```ts
+import { DaemonSession } from '@mirasoth/soothe-client';
+
+const session = new DaemonSession('ws://localhost:8765');
+await session.connect();
+await session.sendTurn('summarize this repo');
+
+for await (const [namespace, mode, data] of session.iterTurnChunks()) {
+  console.log(mode, data);
+}
+
+await session.close();
+```
+
+`iterTurnChunks` peels leftover prior-goal terminals at turn start, ignores
+premature `soothe.stream.end` until the turn has real progress, and drains a
+short post-idle window before returning.
+
+## Appkit TurnRunner
+
+Product backends that pool connections per chat session use `ConnectionPool` +
+`QueryGate` + `TurnRunner` + `EventClassifier` (RFC-629 Layer 1).
+
+Lifecycle knobs (all opt-in; defaults match historical fail-on-timeout behaviour):
+
+| Knob | Default | Notes |
+|------|---------|--------|
+| `idleTimeout` | off (`0`) | Silence watchdog between events (ms) |
+| `minIdleTimeoutWithAttachments` | off | Floor when attachments are present |
+| `onIdleTimeout` / `onQueryTimeout` / `onStreamClose` | `Fail` | Or `SoftComplete` |
+| `compactAttachmentsBeforeSend` | `false` | Needs optional `sharp` for real downscale |
+| `treatStatusIdleAsComplete` (classifier) | `false` | Opt-in idle deliverable |
 
 ## Configuration
 
-`defaultConfig()` returns a `Config` object with sensible defaults. `loadConfigFromEnv()` reads
-overrides from these environment variables:
+`defaultConfig()` / `loadConfigFromEnv()`:
 
-| Variable                              | Default                  | Description                              |
-| ------------------------------------- | ------------------------ | ---------------------------------------- |
-| `SOOTHE_DAEMON_URL`                   | `ws://localhost:8765`    | Daemon WebSocket URL                     |
-| `SOOTHE_VERBOSITY`                    | `normal`                 | `quiet` \| `minimal` \| `normal` \| `detailed` \| `debug` |
-| `SOOTHE_MAX_RETRIES`                  | `5`                      | Reconnect attempts                       |
-| `SOOTHE_DAEMON_READY_TIMEOUT_SEC`     | `20`                     | Daemon-ready handshake timeout (seconds) |
-| `SOOTHE_LOOP_STATUS_TIMEOUT_SEC`      | `60`                     | Loop status wait timeout (seconds)       |
-| `SOOTHE_SUBSCRIPTION_TIMEOUT_SEC`     | `10`                     | Subscription confirmation timeout (seconds) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SOOTHE_DAEMON_URL` | `ws://localhost:8765` | Daemon WebSocket URL |
+| `SOOTHE_VERBOSITY` | `normal` | quiet / minimal / normal / detailed / debug |
+| `SOOTHE_MAX_RETRIES` | `5` | Reconnect attempts |
+| `SOOTHE_DAEMON_READY_TIMEOUT_SEC` | `20` | Handshake timeout |
+| `SOOTHE_LOOP_STATUS_TIMEOUT_SEC` | `60` | Loop status wait |
+| `SOOTHE_SUBSCRIPTION_TIMEOUT_SEC` | `10` | Subscription confirmation |
 
 ## API surface
 
-- **`Client`** — WebSocket session, message I/O, request/response, RPC helpers
-- **`bootstrapLoopSession`**, **`waitDaemonReady`**, **`connectWithRetries`** — session helpers
-- **`checkDaemonStatus`**, **`fetchSkillsCatalog`**, **`fetchConfigSection`** — daemon RPCs
-- **`encodeMessage` / `decodeMessage`** — protocol codec
-- **`Event*` classes** — typed event payloads (plan, explore, tacitus, tool, agent-loop)
-- **`VerbosityTier`**, **`classifyEventVerbosity`** — verbosity filtering
-- **Errors** — `ConnectionError`, `DaemonError`, `TimeoutError`
+- **`Client`** — WebSocket session, RPC, reconnect/reattach, peel stale pending frames
+- **`DaemonSession`** — dual-socket loop session + `iterTurnChunks`
+- **`TurnRunner` / `ConnectionPool` / `QueryGate` / `EventClassifier` / `SSEBroadcaster`** — appkit
+- **`connectedWebsocket` / `protocol1Rpc`** — oneshot CLI-style helpers
+- **`bootstrapLoopSession`**, **`connectWithRetries`** — session helpers
 
-See `dist/index.d.ts` (published) or `src/index.ts` (source) for the full export list.
+See `dist/index.d.ts` or `src/index.ts` for the full export list.
 
 ## Development
 
 ```bash
-make help        # list all targets
+make help        # list targets
 make install     # install dependencies
 make build       # compile to dist/
-make test        # run unit tests
+make test        # unit tests
 make verify      # full pre-publish verification
-make publish     # publish to npm (after verify)
 ```
-
-See [`Makefile`](./Makefile) for the complete list of targets.
 
 ## License
 

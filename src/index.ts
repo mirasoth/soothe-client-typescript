@@ -148,8 +148,12 @@ export {
   fetchSkillsCatalog,
   fetchConfigSection,
   fetchLoopHistory,
+  fetchLoopCards,
+  fetchLoopMessages,
   authenticate,
   refreshAuthToken,
+  connectedWebsocket,
+  protocol1Rpc,
 } from "./helpers.js";
 
 // Session
@@ -160,6 +164,16 @@ export {
   waitSubscriptionConfirmed,
   connectWithRetries,
 } from "./session.js";
+
+// Stream terminal helpers
+export {
+  STREAM_END,
+  STALE_TURN_PENDING_TYPES,
+  TURN_END_CUSTOM_TYPES,
+  isTurnEndCustomData,
+  isTurnProgressChunk,
+  stalePendingFrameLabel,
+} from "./stream_terminal.js";
 
 // appkit (RFC-629 Layer 1)
 export * from "./appkit/index.js";

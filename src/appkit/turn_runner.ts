@@ -5,7 +5,8 @@
  * single-flight, send loop_input, consume the event stream, classify events,
  * resolve the deliverable, persist the reply, and broadcast completion.
  *
- * The app-agnostic successor to triarch's ExecuteQuery.
+ * Supports IG-651 / SIL-04 lifecycle knobs: idle timeout, soft-complete
+ * policies, attachment compaction, and stream-close soft-complete.
  */
 
 import type { PooledConn } from "./pool.js";
@@ -17,8 +18,9 @@ import type { SessionStore, SessionMessage } from "./session_store.js";
 import type { LoopInputIntentHint } from "../intent_hints.js";
 import { validateLoopInputIntentHint } from "../intent_hints.js";
 import type { DecodedMessage } from "../protocol.js";
+import { compactAttachments, type CompactImageOptions } from "./attachments.js";
 
-/** Returned when a turn exceeds the configured timeout. */
+/** Returned when a turn exceeds the configured timeout and policy is Fail. */
 export class ErrQueryTimeout extends Error {
   constructor() {
     super("appkit: query timeout");
@@ -26,10 +28,45 @@ export class ErrQueryTimeout extends Error {
   }
 }
 
+/** Returned when no events arrive within IdleTimeout and policy is Fail. */
+export class ErrIdleTimeout extends Error {
+  constructor() {
+    super("appkit: idle timeout");
+    this.name = "ErrIdleTimeout";
+  }
+}
+
+/** Selects fail vs soft-complete behaviour for idle, query, and stream-close. */
+export enum TimeoutPolicy {
+  Fail = 0,
+  SoftComplete = 1,
+}
+
+export type StreamClosePolicy = TimeoutPolicy;
+export const StreamCloseFail = TimeoutPolicy.Fail;
+export const StreamCloseSoftComplete = TimeoutPolicy.SoftComplete;
+
 /** Configures a TurnRunner. */
 export interface TurnConfig {
   /** Per-turn deadline in ms. Defaults to 30m. */
   queryTimeout: number;
+  /** Max silence between classified events in ms. Zero disables (default). */
+  idleTimeout?: number;
+  /**
+   * When > 0, raises idleTimeout for turns with attachments if idleTimeout
+   * is positive but below this floor.
+   */
+  minIdleTimeoutWithAttachments?: number;
+  /** Fail vs soft-complete when the idle watchdog fires. Default Fail. */
+  onIdleTimeout?: TimeoutPolicy;
+  /** Fail vs soft-complete when queryTimeout fires. Default Fail. */
+  onQueryTimeout?: TimeoutPolicy;
+  /** Fail vs soft-complete when the event stream closes. Default Fail. */
+  onStreamClose?: StreamClosePolicy;
+  /** Run compactAttachments before buildInput. Default false. */
+  compactAttachmentsBeforeSend?: boolean;
+  /** Overrides for compactAttachmentsBeforeSend. */
+  compactImageOpts?: CompactImageOptions | null;
 }
 
 /** Carries optional daemon hints on a loop_input payload. */
@@ -41,7 +78,7 @@ export interface InputOpts {
   responseSchemaStrict?: boolean;
 }
 
-/** Optional attachment shape (IG-327: {mime_type, data(base64)}). */
+/** Optional attachment shape ({mime_type, data(base64)}). */
 export type Attachment = Record<string, unknown>;
 
 /**
@@ -76,6 +113,15 @@ export function inputMessageForLoop(
   return msg;
 }
 
+/** Effective idle timeout for a turn (attachment floor applied). */
+export function idleTimeoutForTurn(cfg: TurnConfig, hasAttachments: boolean): number {
+  const idle = cfg.idleTimeout ?? 0;
+  if (idle <= 0) return 0;
+  const floor = cfg.minIdleTimeoutWithAttachments ?? 0;
+  if (hasAttachments && floor > 0 && idle < floor) return floor;
+  return idle;
+}
+
 /** Completion hook signature. */
 export type OnComplete = (
   sessionID: string,
@@ -101,10 +147,6 @@ export class TurnRunner {
   private onComplete: OnComplete | null = null;
   private onError: OnError | null = null;
 
-  /**
-   * Constructs a TurnRunner. pool, gate, classifier, and store are required;
-   * broadcaster may be null.
-   */
   constructor(
     pool: ConnectionPool,
     gate: QueryGate,
@@ -118,33 +160,27 @@ export class TurnRunner {
     this.classifier = classifier;
     this.store = store;
     this.broadcaster = broadcaster;
-    this.cfg = { queryTimeout: cfg.queryTimeout > 0 ? cfg.queryTimeout : 30 * 60 * 1000 };
+    this.cfg = {
+      ...cfg,
+      queryTimeout: cfg.queryTimeout > 0 ? cfg.queryTimeout : 30 * 60 * 1000,
+    };
   }
 
-  /** Overrides the loop_input payload builder. */
   withInputBuilder(f: typeof inputMessageForLoop): TurnRunner {
     if (f) this.buildInput = f;
     return this;
   }
 
-  /** Sets a completion hook (runs inline on success). */
   withOnComplete(f: OnComplete): TurnRunner {
     this.onComplete = f;
     return this;
   }
 
-  /** Sets an error hook (runs inline on failure). */
   withOnError(f: OnError): TurnRunner {
     this.onError = f;
     return this;
   }
 
-  /**
-   * Runs one query turn. The response is broadcast via the SSE broadcaster and
-   * persisted via the SessionStore; it is not returned to the caller (SSE
-   * subscribers receive it). Resolves on success; rejects on failure
-   * (ErrQueryTimeout, AbortError, or a daemon/processing error).
-   */
   async execute(
     sessionID: string,
     message: string,
@@ -169,7 +205,6 @@ export class TurnRunner {
     const timeoutMs = this.cfg.queryTimeout;
     const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
 
-    // Build the daemon-cancel sender for this loop; register with the gate.
     const sendCancel = async (detachedSignal: AbortSignal) => {
       await this.sendLoopCancel(detachedSignal, conn, loopID);
     };
@@ -184,14 +219,21 @@ export class TurnRunner {
       throw err;
     }
 
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearIdle = () => {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+        idleTimer = null;
+      }
+    };
+
     try {
-      // Send loop_input.
-      const inputMsg = this.buildInput(
-        message,
-        loopID,
-        attachments ?? undefined,
-        opts ?? undefined,
-      );
+      let atts = attachments ?? undefined;
+      if (this.cfg.compactAttachmentsBeforeSend && atts && atts.length > 0) {
+        atts = await compactAttachments(atts, this.cfg.compactImageOpts);
+      }
+
+      const inputMsg = this.buildInput(message, loopID, atts, opts ?? undefined);
       try {
         await conn.client.sendMessage(inputMsg);
       } catch (err) {
@@ -212,11 +254,28 @@ export class TurnRunner {
 
       let assistantContent = "";
       const startedAt = Date.now();
+      const idleForTurn = idleTimeoutForTurn(this.cfg, (attachments?.length ?? 0) > 0);
 
-      // A promise that resolves when the per-turn timeout OR the caller's
-      // abort signal fires, so the stream-wait loop can race against it
-      // instead of blocking forever on a stalled stream.
-      const abortRace = new Promise<"timeout" | "caller">(resolve => {
+      type RaceTag = "timeout" | "caller" | "idle";
+      let idleReject: (() => void) | null = null;
+
+      const armIdle = (): Promise<"idle"> => {
+        clearIdle();
+        idleReject = null;
+        if (idleForTurn <= 0) {
+          return new Promise<"idle">(() => {});
+        }
+        return new Promise<"idle">(resolve => {
+          idleReject = () => resolve("idle");
+          idleTimer = setTimeout(() => {
+            idleReject?.();
+          }, idleForTurn);
+        });
+      };
+
+      let idleRace = armIdle();
+
+      const abortRace = new Promise<RaceTag>(resolve => {
         const onTimeout = () => resolve("timeout");
         timeoutController.signal.addEventListener("abort", onTimeout, { once: true });
         if (signal) {
@@ -232,37 +291,75 @@ export class TurnRunner {
         const raced = await Promise.race([
           next.then(res => ({ tag: "msg" as const, res })),
           abortRace.then(tag => ({ tag })),
+          idleRace.then(tag => ({ tag })),
         ]);
 
         if ("tag" in raced && raced.tag !== "msg") {
           if (raced.tag === "caller" || signal?.aborted) {
+            clearIdle();
             const err = new Error("aborted");
             await this.persistFailed(sessionID, loopID, err);
             this.broadcastError(sessionID, err);
             this.onError?.(sessionID, loopID, err);
             throw err;
           }
-          // Timeout: tell the daemon to stop, then persist/broadcast.
+          if (raced.tag === "idle") {
+            clearIdle();
+            await this.sendLoopCancel(new AbortController().signal, conn, loopID).catch(() => {});
+            await this.finishTimeout(
+              sessionID,
+              loopID,
+              assistantContent,
+              startedAt,
+              new ErrIdleTimeout(),
+              "idle_timeout",
+              this.cfg.onIdleTimeout ?? TimeoutPolicy.Fail,
+            );
+            return;
+          }
+          clearIdle();
           await this.sendLoopCancel(new AbortController().signal, conn, loopID).catch(() => {});
-          await this.persistFailed(sessionID, loopID, new ErrQueryTimeout());
-          this.broadcastError(sessionID, new ErrQueryTimeout());
-          this.onError?.(sessionID, loopID, new ErrQueryTimeout());
-          throw new ErrQueryTimeout();
+          await this.finishTimeout(
+            sessionID,
+            loopID,
+            assistantContent,
+            startedAt,
+            new ErrQueryTimeout(),
+            "query_timeout",
+            this.cfg.onQueryTimeout ?? TimeoutPolicy.Fail,
+          );
+          return;
         }
 
         const res = (raced as { tag: "msg"; res: IteratorResult<DecodedMessage> }).res;
         if (res.done) {
-          // Stream ended without a deliverable — treat as failure.
+          clearIdle();
+          if (
+            (this.cfg.onStreamClose ?? TimeoutPolicy.Fail) === TimeoutPolicy.SoftComplete &&
+            assistantContent.trim() !== ""
+          ) {
+            await this.completeTurn(
+              sessionID,
+              loopID,
+              assistantContent,
+              startedAt,
+              "stream_closed",
+            );
+            return;
+          }
           const err = new Error("event stream closed");
           await this.persistFailed(sessionID, loopID, err);
           this.broadcastError(sessionID, err);
           this.onError?.(sessionID, loopID, err);
           throw err;
         }
+
+        idleRace = armIdle();
         const msg = res.value;
 
         const eventResult = this.classifier.classify(msg, assistantContent);
         if (eventResult.err && eventResult.terminal === ChatEventTerminal.FailedComplete) {
+          clearIdle();
           await this.persistFailed(sessionID, loopID, eventResult.err);
           this.broadcastError(sessionID, eventResult.err);
           this.onError?.(sessionID, loopID, eventResult.err);
@@ -285,26 +382,56 @@ export class TurnRunner {
           assistantContent,
         );
         if (deliverable) {
-          const elapsedMs = Date.now() - startedAt;
-          await this.persistResponse(
+          clearIdle();
+          await this.completeTurn(
             sessionID,
             loopID,
             final,
             startedAt,
             eventResult.completionEvent ?? "",
           );
-          this.broadcastComplete(sessionID, final);
-          this.onComplete?.(sessionID, loopID, final, eventResult.completionEvent ?? "", elapsedMs);
           return;
         }
       }
     } finally {
+      clearIdle();
       clearTimeout(timer);
       this.gate.release(sessionID);
     }
   }
 
-  /** Asks the daemon to cooperatively stop the loop runner on a detached signal. */
+  private async finishTimeout(
+    sessionID: string,
+    loopID: string,
+    content: string,
+    startedAt: number,
+    failErr: Error,
+    completionEvent: string,
+    policy: TimeoutPolicy,
+  ): Promise<void> {
+    if (policy === TimeoutPolicy.SoftComplete && content.trim() !== "") {
+      await this.completeTurn(sessionID, loopID, content, startedAt, completionEvent);
+      return;
+    }
+    await this.persistFailed(sessionID, loopID, failErr);
+    this.broadcastError(sessionID, failErr);
+    this.onError?.(sessionID, loopID, failErr);
+    throw failErr;
+  }
+
+  private async completeTurn(
+    sessionID: string,
+    loopID: string,
+    final: string,
+    startedAt: number,
+    completionEvent: string,
+  ): Promise<void> {
+    const elapsedMs = Date.now() - startedAt;
+    await this.persistResponse(sessionID, loopID, final, startedAt, completionEvent);
+    this.broadcastComplete(sessionID, final);
+    this.onComplete?.(sessionID, loopID, final, completionEvent, elapsedMs);
+  }
+
   private async sendLoopCancel(
     _signal: AbortSignal,
     conn: PooledConn,

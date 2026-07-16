@@ -1,6 +1,6 @@
 {
   "name": "@mirasoth/soothe-client",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "WebSocket client in TypeScript for soothe-daemon",
   "publishConfig": {
     "access": "public"
@@ -56,6 +56,9 @@
   },
   "dependencies": {
     "ws": "^8.20.0"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.34.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

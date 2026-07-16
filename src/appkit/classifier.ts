@@ -55,6 +55,12 @@ export interface ClassifierConfig {
   minDeliverableRunes?: number;
   /** Optional app override of the default thinking-step event allowlist. */
   thinkingStepEvents?: ReadonlySet<string>;
+  /**
+   * When true, a status frame with state=idle and non-empty accumulated
+   * assistant text is DeliverableComplete (typical for direct-model turns).
+   * Default false keeps Continue-on-status behaviour.
+   */
+  treatStatusIdleAsComplete?: boolean;
 }
 
 /** Event type of the daemon's replay completion signal (internal). */
@@ -65,6 +71,7 @@ export class EventClassifier {
   private deliverablePhases: ReadonlySet<string>;
   private minDeliverableRunes: number;
   private thinkingStepEvents?: ReadonlySet<string>;
+  private treatStatusIdleAsComplete: boolean;
 
   constructor(cfg: ClassifierConfig) {
     if (!cfg.deliverablePhases) {
@@ -74,6 +81,7 @@ export class EventClassifier {
     this.minDeliverableRunes =
       cfg.minDeliverableRunes && cfg.minDeliverableRunes > 0 ? cfg.minDeliverableRunes : 8;
     this.thinkingStepEvents = cfg.thinkingStepEvents;
+    this.treatStatusIdleAsComplete = Boolean(cfg.treatStatusIdleAsComplete);
   }
 
   /**
@@ -92,6 +100,13 @@ export class EventClassifier {
    */
   isDeliverableCompletionEvent(eventType: string): boolean {
     if (!eventType) return false;
+    switch (eventType) {
+      case "status.idle":
+      case "idle_timeout":
+      case "query_timeout":
+      case "stream_closed":
+        return true;
+    }
     if (eventType === EventFinalReport) return true;
     if (eventType.startsWith("soothe.protocol.message.")) {
       const phase = eventType.slice("soothe.protocol.message.".length);
@@ -137,7 +152,7 @@ export class EventClassifier {
   }
 
   /** The event→outcome mapper, ported from triarch's ProcessChatEvent. */
-  private processChatEvent(msg: unknown, _accumulated: string): ChatEventResult {
+  private processChatEvent(msg: unknown, accumulated: string): ChatEventResult {
     if (!msg || typeof msg !== "object") {
       return { terminal: ChatEventTerminal.Continue };
     }
@@ -146,7 +161,7 @@ export class EventClassifier {
 
     // Protocol-1 `next` envelope: the daemon wraps legacy frames in payload.
     if (typ === "next") {
-      return this.classifyNextEnvelope(m);
+      return this.classifyNextEnvelope(m, accumulated);
     }
 
     // Protocol-1 RPC responses / subscription confirmations arrive as
@@ -156,9 +171,20 @@ export class EventClassifier {
       typ === "response" ||
       typ === "complete" ||
       typ === "receipt_response" ||
-      typ === "connection_ack" ||
-      typ === "status"
+      typ === "connection_ack"
     ) {
+      return { terminal: ChatEventTerminal.Continue };
+    }
+    if (typ === "status") {
+      if (
+        this.treatStatusIdleAsComplete &&
+        String(m.state ?? "")
+          .trim()
+          .toLowerCase() === "idle" &&
+        this.isSubstantiveAssistantReply(accumulated)
+      ) {
+        return this.deliverableResult(accumulated.trim(), "status.idle");
+      }
       return { terminal: ChatEventTerminal.Continue };
     }
     if (typ === "error") {
@@ -182,11 +208,15 @@ export class EventClassifier {
   }
 
   /** Classifies a `next` envelope by projecting its payload. */
-  private classifyNextEnvelope(env: Record<string, unknown>): ChatEventResult {
+  private classifyNextEnvelope(env: Record<string, unknown>, accumulated: string): ChatEventResult {
     const payload = (env.payload as Record<string, unknown> | undefined) ?? {};
     // The inner event frame lives in payload.data, with its own mode/data.
     const innerData = payload.data as Record<string, unknown> | undefined;
     if (innerData && typeof innerData === "object") {
+      const innerType = (innerData.type as string) ?? "";
+      if (innerType === "status") {
+        return this.processChatEvent(innerData, accumulated);
+      }
       const innerMode = (innerData.mode as string) ?? "";
       if (innerMode) {
         return this.classifyEventPayload(
@@ -198,6 +228,11 @@ export class EventClassifier {
     }
     // Fallback: payload itself carries mode/data directly.
     const mode = (payload.mode as string) ?? "";
+    if (mode === "status" || mode === "") {
+      if (typeof payload.state === "string" || (innerData && "state" in (innerData ?? {}))) {
+        return this.processChatEvent({ type: "status", ...(innerData ?? payload) }, accumulated);
+      }
+    }
     if (mode) {
       return this.classifyEventPayload((payload.namespace as unknown) ?? null, mode, payload.data);
     }
