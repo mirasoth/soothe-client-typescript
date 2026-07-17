@@ -22,7 +22,7 @@ export interface Config {
   /** After subscribe(method:"loop_events"): wait for confirmation in ms */
   subscriptionTimeout: number;
 
-  // Mid-session reconnect (RFC-450 §8.3 dead-connection detection).
+ // Mid-session reconnect.
   /** Max reconnection attempts on a mid-session drop (0 = infinite). */
   reconnectMaxAttempts: number;
   /** Initial backoff delay (ms) between reconnect attempts. */

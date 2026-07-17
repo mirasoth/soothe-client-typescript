@@ -1,5 +1,5 @@
 /**
- * Custom error types for the Soothe client (RFC-450 protocol-1).
+ * Custom error types for the Soothe client.
  */
 
 /** Represents a WebSocket connection failure. */
@@ -18,13 +18,13 @@ export class ConnectionError extends Error {
 }
 
 /**
- * Represents an error reported by the Soothe daemon (RFC-450 §7).
+ * Represents an error reported by the Soothe daemon.
  *
  * The daemon's structured error object carries a numeric `code` from the
  * reserved ranges, a human-readable `message`, and optional `data`.
  */
 export class DaemonError extends Error {
-  /** Numeric error code from the RFC-450 §7.3 registry. */
+  /** Numeric error code from the daemon error registry. */
   readonly code: number;
   /** The daemon's error message text. */
   readonly daemonMessage: string;
@@ -54,7 +54,7 @@ export class TimeoutError extends Error {
 }
 
 /**
- * Distinguishes clean vs unclean connection loss (RFC-450 §4, §8.3).
+ * Distinguishes clean vs unclean connection loss.
  *
  * A clean drop follows a `disconnect` notification (loops keep running
  * server-side); an unclean drop is a read/write error or a missed pong
@@ -62,9 +62,9 @@ export class TimeoutError extends Error {
  * event: the cause is emitted exactly once when the connection drops.
  */
 export enum DisconnectCause {
-  /** Abrupt loss: read/write error or missed pong (RFC-450 §8.3). */
+  /** Abrupt loss: read/write error or missed pong. */
   Unclean = 0,
-  /** Graceful peer-initiated `disconnect` notification (RFC-450 §9.2). */
+  /** Graceful peer-initiated `disconnect` notification. */
   Clean = 1,
 }
 

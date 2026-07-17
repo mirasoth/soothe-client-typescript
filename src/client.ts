@@ -1,5 +1,5 @@
 /**
- * Client manages a WebSocket session with the Soothe daemon (RFC-450 protocol-1).
+ * Client manages a WebSocket session with the Soothe daemon.
  *
  * After close(), a new Client must be created to reconnect. The connection
  * begins with a bidirectional connection_init/connection_ack handshake; no
@@ -82,7 +82,7 @@ export class Client extends EventEmitter {
   private inboundDroppedCount = 0;
   private onStreamDegraded: ((dropped: number, reason: string) => void) | null = null;
   private resolvers: Array<(value: DecodedMessage | null) => void> = [];
-  // Protocol-1 handshake state (RFC-450 §8.2)
+ // Protocol-1 handshake state
   private handshakeComplete = false;
   private negotiatedCapabilities: NegotiatedCapabilities = new Set();
   private protocolVersion: string | null = null;
@@ -90,12 +90,12 @@ export class Client extends EventEmitter {
   private heartbeatIntervalMs = 0;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private lastPongMonotonic = 0;
-  // Mid-session drop signal (RFC-450 §8.3). The 'disconnected' event is
+ // Mid-session drop signal. The 'disconnected' event is
   // emitted exactly once when the connection drops, carrying a DisconnectCause
   // that distinguishes clean (peer `disconnect`) from unclean (read/write
   // error or missed pong). `disconnFired` guards the once-only delivery.
   private disconnFired = false;
-  // Pending-request/subscription multiplexer (RFC-629 constraint #1). Routes
+ // Pending-request/subscription multiplexer. Routes
   // inbound frames by (type, id) instead of discarding non-matching events.
   private mux = new Multiplexer();
   private deliveryRecvSeq = new Map<string, number>();
@@ -172,7 +172,7 @@ export class Client extends EventEmitter {
           }
           if (msg === null) continue;
 
-          // Intercept heartbeat frames (RFC-450 §8.3).
+ // Intercept heartbeat frames.
           const m = msg as Record<string, unknown>;
           if (m.type === "ping") {
             this._sendRaw(pongEnvelope());
@@ -183,7 +183,7 @@ export class Client extends EventEmitter {
             continue;
           }
           // A `disconnect` notification is a clean peer-initiated drop
-          // (RFC-450 §9.2); loops keep running server-side.
+ //; loops keep running server-side.
           if (m.type === "disconnect") {
             this._signalDisconnect(DisconnectCause.Clean);
             // Still surface it to listeners (existing behavior) before close.
@@ -191,7 +191,7 @@ export class Client extends EventEmitter {
 
           // Route solicited frames (response/error/next/complete/receipt with
           // a matching pending multiplexer waiter) to their waiters; do not
-          // forward to the resolver queue (RFC-629 constraint #1).
+ // forward to the resolver queue.
           if (this.mux.route(m)) {
             this._trackInboundDeliveryAck(m);
             continue;
@@ -252,7 +252,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // Mid-session drop signal + reconnect/reattach (RFC-450 §8.3, RFC-629 L0)
+ // Mid-session drop signal + reconnect/reattach
   // ---------------------------------------------------------------------------
 
   /**
@@ -297,8 +297,8 @@ export class Client extends EventEmitter {
   }
 
   /**
-   * Re-dials the daemon and re-handshakes after a connection drop (RFC-450
-   * §8.3). Does not re-establish loop subscriptions; follow with
+   * Re-dials the daemon and re-handshakes after a connection drop.
+   * Does not re-establish loop subscriptions; follow with
    * `reattachAndProbe()` to resume a loop session. The caller should invoke
    * this after the `'disconnected'` event fires. Reuses the same Client,
    * resetting the drop signal and multiplexer.
@@ -336,7 +336,7 @@ export class Client extends EventEmitter {
    * Returns a `StaleLoopError` when the probe fails; callers should fall back
    * to a fresh `loop_new` bootstrap.
    *
-   * Per RFC-629: connection-level readiness is the handshake's readiness_state
+   * Note: connection-level readiness is the handshake's readiness_state
    * (+ daemon_status); loop_get is a loop-scoped probe only, not a readiness
    * probe.
    */
@@ -346,7 +346,7 @@ export class Client extends EventEmitter {
     }
     const lid = loopID.trim();
 
-    // 1. loop_reattach (RFC-450 §9.2): reconstruct event history and replay.
+ // 1. loop_reattach: reconstruct event history and replay.
     const reattachTimeout = this.config.loopStatusTimeout || 15_000;
     try {
       await this.requestResponse(
@@ -359,7 +359,7 @@ export class Client extends EventEmitter {
       throw new Error(`loop_reattach: ${(err as Error).message}`);
     }
 
-    // 2. Re-subscribe to the loop event stream (RFC-450 §9.4: subscribe +
+ // 2. Re-subscribe to the loop event stream (: subscribe +
     //    method:"loop_events"). Confirmation arrives as a `next` frame.
     const subTimeout = this.config.subscriptionTimeout || 10_000;
     try {
@@ -372,7 +372,7 @@ export class Client extends EventEmitter {
       throw new Error(`loop events subscription failed: ${(err as Error).message}`);
     }
 
-    // 3. loop_get liveness probe — side-effect-free read (RFC-450 §9.2).
+ // 3. loop_get liveness probe — side-effect-free read.
     //    A LOOP_NOT_FOUND (-32200) or timeout means the loop is stale: it
     //    accepted the reattach handshake but is not actually live.
     const probeTimeout = this.config.reattachProbeTimeout || 5_000;
@@ -388,7 +388,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // Protocol-1 handshake (RFC-450 §8.2)
+ // Protocol-1 handshake
   // ---------------------------------------------------------------------------
 
   /** Send connection_init and wait for connection_ack with readiness "ready". */
@@ -443,7 +443,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // Heartbeat (RFC-450 §8.3)
+ // Heartbeat
   // ---------------------------------------------------------------------------
 
   private _startHeartbeat(): void {
@@ -466,7 +466,7 @@ export class Client extends EventEmitter {
     const timeoutMs = Math.max(10_000, intervalMs * 2);
     const now = Date.now();
     if (now - (this.lastPongMonotonic || now) > intervalMs + timeoutMs) {
-      // Dead connection (missed pong, RFC-450 §8.3) — signal an unclean drop
+ // Dead connection — signal an unclean drop
       // and force close so consumers can reconnect + reattach.
       this._signalDisconnect(DisconnectCause.Unclean);
       try {
@@ -673,7 +673,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // Protocol-1 RPC primitives (RFC-450 §5/§9)
+ // Protocol-1 RPC primitives
   // ---------------------------------------------------------------------------
 
   /**
@@ -704,9 +704,9 @@ export class Client extends EventEmitter {
 
   /**
    * Sends a `request` envelope and waits for the matching `response` (or
-   * `error`) correlated by `id` (RFC-450 §5/§9). Returns the `result` object.
+ * `error`) correlated by `id`. Returns the `result` object.
    *
-   * Multiplexer-aware (RFC-629 constraint #1): registers a pending RPC wait
+ * Multiplexer-aware: registers a pending RPC wait
    * keyed by the request id so that, even when a `receiveMessages()` reader
    * is concurrently active, the matching `response`/`error` is routed to
    * this caller instead of being discarded or buffered behind a stream.
@@ -722,7 +722,7 @@ export class Client extends EventEmitter {
     const req = requestEnvelope(method, params);
     const rid = req.id;
     // Register the RPC waiter BEFORE sending so a fast echo response is not
-    // routed before the waiter exists (RFC-629 constraint #1 ordering).
+ // routed before the waiter exists.
     const { call, unregister } = this.mux.registerRPC(rid);
     const label = responseType ?? method;
     try {
@@ -897,7 +897,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // High-level API methods (Loop-first, RFC-503)
+ // High-level API methods
   // ---------------------------------------------------------------------------
 
   /** Sends user input to the daemon (loop_input notification; requires loopID). */
@@ -939,7 +939,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // Loop lifecycle methods (RFC-503)
+ // Loop lifecycle methods
   // ---------------------------------------------------------------------------
 
   /** Requests the daemon to create a new StrangeLoop and waits for the response. */
@@ -1069,7 +1069,7 @@ export class Client extends EventEmitter {
     return this.sendMessage(requestEnvelope("loop_cards_fetch", { loop_id: loopID }));
   }
 
-  /** Requests the full loop history (RFC-631). */
+ /** Requests the full loop history. */
   sendLoopHistoryFetch(loopID: string): Promise<void> {
     return this.sendMessage(requestEnvelope("loop_history_fetch", { loop_id: loopID }));
   }
@@ -1193,7 +1193,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // RFC-228 Job IPC methods
+ // Job IPC methods
   // ---------------------------------------------------------------------------
 
   /** Creates an autopilot job and waits for the response. */
@@ -1261,7 +1261,7 @@ export class Client extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // RFC-229 Cron IPC methods
+ // Cron IPC methods
   // ---------------------------------------------------------------------------
 
   /** Creates a scheduled job from natural language. */

@@ -1,6 +1,6 @@
 /**
  * appkit — reusable application-architecture layer over the core Client
- * (RFC-629 Layer 1). Public surface mirrors Python soothe_client.appkit.
+ *. Public surface mirrors Python soothe_client.appkit.
  *
  * Demoted internals (import from submodule paths in source / future subpath
  * exports): chunk_filter, events.unwrapNext, managed client factories.

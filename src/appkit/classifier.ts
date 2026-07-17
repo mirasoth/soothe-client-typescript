@@ -1,16 +1,15 @@
 /**
- * Event classifier for appkit (RFC-629 Layer 1).
+ * Event classifier for appkit.
  *
  * Maps a stream of decoded daemon events into deliverable/streaming/terminal
- * outcomes, keyed on (namespace, mode, phase) per RFC-614/RFC-403
- * (RFC-629 constraint #4). The app-agnostic successor to triarch's
- * ProcessChatEvent, with the deliverable phase set promoted from hardcoded
- * constants to configuration.
+ * outcomes, keyed on (namespace, mode, phase). The app-agnostic successor to
+ * product-specific ProcessChatEvent helpers, with the deliverable phase set
+ * promoted from hardcoded constants to configuration.
  *
  * Event shape: a protocol-1 `next` envelope carries
  * `{type:"next", payload:{namespace, mode, data, loop_id}}`. The daemon
  * wraps legacy free-form frames as `{payload:{namespace, mode:<orig type>,
- * data:<orig frame>}}` (RFC-450 §9.3). The classifier inspects the payload's
+ * data:<orig frame>}}`. The classifier inspects the payload's
  * `mode`/`data`/`namespace` and the inner message's `phase`/`type`/`content`.
  */
 

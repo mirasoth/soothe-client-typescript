@@ -1,5 +1,5 @@
 /**
- * appkit examples (RFC-629 Layer 1): SSEBroadcaster, QueryGate,
+ * appkit examples: SSEBroadcaster, QueryGate,
  * EventClassifier, extractThinkingStep, ConnectionPool, and TurnRunner.
  *
  * Mirrors the Go client's `examples/appkit/appkit_example_test.go`.

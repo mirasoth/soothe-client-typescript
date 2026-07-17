@@ -1,5 +1,5 @@
 /**
- * Job & Cron IPC examples (RFC-228, RFC-229): full job lifecycle
+ * Job & Cron IPC examples: full job lifecycle
  * (create → status → pause → resume → cancel → DAG → guidance),
  * autopilot subscribe/unsubscribe, and cron add/list/show/cancel.
  *
@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import { Client } from "../src/index.js";
 import { createMockDaemon } from "./helpers/mock-server.js";
 
-describe("Example: job lifecycle (RFC-228)", () => {
+describe("Example: job lifecycle",  => {
   it("jobLifecycle: create → status → DAG → pause → resume → guidance → cancel", async () => {
     const md = createMockDaemon();
     try {
@@ -89,7 +89,7 @@ describe("Example: autopilot events", () => {
   });
 });
 
-describe("Example: cron lifecycle (RFC-229)", () => {
+describe("Example: cron lifecycle",  => {
   it("cronAdd: creates a scheduled job from natural language", async () => {
     const md = createMockDaemon();
     try {

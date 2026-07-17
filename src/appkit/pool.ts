@@ -1,5 +1,5 @@
 /**
- * Per-session connection pool for appkit (RFC-629 Layer 1).
+ * Per-session connection pool for appkit.
  *
  * Manages a pool of daemon connections, one active per session. Reuses an
  * active connection when still live, otherwise bootstraps a fresh loop

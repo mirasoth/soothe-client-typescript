@@ -11,7 +11,7 @@ import {
 import type { WebSocket } from "ws";
 
 // ---------------------------------------------------------------------------
-// Client unit tests (RFC-450 protocol-1)
+// Client unit tests
 // ---------------------------------------------------------------------------
 
 describe("Client", () => {
@@ -180,7 +180,7 @@ describe("Client", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // High-level API method tests (Loop-first, RFC-503)
+ // High-level API method tests
   // ---------------------------------------------------------------------------
 
   it("sendInput emits loop_input notification with params", async () => {
@@ -496,7 +496,7 @@ describe("Client", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Layer 0: disconnect signal + reconnect/reattach (RFC-629)
+ // Client: disconnect signal + reconnect/reattach
   // ---------------------------------------------------------------------------
 
   it("emits 'disconnected' with Clean cause on peer disconnect notification", async () => {

@@ -1,5 +1,5 @@
 /**
- * Test WebSocket server utilities for unit tests (RFC-450 protocol-1).
+ * Test WebSocket server utilities for unit tests.
  *
  * Every handler performs the connection_init/connection_ack handshake so the
  * client's connect() completes, then responds to request/subscribe envelopes

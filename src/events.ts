@@ -12,13 +12,13 @@ import { VerbosityTier } from "./verbosity.js";
 // Plan events (client UX)
 export const EventPlanCreated = "soothe.cognition.plan.created";
 
-// Explore subagent events (built-in wire, IG-339)
+// Explore subagent events
 export const EventExploreStarted = "soothe.subagent.explore.started";
 export const EventExploreMilestone = "soothe.subagent.explore.milestone";
 export const EventExploreStepCompleted = "soothe.subagent.explore.step.completed";
 export const EventExploreCompleted = "soothe.subagent.explore.completed";
 
-// Tacitus subagent events (built-in wire, IG-339)
+// Tacitus subagent events
 export const EventTacitusStarted = "soothe.subagent.tacitus.started";
 export const EventTacitusGatherSummary = "soothe.subagent.tacitus.gather.summary";
 export const EventTacitusCompleted = "soothe.subagent.tacitus.completed";
@@ -27,7 +27,7 @@ export const EventTacitusCompleted = "soothe.subagent.tacitus.completed";
 export const EventReplayComplete = "replay_complete";
 export const EventLoopReattachedWire = "loop_reattached";
 
-// Card ledger replay frames (RFC-413, card_binder design)
+// Card ledger replay frames
 export const EventCardReplayBegin = "card.replay_begin";
 export const EventCardCreated = "card.created";
 export const EventCardReplayEnd = "card.replay_end";
@@ -37,7 +37,7 @@ export const EventToolStarted = "soothe.tool.execution.started";
 export const EventToolCompleted = "soothe.tool.execution.completed";
 export const EventToolError = "soothe.tool.execution.error";
 
-// Stream tool call events (RFC-450, IG-416)
+// Stream tool call events
 export const EventStreamToolCallUpdate = "soothe.stream.tool_call.update";
 export const EventToolCallUpdatesBatch = "tool_call_updates_batch";
 
@@ -58,7 +58,7 @@ export const EventMessageSent = "soothe.protocol.message.sent";
 // Output events
 export const EventFinalReport = "soothe.output.autonomous.final_report.reported";
 
-// Autopilot events (RFC-228)
+// Autopilot events
 export const EventAutopilotGoalStatus = "soothe.autopilot.goal.status";
 export const EventAutopilotGoalProgress = "soothe.autopilot.goal.progress";
 export const EventAutopilotGoalCreated = "soothe.autopilot.goal.created";

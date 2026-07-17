@@ -1,6 +1,6 @@
 /**
  * Mock daemon for examples — an in-process WebSocket server that speaks the
- * protocol-1 wire contract (RFC-450) so examples run without a live Soothe
+ * protocol-1 wire contract so examples run without a live Soothe
  * daemon.
  *
  * Mirrors the Go client's `mockdaemon_test.go` and the test helper in
@@ -301,7 +301,7 @@ function handler(ws: WebSocket): void {
         });
         return;
 
-      // Job IPC (RFC-228)
+ // Job IPC
       case "job_create":
         sendResponse(ws, id, { job_id: nextJobId(), goal: params.goal, status: "created" });
         return;
@@ -333,7 +333,7 @@ function handler(ws: WebSocket): void {
         sendResponse(ws, id, { job_id: params.job_id, status: "guidance_received" });
         return;
 
-      // Cron IPC (RFC-229)
+ // Cron IPC
       case "cron_add":
         sendResponse(ws, id, { job_id: "cron-1", text: params.text, status: "scheduled" });
         return;
@@ -358,7 +358,7 @@ function handler(ws: WebSocket): void {
         sendResponse(ws, id, { job_id: params.job_id, status: "cancelled" });
         return;
 
-      // Slash / RPC commands (RFC-404)
+ // Slash / RPC commands
       case "slash_command":
         sendResponse(ws, id, { status: "ok", command: params.cmd });
         return;

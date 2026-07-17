@@ -1,5 +1,5 @@
 /**
- * SSE-style pub/sub fan-out for appkit (RFC-629 Layer 1).
+ * SSE-style pub/sub fan-out for appkit.
  *
  * Generic, string-keyed pub/sub for SSE-style event delivery. The
  * application-agnostic successor to a domain-keyed broadcaster: applications

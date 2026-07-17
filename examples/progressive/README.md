@@ -1,4 +1,4 @@
-# Progressive examples (IG-662)
+# Progressive examples
 
 Mirror the Python `examples/01`–`06` ladder. Vitest files below use the in-process
 mock WebSocket server (offline).

@@ -1,6 +1,6 @@
 /**
  * ManagedClient — the subset of the core Client that appkit's ConnectionPool
- * and TurnRunner depend on (RFC-629 Layer 1).
+ * and TurnRunner depend on.
  *
  * The concrete `Client` satisfies it; tests supply a fake. Defining it as an
  * interface lets appkit be unit-tested without a live WebSocket daemon.

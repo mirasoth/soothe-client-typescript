@@ -1,11 +1,11 @@
 /**
- * Turn runner for appkit (RFC-629 Layer 1).
+ * Turn runner for appkit.
  *
  * Executes one query turn end-to-end: acquire a pooled connection, enforce
  * single-flight, send loop_input, consume the event stream, classify events,
  * resolve the deliverable, persist the reply, and broadcast completion.
  *
- * Supports IG-651 / SIL-04 lifecycle knobs: idle timeout, soft-complete
+ * Supports lifecycle knobs: idle timeout, soft-complete
  * policies, attachment compaction, and stream-close soft-complete.
  */
 

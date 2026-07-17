@@ -38,4 +38,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.1] - 2026-07-15
 
 ### Added
-- RFC-629 Layer 0 Client upgrades and Layer 1 appkit (pool, gate, TurnRunner, classifier, SSE)
+- Client reconnect/reattach upgrades and appkit (pool, gate, TurnRunner, classifier, SSE)

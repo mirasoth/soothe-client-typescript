@@ -1,6 +1,5 @@
 /**
- * Inbound-frame multiplexer for the protocol-1 client (RFC-629 constraint #1,
- * RFC-450 §5.2/§5.5).
+ * Inbound-frame multiplexer for the protocol-1 client.
  *
  * Routes inbound protocol-1 frames to the correct waiter by `(type, id)`
  * instead of discarding non-matching events. This makes the Client safe for

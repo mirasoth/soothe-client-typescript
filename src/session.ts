@@ -1,7 +1,7 @@
 /**
  * Session bootstrap flows, wait helpers, and connect-with-retries.
  *
- * Under protocol-1 (RFC-450) the connection handshake (connection_init /
+ * Under protocol-1 the connection handshake (connection_init /
  * connection_ack) is performed by `client.connect()`. Bootstrap therefore
  * jumps straight to loop_new + subscribe(loop_events).
  */
@@ -13,7 +13,7 @@ import { newLoopNewMessage } from "./protocol.js";
 import { DaemonError } from "./errors.js";
 
 // ---------------------------------------------------------------------------
-// Bootstrap flows (loop-first, RFC-503)
+// Bootstrap flows
 // ---------------------------------------------------------------------------
 
 /**

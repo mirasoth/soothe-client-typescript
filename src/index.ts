@@ -1,7 +1,7 @@
 /**
  * Soothe WebSocket Client - TypeScript
  *
- * A WebSocket client for the Soothe daemon (RFC-450 protocol-1 wire contract),
+ * A WebSocket client for the Soothe daemon,
  * providing the unified `{proto, type, method, params, id}` envelope, session
  * bootstrap, and convenience RPC helpers.
  */
@@ -25,7 +25,7 @@ export type { VerbosityLevel } from "./verbosity.js";
 export { defaultConfig, loadConfigFromEnv } from "./config.js";
 export type { Config } from "./config.js";
 
-// Protocol (RFC-450 protocol-1 envelope)
+// Protocol
 export {
   PROTO_VERSION,
   DEFAULT_CLIENT_CAPABILITIES,
@@ -173,7 +173,7 @@ export {
   inboundNeedsDeliveryAck,
 } from "./stream_terminal.js";
 
-// appkit (RFC-629 Layer 1) — slim surface matching Python
+// appkit — slim surface matching Python
 export {
   DaemonSession,
   ConnectionPool,

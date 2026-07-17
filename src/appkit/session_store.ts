@@ -1,5 +1,5 @@
 /**
- * Persistence seam for appkit (RFC-629 Layer 1).
+ * Persistence seam for appkit.
  *
  * SessionStore abstracts per-application storage: the session↔loop-id mapping
  * that ConnectionPool consults to decide bootstrap vs reattach, and the

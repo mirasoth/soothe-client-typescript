@@ -1,5 +1,5 @@
 /**
- * Attachment image compaction for appkit (Go IG-651 / SIL-04 parity).
+ * Attachment image compaction for appkit.
  *
  * When `sharp` is installed (optionalDependency), oversized image/* payloads
  * are downscaled. Without sharp, attachments pass through unchanged.

@@ -1,6 +1,6 @@
 /**
  * Protocol-1 wire envelope: message types, encode/decode, NDJSON splitting,
- * and factory functions for the Soothe daemon (RFC-450).
+ * and factory functions for the Soothe daemon.
  *
  * The unified `{proto, type, method, params, id}` envelope combines
  * JSON-RPC 2.0's `method`/`params`/`id` structure with graphql-ws's `type`
@@ -10,7 +10,7 @@
 import { randomUUID } from "node:crypto";
 import type { LoopInputIntentHint } from "./intent_hints.js";
 
-/** Protocol version string (RFC-450 §8.1). */
+/** Protocol version string. */
 export const PROTO_VERSION = "1";
 
 /** Default client capabilities declared in the connection_init handshake. */
@@ -20,7 +20,7 @@ export const DEFAULT_CLIENT_CAPABILITIES = ["streaming", "batch", "heartbeat", "
 export const CLIENT_VERSION = "0.4.0";
 
 // ---------------------------------------------------------------------------
-// Envelope message classes (RFC-450 §9.1)
+// Envelope message classes
 // ---------------------------------------------------------------------------
 
 export type MessageType =
@@ -40,7 +40,7 @@ export type MessageType =
   | "disconnect"
   | "status";
 
-/** Method names carried in the envelope `method` field (RFC-450 §9.2). */
+/** Method names carried in the envelope `method` field. */
 export type MethodName =
   | "loop_list"
   | "loop_get"
@@ -85,7 +85,7 @@ export type MethodName =
   | "disconnect";
 
 // ---------------------------------------------------------------------------
-// Envelope interfaces (RFC-450 §5.2)
+// Envelope interfaces
 // ---------------------------------------------------------------------------
 
 /** Base fields shared by every protocol-1 message. */
@@ -114,7 +114,7 @@ export interface NotificationEnvelope extends BaseEnvelope {
   type: "notification";
   method: MethodName;
   params?: Record<string, unknown>;
-  /** Optional receipt id for delivery confirmation (RFC-450 §5.7). */
+ /** Optional receipt id for delivery confirmation. */
   receipt?: string;
 }
 
@@ -204,9 +204,9 @@ export interface DisconnectEnvelope extends BaseEnvelope {
 }
 
 /**
- * A daemon status frame. `status` is a defined protocol-1 top-level type
- * (RFC-450 §9.1): it passes through the daemon's legacy→`next` translator
- * unchanged, so it is NOT wrapped in a `next` envelope.
+ * A daemon status frame. `status` is a defined protocol-1 top-level type:
+ * it passes through the daemon's legacy→`next` translator unchanged, so it
+ * is NOT wrapped in a `next` envelope.
  */
 export interface StatusFrame extends BaseEnvelope {
   type: "status";
@@ -272,7 +272,7 @@ export interface LoopNewOptions {
 }
 
 // ---------------------------------------------------------------------------
-// Stream-event payload helpers (RFC-450 §9.3)
+// Stream-event payload helpers
 // ---------------------------------------------------------------------------
 
 /**
@@ -353,7 +353,7 @@ export function decodeMessage(data: string): DecodedMessage | null {
 }
 
 // ---------------------------------------------------------------------------
-// Envelope factory helpers (RFC-450 §5)
+// Envelope factory helpers
 // ---------------------------------------------------------------------------
 
 /** Builds a `request` envelope. */
@@ -497,7 +497,7 @@ export function extractSootheLoopID(msg: unknown): [string, boolean] {
 // Message factory functions
 // ---------------------------------------------------------------------------
 
-/** Generates a new UUID correlation ID (RFC-450 §5.2 `id`). */
+/** Generates a new UUID correlation ID. */
 export function newRequestID(): string {
   return randomUUID();
 }

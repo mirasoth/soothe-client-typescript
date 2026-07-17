@@ -1,5 +1,5 @@
 /**
- * Single-flight query gate for appkit (RFC-629 Layer 1).
+ * Single-flight query gate for appkit.
  *
  * Enforces single-flight query execution per session id and the
  * cancel-before-context ordering: when a query is cancelled, the daemon is

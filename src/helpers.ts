@@ -1,5 +1,5 @@
 /**
- * Convenience RPC helper functions for the Soothe client (RFC-450 protocol-1).
+ * Convenience RPC helper functions for the Soothe client.
  */
 
 import type { Client } from "./client.js";
@@ -86,7 +86,7 @@ export async function requestDaemonConfigReload(
   return client.requestResponse("config_reload", {}, "config_reload", timeout ?? 15_000);
 }
 
-/** Requests loop history (RFC-631) and waits for the response. */
+/** Requests loop history and waits for the response. */
 export async function fetchLoopHistory(
   client: Client,
   loopID: string,

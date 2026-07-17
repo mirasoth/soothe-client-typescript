@@ -1,5 +1,5 @@
 /**
- * Integration tests that connect to a running Soothe daemon (RFC-450 protocol-1).
+ * Integration tests that connect to a running Soothe daemon.
  * Skipped unless SOOTHE_INTEGRATION=1 is set.
  */
 
@@ -187,7 +187,7 @@ describe.skipIf(skip())("Integration", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // RFC-228 Job IPC Integration Tests
+ // Job IPC Integration Tests
   // ---------------------------------------------------------------------------
 
   it("create job", async () => {
@@ -273,7 +273,7 @@ describe.skipIf(skip())("Integration", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // RFC-503 Loop Extensions Integration Tests
+ // Loop Extensions Integration Tests
   // ---------------------------------------------------------------------------
 
   it("get loop messages", async () => {
@@ -322,7 +322,7 @@ describe.skipIf(skip())("Integration", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // RFC-622 Clarification Options Tests
+ // Clarification Options Tests
   // ---------------------------------------------------------------------------
 
   it("send input with clarification mode", async () => {
