@@ -14,7 +14,12 @@ import { DaemonError, DisconnectCause, ReconnectError, StaleLoopError } from "./
 import { Multiplexer } from "./multiplexer.js";
 import type { LoopInputIntentHint } from "./intent_hints.js";
 import { validateLoopInputIntentHint } from "./intent_hints.js";
-import { stalePendingFrameLabel } from "./stream_terminal.js";
+import { extractLoopIdFromInbound, inboundNeedsDeliveryAck, stalePendingFrameLabel } from "./stream_terminal.js";
+import {
+  DEFAULT_INBOUND_MAX_SIZE,
+  DROP_PRIORITY_NORMAL,
+  inboundFrameDropPriority,
+} from "./inbound_priority.js";
 import {
   CLIENT_VERSION,
   DEFAULT_CLIENT_CAPABILITIES,
@@ -73,6 +78,9 @@ export class Client extends EventEmitter {
   private config: Config;
   private ws: WebSocket | null = null;
   private messageBuffer: DecodedMessage[] = [];
+  private inboundMaxSize = DEFAULT_INBOUND_MAX_SIZE;
+  private inboundDroppedCount = 0;
+  private onStreamDegraded: ((dropped: number, reason: string) => void) | null = null;
   private resolvers: Array<(value: DecodedMessage | null) => void> = [];
   // Protocol-1 handshake state (RFC-450 §8.2)
   private handshakeComplete = false;
@@ -90,6 +98,8 @@ export class Client extends EventEmitter {
   // Pending-request/subscription multiplexer (RFC-629 constraint #1). Routes
   // inbound frames by (type, id) instead of discarding non-matching events.
   private mux = new Multiplexer();
+  private deliveryRecvSeq = new Map<string, number>();
+  private deliveryAckedSeq = new Map<string, number>();
 
   constructor(url: string, config?: Config) {
     super();
@@ -183,8 +193,11 @@ export class Client extends EventEmitter {
           // a matching pending multiplexer waiter) to their waiters; do not
           // forward to the resolver queue (RFC-629 constraint #1).
           if (this.mux.route(m)) {
+            this._trackInboundDeliveryAck(m);
             continue;
           }
+
+          this._trackInboundDeliveryAck(m);
 
           // If a reader is waiting, deliver directly; otherwise buffer for
           // later readEvent/receiveMessages calls. Never do both — a single
@@ -193,7 +206,7 @@ export class Client extends EventEmitter {
           if (resolver) {
             resolver(msg);
           } else {
-            this.messageBuffer.push(msg);
+            this.enqueueMessageBuffer(msg);
           }
           this.emit("message", msg);
         }
@@ -599,6 +612,66 @@ export class Client extends EventEmitter {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
+  /** Override pending buffer cap (tests / tuning). */
+  setInboundMaxSize(n: number): void {
+    if (n > 0) this.inboundMaxSize = n;
+  }
+
+  /** How many NORMAL-priority frames were dropped under backpressure. */
+  inboundDropped(): number {
+    return this.inboundDroppedCount;
+  }
+
+  /** Hook invoked on the first inbound overflow drop. */
+  setStreamDegradedCallback(fn: ((dropped: number, reason: string) => void) | null): void {
+    this.onStreamDegraded = fn;
+  }
+
+  private enqueueMessageBuffer(msg: DecodedMessage): void {
+    const max = this.inboundMaxSize > 0 ? this.inboundMaxSize : DEFAULT_INBOUND_MAX_SIZE;
+    if (this.messageBuffer.length < max) {
+      this.messageBuffer.push(msg);
+      return;
+    }
+    const ev = msg as Record<string, unknown>;
+    let dropIdx = -1;
+    let dropPri = -1;
+    for (let i = 0; i < this.messageBuffer.length; i++) {
+      const p = inboundFrameDropPriority(this.messageBuffer[i] as Record<string, unknown>);
+      if (p > dropPri) {
+        dropPri = p;
+        dropIdx = i;
+      }
+    }
+    const incomingPri = inboundFrameDropPriority(ev);
+    if (dropIdx >= 0 && dropPri >= DROP_PRIORITY_NORMAL) {
+      this.messageBuffer.splice(dropIdx, 1);
+      this.messageBuffer.push(msg);
+      this.noteInboundDrop();
+      return;
+    }
+    if (incomingPri >= DROP_PRIORITY_NORMAL) {
+      this.noteInboundDrop();
+      return;
+    }
+    if (this.messageBuffer.length > 0) {
+      this.messageBuffer.shift();
+      this.noteInboundDrop();
+    }
+    this.messageBuffer.push(msg);
+  }
+
+  private noteInboundDrop(): void {
+    this.inboundDroppedCount += 1;
+    if (this.onStreamDegraded && this.inboundDroppedCount === 1) {
+      try {
+        this.onStreamDegraded(1, "inbound_queue_overflow");
+      } catch {
+        // ignore callback errors
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Protocol-1 RPC primitives (RFC-450 §5/§9)
   // ---------------------------------------------------------------------------
@@ -725,6 +798,38 @@ export class Client extends EventEmitter {
     return this.sendMessage(notificationEnvelope(method, params));
   }
 
+  private _trackInboundDeliveryAck(event: Record<string, unknown>): void {
+    if (String(event.type ?? "") === "event_batch") {
+      const events = event.events;
+      if (Array.isArray(events)) {
+        for (const sub of events) {
+          if (sub && typeof sub === "object") {
+            this._trackInboundDeliveryAck(sub as Record<string, unknown>);
+          }
+        }
+      }
+      return;
+    }
+    if (!inboundNeedsDeliveryAck(event)) return;
+    const loopId = extractLoopIdFromInbound(event);
+    if (!loopId) return;
+    const next = (this.deliveryRecvSeq.get(loopId) ?? 0) + 1;
+    this.deliveryRecvSeq.set(loopId, next);
+    void this._sendDeliveryAck(loopId, next);
+  }
+
+  private async _sendDeliveryAck(loopId: string, seq: number): Promise<void> {
+    const acked = this.deliveryAckedSeq.get(loopId) ?? 0;
+    if (seq <= acked) return;
+    this.deliveryAckedSeq.set(loopId, seq);
+    if (!this.isConnected()) return;
+    try {
+      await this.notify("delivery_ack", { loop_id: loopId, seq });
+    } catch {
+      // best-effort; daemon drain may retry
+    }
+  }
+
   /**
    * Starts a subscription stream. Returns the subscription `id` for later
    * correlation and `unsubscribe()`. Stream events arrive as `next` frames
@@ -750,7 +855,7 @@ export class Client extends EventEmitter {
       if (ev === null) break;
       const evId = ev.id as string | undefined;
       if (evId !== subId) {
-        this.messageBuffer.push(ev as DecodedMessage);
+        this.enqueueMessageBuffer(ev as DecodedMessage);
         continue;
       }
       const typ = ev.type as string;

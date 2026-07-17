@@ -1,12 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   STREAM_END,
-  EventStrangeLoopCompleted,
   isTurnEndCustomData,
   isTurnProgressChunk,
   stalePendingFrameLabel,
-} from "../src/index.js";
-import { EventPlanCreated } from "../src/events.js";
+} from "../src/stream_terminal.js";
+import { EventPlanCreated, EventStrangeLoopCompleted } from "../src/events.js";
 
 describe("stream_terminal", () => {
   it("isTurnEndCustomData recognizes turn-scoped stream.end", () => {

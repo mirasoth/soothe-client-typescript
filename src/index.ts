@@ -136,8 +136,8 @@ export {
 export { Client } from "./client.js";
 export type { InputOptions, NegotiatedCapabilities } from "./client.js";
 
-// Multiplexer (RFC-629 Layer 0)
-export { Multiplexer } from "./multiplexer.js";
+// Ephemeral one-shot RPCs (jobs / cron / autopilot)
+export { CommandClient } from "./command_client.js";
 
 // Helpers
 export {
@@ -165,15 +165,56 @@ export {
   connectWithRetries,
 } from "./session.js";
 
-// Stream terminal helpers
+// Stream terminal helpers (used by DaemonSession consumers)
 export {
   STREAM_END,
-  STALE_TURN_PENDING_TYPES,
-  TURN_END_CUSTOM_TYPES,
   isTurnEndCustomData,
   isTurnProgressChunk,
-  stalePendingFrameLabel,
+  inboundNeedsDeliveryAck,
 } from "./stream_terminal.js";
 
-// appkit (RFC-629 Layer 1)
-export * from "./appkit/index.js";
+// appkit (RFC-629 Layer 1) — slim surface matching Python
+export {
+  DaemonSession,
+  ConnectionPool,
+  TurnRunner,
+  QueryGate,
+  EventClassifier,
+  ChatEventTerminal,
+  SSEBroadcaster,
+  ErrPoolExhausted,
+  ErrQueryBusy,
+  ErrIdleTimeout,
+  ErrQueryTimeout,
+  TimeoutPolicy,
+  StreamCloseFail,
+  StreamCloseSoftComplete,
+  defaultPoolConfig,
+  PooledConn,
+  compactAttachments,
+  compactImageAttachment,
+  extractThinkingStep,
+  DEFAULT_THINKING_STEP_EVENTS,
+  idleTimeoutForTurn,
+  inputMessageForLoop,
+  TurnEventStats,
+  DEFAULT_POST_IDLE_DRAIN_MS,
+} from "./appkit/index.js";
+export type {
+  SessionStore,
+  SessionEntry,
+  SessionMessage,
+  SSEEvent,
+  ChatEventResult,
+  ClassifierConfig,
+  PoolConfig,
+  TurnConfig,
+  InputOpts,
+  Attachment,
+  OnComplete,
+  OnError,
+  StreamClosePolicy,
+  DaemonSessionOptions,
+  TurnChunk,
+  CompactImageOptions,
+} from "./appkit/index.js";

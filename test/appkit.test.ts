@@ -17,13 +17,13 @@ import {
   TurnRunner,
   idleTimeoutForTurn,
   inputMessageForLoop,
-  type ManagedClient,
   type SessionEntry,
   type SessionMessage,
   type SessionStore,
   type Attachment,
   type InputOpts,
 } from "../src/appkit/index.js";
+import type { ManagedClient } from "../src/appkit/client.js";
 
 // ---------------------------------------------------------------------------
 // Test fakes

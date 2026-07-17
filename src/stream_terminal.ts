@@ -96,3 +96,52 @@ export function stalePendingFrameLabel(event: Record<string, unknown>): string |
   }
   return null;
 }
+
+/** True when the client should bump delivery_ack sequence for this frame. */
+export function inboundNeedsDeliveryAck(event: Record<string, unknown>): boolean {
+  const eventType = String(event.type ?? "");
+  if (eventType === "complete") return true;
+  if (eventType === "next") {
+    const payload = event.payload;
+    if (!payload || typeof payload !== "object") return false;
+    const p = payload as Record<string, unknown>;
+    const inner = p.data;
+    if (!inner || typeof inner !== "object") return false;
+    if (String(p.mode ?? "") === "event") {
+      return inboundNeedsAckFromEventShape(inner as Record<string, unknown>);
+    }
+    return false;
+  }
+  if (eventType === "event") return inboundNeedsAckFromEventShape(event);
+  return false;
+}
+
+function inboundNeedsAckFromEventShape(event: Record<string, unknown>): boolean {
+  const mode = String(event.mode ?? "");
+  const data = event.data;
+  if (mode === "custom" && isTurnEndCustomData(data)) return true;
+  if (mode === "messages" && Array.isArray(data) && data.length > 0) {
+    const body = data[0];
+    if (!body || typeof body !== "object") return false;
+    const t = String((body as Record<string, unknown>).type ?? "");
+    return t === STREAM_END || t.includes("stream.end");
+  }
+  return false;
+}
+
+/** Extract loop_id from a frame or nested next payload. */
+export function extractLoopIdFromInbound(event: Record<string, unknown>): string {
+  const direct = String(event.loop_id ?? "").trim();
+  if (direct) return direct;
+  if (String(event.type ?? "") !== "next") return "";
+  const payload = event.payload;
+  if (!payload || typeof payload !== "object") return "";
+  const p = payload as Record<string, unknown>;
+  const fromPayload = String(p.loop_id ?? "").trim();
+  if (fromPayload) return fromPayload;
+  const inner = p.data;
+  if (inner && typeof inner === "object") {
+    return String((inner as Record<string, unknown>).loop_id ?? "").trim();
+  }
+  return "";
+}

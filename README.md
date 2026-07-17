@@ -16,26 +16,12 @@ npm install sharp
 
 Requires Node.js `>=19`.
 
-## Quick start (Client)
-
-```ts
-import { Client, bootstrapLoopSession, defaultConfig } from '@mirasoth/soothe-client';
-
-const config = defaultConfig();
-const client = new Client(config.daemonURL, config);
-
-await client.connect();
-const loopId = await bootstrapLoopSession(client, null, config);
-
-await client.sendInput('hello soothe', { loopID: loopId });
-```
-
-## DaemonSession (streamed turns)
+## Quick start
 
 ```ts
 import { DaemonSession } from '@mirasoth/soothe-client';
 
-const session = new DaemonSession('ws://localhost:8765');
+const session = new DaemonSession('ws://127.0.0.1:8765');
 await session.connect();
 await session.sendTurn('summarize this repo');
 
@@ -46,9 +32,19 @@ for await (const [namespace, mode, data] of session.iterTurnChunks()) {
 await session.close();
 ```
 
+## What you get
+
+| Need | Use |
+|------|-----|
+| One conversation, stream replies | `DaemonSession` |
+| Jobs / cron one-shots | `CommandClient` |
+| Raw WebSocket / custom RPCs | `Client` |
+| Many users / HTTP backend | `ConnectionPool` + `TurnRunner` |
+
 `iterTurnChunks` peels leftover prior-goal terminals at turn start, ignores
 premature `soothe.stream.end` until the turn has real progress, and drains a
-short post-idle window before returning.
+short post-idle window before returning. Terminal stream frames send
+`delivery_ack` (daemon drain gating).
 
 ## Appkit TurnRunner
 

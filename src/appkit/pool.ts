@@ -41,7 +41,8 @@ export interface PoolConfig {
   healthCheckInterval: number; // ms
 }
 
-/** Returns env-overridable defaults (mirrors triarch). */
+/** Returns env-overridable defaults (mirrors triarch).
+ * `maxIdleTime` is enforced on acquire; `healthCheckInterval` is reserved. */
 export function defaultPoolConfig(): PoolConfig {
   return {
     poolSize: 1000,
@@ -143,9 +144,17 @@ export class ConnectionPool {
       if (existing.isDisconnected() || !existing.isConnected()) {
         await this.release(sessionID);
       } else {
-        existing.lastUsed = Date.now();
-        await this.store.updateLastUsed(sessionID).catch(() => {});
-        return existing;
+        const idleTooLong =
+          this.cfg.maxIdleTime > 0 &&
+          existing.lastUsed > 0 &&
+          Date.now() - existing.lastUsed > this.cfg.maxIdleTime;
+        if (idleTooLong) {
+          await this.release(sessionID);
+        } else {
+          existing.lastUsed = Date.now();
+          await this.store.updateLastUsed(sessionID).catch(() => {});
+          return existing;
+        }
       }
     }
 

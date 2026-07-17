@@ -1,19 +1,9 @@
 /**
  * appkit — reusable application-architecture layer over the core Client
- * (RFC-629 Layer 1).
+ * (RFC-629 Layer 1). Public surface mirrors Python soothe_client.appkit.
  *
- * appkit is product-agnostic. Product decisions — which event phases count as
- * user-facing deliverables, how sessions are persisted, what SSE event
- * vocabulary the frontend expects — are supplied by the application via
- * configuration (e.g. deliverablePhases) and interfaces (e.g. SessionStore).
- *
- * # Layers (RFC-629)
- *
- *   - Layer 0 — the core Client (transport/lifecycle, concurrent multiplexing).
- *   - Layer 1 — this package: ConnectionPool, QueryGate, TurnRunner,
- *     EventClassifier, SSEBroadcaster, SessionStore, DaemonSession.
- *   - Layer 2 — the application: domain types, persistence implementation,
- *     product config, user-facing copy.
+ * Demoted internals (import from submodule paths in source / future subpath
+ * exports): chunk_filter, events.unwrapNext, managed client factories.
  */
 
 // Persistence seam.
@@ -42,13 +32,6 @@ export {
   type PoolConfig,
   defaultPoolConfig,
 } from "./pool.js";
-export {
-  type BootstrapFunc,
-  type ClientFactory,
-  type ManagedClient,
-  defaultBootstrapFunc,
-  defaultClientFactory,
-} from "./client.js";
 
 // Attachments.
 export {
@@ -86,6 +69,4 @@ export {
   type TurnChunk,
 } from "./daemon_session.js";
 
-export { shouldDropStreamChunkEarly } from "./chunk_filter.js";
-export { isLoopScopedEvent, unwrapNext } from "./events.js";
 export { TurnEventStats } from "./observability.js";
