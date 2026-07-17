@@ -5,6 +5,7 @@
 
 import { Client } from "./client.js";
 import { defaultConfig, type Config } from "./config.js";
+import type { MethodName } from "./protocol.js";
 import { connectWithRetries } from "./session.js";
 
 export class CommandClient {
@@ -29,7 +30,10 @@ export class CommandClient {
   }
 
   /** Generic one-shot RPC. */
-  async request(method: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  async request(
+    method: MethodName,
+    params: Record<string, unknown> = {},
+  ): Promise<Record<string, unknown>> {
     return this.withClient(client =>
       client.requestResponse(method, params, undefined, this.timeoutMs),
     );
