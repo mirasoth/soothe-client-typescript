@@ -17,7 +17,7 @@ export const PROTO_VERSION = "1";
 export const DEFAULT_CLIENT_CAPABILITIES = ["streaming", "batch", "heartbeat", "receipts"];
 
 /** Client version reported in the connection_init handshake. */
-export const CLIENT_VERSION = "0.3.0";
+export const CLIENT_VERSION = "0.4.0";
 
 // ---------------------------------------------------------------------------
 // Envelope message classes (RFC-450 §9.1)
