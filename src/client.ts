@@ -1246,6 +1246,113 @@ export class Client extends EventEmitter {
     return this.requestResponse("job_guidance", params, "job_guidance", timeout ?? 30_000);
   }
 
+  // ---------------------------------------------------------------------------
+  // Autopilot goal RPCs (protocol-1 request methods)
+  // ---------------------------------------------------------------------------
+
+  /** Return autopilot scheduler status (running / dreaming / pool). */
+  autopilotStatus(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse("autopilot_status", {}, "autopilot_status", timeout ?? 15_000);
+  }
+
+  /** Submit a new autopilot goal (returns goal_id). */
+  autopilotSubmit(
+    description: string,
+    opts?: { priority?: number; workspace?: string; timeout?: number },
+  ): Promise<Record<string, unknown>> {
+    const params: Record<string, unknown> = {
+      description,
+      priority: opts?.priority ?? 50,
+    };
+    if (opts?.workspace) params.workspace = opts.workspace;
+    return this.requestResponse(
+      "autopilot_submit",
+      params,
+      "autopilot_submit",
+      opts?.timeout ?? 15_000,
+    );
+  }
+
+  /** List all goals (including non-root children). */
+  autopilotListGoals(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "autopilot_list_goals",
+      {},
+      "autopilot_list_goals",
+      timeout ?? 15_000,
+    );
+  }
+
+  /** Fetch one goal by id. */
+  autopilotGetGoal(goalId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "autopilot_get_goal",
+      { goal_id: goalId },
+      "autopilot_get_goal",
+      timeout ?? 15_000,
+    );
+  }
+
+  /** Cancel a goal and its non-terminal descendants. */
+  autopilotCancelGoal(goalId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "autopilot_cancel_goal",
+      { goal_id: goalId },
+      "autopilot_cancel_goal",
+      timeout ?? 15_000,
+    );
+  }
+
+  /** Cancel every open (non-terminal) goal. */
+  autopilotCancelAll(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "autopilot_cancel_all",
+      {},
+      "autopilot_cancel_all",
+      timeout ?? 15_000,
+    );
+  }
+
+  /** Exit dreaming mode and resume scheduling. */
+  autopilotWake(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse("autopilot_wake", {}, "autopilot_wake", timeout ?? 15_000);
+  }
+
+  /** Force dreaming mode. */
+  autopilotDream(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse("autopilot_dream", {}, "autopilot_dream", timeout ?? 15_000);
+  }
+
+  /** Resume a suspended or blocked goal. */
+  autopilotResume(goalId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "autopilot_resume",
+      { goal_id: goalId },
+      "autopilot_resume",
+      timeout ?? 15_000,
+    );
+  }
+
+  /** List root goals only (jobs). Prefer createJob / getJobStatus for job control. */
+  autopilotListJobs(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "autopilot_list_jobs",
+      {},
+      "autopilot_list_jobs",
+      timeout ?? 15_000,
+    );
+  }
+
+  /** Get a root job with DAG snapshot. Prefer getJobStatus / getJobDag. */
+  autopilotGetJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "autopilot_get_job",
+      { job_id: jobId },
+      "autopilot_get_job",
+      timeout ?? 15_000,
+    );
+  }
+
   /** Subscribes to autopilot worker events. */
   autopilotSubscribe(timeout?: number): Promise<string> {
     return this.subscribe("autopilot_events", {}, timeout ?? 15_000);

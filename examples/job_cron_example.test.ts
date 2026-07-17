@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import { Client } from "../src/index.js";
 import { createMockDaemon } from "./helpers/mock-server.js";
 
-describe("Example: job lifecycle",  => {
+describe("Example: job lifecycle", () => {
   it("jobLifecycle: create → status → DAG → pause → resume → guidance → cancel", async () => {
     const md = createMockDaemon();
     try {
@@ -89,7 +89,7 @@ describe("Example: autopilot events", () => {
   });
 });
 
-describe("Example: cron lifecycle",  => {
+describe("Example: cron lifecycle", () => {
   it("cronAdd: creates a scheduled job from natural language", async () => {
     const md = createMockDaemon();
     try {

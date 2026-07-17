@@ -91,9 +91,10 @@ See `dist/index.d.ts` or `src/index.ts` for the full export list.
 
 ## Limitations
 
-**Autopilot HTTP endpoints are not available via WebSocket** — they need the
-daemon's HTTP REST API. This package speaks WebSocket only. Prefer
-`CommandClient` for job/cron one-shots so they do not share a streaming socket.
+Autopilot control is WebSocket-only (protocol-1 `autopilot_*` / `job_*`
+request RPCs). Prefer `CommandClient` for job/cron/autopilot one-shots so they
+do not share a streaming socket. Worker event streams use
+`client.autopilotSubscribe()` on a long-lived `Client`.
 
 ## Develop
 

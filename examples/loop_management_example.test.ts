@@ -239,7 +239,7 @@ describe("Example: loop cards", () => {
   });
 });
 
-describe("Example: loop history",  => {
+describe("Example: loop history", () => {
   it("fetchLoopHistory: blocking helper returns full history", async () => {
     const md = createMockDaemon();
     try {

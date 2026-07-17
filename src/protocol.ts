@@ -17,7 +17,7 @@ export const PROTO_VERSION = "1";
 export const DEFAULT_CLIENT_CAPABILITIES = ["streaming", "batch", "heartbeat", "receipts"];
 
 /** Client version reported in the connection_init handshake. */
-export const CLIENT_VERSION = "0.4.0";
+export const CLIENT_VERSION = "0.4.1";
 
 // ---------------------------------------------------------------------------
 // Envelope message classes
@@ -65,6 +65,17 @@ export type MethodName =
   | "job_cancel"
   | "job_dag"
   | "job_guidance"
+  | "autopilot_status"
+  | "autopilot_submit"
+  | "autopilot_list_goals"
+  | "autopilot_get_goal"
+  | "autopilot_cancel_goal"
+  | "autopilot_cancel_all"
+  | "autopilot_wake"
+  | "autopilot_dream"
+  | "autopilot_resume"
+  | "autopilot_list_jobs"
+  | "autopilot_get_job"
   | "daemon_status"
   | "daemon_shutdown"
   | "config_get"
