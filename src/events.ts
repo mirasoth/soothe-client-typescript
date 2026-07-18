@@ -12,16 +12,19 @@ import { VerbosityTier } from "./verbosity.js";
 // Plan events (client UX)
 export const EventPlanCreated = "soothe.cognition.plan.created";
 
-// Explore subagent events
-export const EventExploreStarted = "soothe.subagent.explore.started";
-export const EventExploreMilestone = "soothe.subagent.explore.milestone";
-export const EventExploreStepCompleted = "soothe.subagent.explore.step.completed";
-export const EventExploreCompleted = "soothe.subagent.explore.completed";
+// Explorer subagent events
+export const EventExplorerStarted = "soothe.subagent.explorer.started";
+export const EventExplorerMilestone = "soothe.subagent.explorer.milestone";
+export const EventExplorerStepCompleted = "soothe.subagent.explorer.step.completed";
+export const EventExplorerCompleted = "soothe.subagent.explorer.completed";
 
-// Tacitus subagent events
-export const EventTacitusStarted = "soothe.subagent.tacitus.started";
-export const EventTacitusGatherSummary = "soothe.subagent.tacitus.gather.summary";
-export const EventTacitusCompleted = "soothe.subagent.tacitus.completed";
+// Deep research subagent events
+export const EventDeepResearchStarted = "soothe.subagent.deep_research.started";
+export const EventDeepResearchProgress = "soothe.subagent.deep_research.progress";
+export const EventDeepResearchStepCompleted = "soothe.subagent.deep_research.step.completed";
+export const EventDeepResearchGatherSummary = "soothe.subagent.deep_research.gather.summary";
+export const EventDeepResearchCrawlSummary = "soothe.subagent.deep_research.crawl.summary";
+export const EventDeepResearchCompleted = "soothe.subagent.deep_research.completed";
 
 // Control-plane wire envelopes (not soothe.* catalog events)
 export const EventReplayComplete = "replay_complete";

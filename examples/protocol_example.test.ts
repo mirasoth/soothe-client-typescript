@@ -241,6 +241,6 @@ describe("Example: protocol constants", () => {
     expect(PROTO_VERSION).toBe("1");
     expect(DEFAULT_CLIENT_CAPABILITIES).toContain("streaming");
     expect(DEFAULT_CLIENT_CAPABILITIES).toContain("heartbeat");
-    expect(CLIENT_VERSION).toBe("0.4.1");
+    expect(CLIENT_VERSION).toBe("0.5.0");
   });
 });

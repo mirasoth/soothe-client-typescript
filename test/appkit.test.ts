@@ -504,13 +504,13 @@ describe("inputMessageForLoop", () => {
   it("builds loop_input with opts", () => {
     const msg = inputMessageForLoop("hi", "loop-1", undefined, {
       intentHint: INTENT_HINT_TEXT_COMPLETION,
-      preferredSubagent: "explore",
+      preferredSubagent: "explorer",
     });
     expect(msg.type).toBe("loop_input");
     expect(msg.content).toBe("hi");
     expect(msg.loop_id).toBe("loop-1");
     expect(msg.intent_hint).toBe(INTENT_HINT_TEXT_COMPLETION);
-    expect(msg.preferred_subagent).toBe("explore");
+    expect(msg.preferred_subagent).toBe("explorer");
   });
 
   it("includes attachments", () => {
