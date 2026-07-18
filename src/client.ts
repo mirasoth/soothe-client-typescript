@@ -54,7 +54,7 @@ export interface InputOptions {
   model?: string;
   modelParams?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
-  /** Daemon direct-model hint or agent-path pass-through (resume_clarification, skill:foo). */
+  /** Daemon intent_hint or agent-path pass-through (resume_clarification, skill:foo). */
   intentHint?: LoopInputIntentHint;
   /** JSON Schema for structured output (text_completion or image_to_text). */
   responseSchema?: Record<string, unknown>;

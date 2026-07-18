@@ -103,7 +103,7 @@ describe("Example: sendInput variants", () => {
   });
 });
 
-describe("Example: intent hints (direct model turns)", () => {
+describe("Example: intent hints (non-agent turns)", () => {
   it("intentHintConstants: text_completion, image_to_text, ocr, embed", () => {
     console.log("text_completion:", INTENT_HINT_TEXT_COMPLETION);
     console.log("image_to_text:", INTENT_HINT_IMAGE_TO_TEXT);
@@ -116,7 +116,7 @@ describe("Example: intent hints (direct model turns)", () => {
     expect(INTENT_HINT_EMBED).toBe("embed");
   });
 
-  it("sendInputWithIntentHint: direct model text_completion", async () => {
+  it("sendInputWithIntentHint: text_completion", async () => {
     const md = createMockDaemon();
     try {
       const client = new Client(md.url);
@@ -199,10 +199,11 @@ describe("Example: intent hints (direct model turns)", () => {
 });
 
 describe("Example: removed intent hints", () => {
-  it("removedIntentHints: direct_llm and quiz are rejected", () => {
+  it("removedIntentHints: direct_llm, quiz, and direct_model are rejected", () => {
     console.log("Removed hints:", REMOVED_INTENT_HINTS.join(", "));
     expect(REMOVED_INTENT_HINTS).toContain("direct_llm");
     expect(REMOVED_INTENT_HINTS).toContain("quiz");
+    expect(REMOVED_INTENT_HINTS).toContain("direct_model");
   });
 
   it("validateLoopInputIntentHint: rejects direct_llm", () => {

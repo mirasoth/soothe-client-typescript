@@ -223,7 +223,7 @@ describe("EventClassifier", () => {
   });
 
   it("phase not in config → not deliverable", () => {
-    const cl = new EventClassifier({ deliverablePhases: new Set(["direct_model"]) });
+    const cl = new EventClassifier({ deliverablePhases: new Set(["text_completion"]) });
     const r = cl.classify(deliverableNext("quiz", "Hello, this is the answer."), "");
     expect(r.terminal).not.toBe(ChatEventTerminal.DeliverableComplete);
   });

@@ -41,7 +41,7 @@ export interface ChatEventResult {
 /**
  * Product-specific decisions an EventClassifier needs. The DeliverablePhases
  * set is the key product knob: which message `phase` values count as
- * user-facing deliverables (triarch uses quiz, goal_completion, direct_model, and
+ * user-facing deliverables (triarch uses quiz, goal_completion, chitchat, and
  * direct intent_hint phases text_completion, image_to_text, ocr, embed;
  * other apps pass their own).
  */
@@ -56,7 +56,7 @@ export interface ClassifierConfig {
   thinkingStepEvents?: ReadonlySet<string>;
   /**
    * When true, a status frame with state=idle and non-empty accumulated
-   * assistant text is DeliverableComplete (typical for direct-model turns).
+   * assistant text is DeliverableComplete (typical for intent-hint turns).
    * Default false keeps Continue-on-status behaviour.
    */
   treatStatusIdleAsComplete?: boolean;
@@ -369,10 +369,10 @@ export class EventClassifier {
       }
     }
 
-    // Direct-LLM assistant content (mode=messages, terminal AIMessage, no phase).
-    const [directContent, directOk] = this.messagesModeAssistantContent(data);
-    if (directOk && this.isSubstantiveAssistantReply(directContent)) {
-      return this.deliverableResult(directContent, "soothe.protocol.message.direct_model");
+    // Unphased terminal AI text is streamable narration only.
+    const [unphasedContent, unphasedOk] = this.messagesModeAssistantContent(data);
+    if (unphasedOk) {
+      return this.continueResult(unphasedContent);
     }
 
     if (hasPayload && rawContent) {
@@ -389,8 +389,8 @@ export class EventClassifier {
 
   /**
    * Extracts plain assistant text from mode="messages" events that carry a
-   * terminal AIMessage without loop-tagged phase metadata (legacy direct_llm turns
-   * before phase tagging; prefer deliverablePhases including text_completion).
+   * terminal AIMessage without loop-tagged phase metadata (prefer named
+   * deliverablePhases such as text_completion).
    */
   private messagesModeAssistantContent(data: unknown): [string, boolean] {
     if (!Array.isArray(data) || data.length === 0) return ["", false];

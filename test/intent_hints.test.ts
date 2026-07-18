@@ -4,13 +4,14 @@ import { inputMessageForLoop } from "../src/appkit/turn_runner.js";
 import { INTENT_HINT_TEXT_COMPLETION, validateLoopInputIntentHint } from "../src/intent_hints.js";
 
 describe("validateLoopInputIntentHint", () => {
-  it("rejects removed direct_llm and quiz", () => {
+  it("rejects removed legacy hints", () => {
     expect(validateLoopInputIntentHint("direct_llm")).toMatch(/removed/);
     expect(validateLoopInputIntentHint("DIRECT_LLM")).toMatch(/removed/);
     expect(validateLoopInputIntentHint(" quiz ")).toMatch(/removed/);
+    expect(validateLoopInputIntentHint("direct_model")).toMatch(/removed/);
   });
 
-  it("allows direct hints and agent pass-through", () => {
+  it("allows intent hints and agent pass-through", () => {
     expect(validateLoopInputIntentHint(INTENT_HINT_TEXT_COMPLETION)).toBeNull();
     expect(validateLoopInputIntentHint("resume_clarification")).toBeNull();
     expect(validateLoopInputIntentHint("skill:search")).toBeNull();

@@ -5,6 +5,16 @@ All notable changes to `@mirasoth/soothe-client` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-07-19
+
+### Removed
+- Legacy `intent_hint` values `direct_llm`, `quiz`, and `direct_model` (rejected before send)
+- Legacy loop phase `direct_model` from deliverable / loop-assistant phase sets
+- Unphased `mode=messages` AI text no longer auto-completes a turn
+
+### Changed
+- Handshake `CLIENT_VERSION` aligned with package version (`0.5.1`)
+
 ## [0.5.0] - 2026-07-18
 
 ### Changed

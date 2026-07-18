@@ -69,7 +69,7 @@ function handshakeAndRpc(ws: WebSocket, opts?: { turn?: boolean; jobs?: boolean 
           mode: "messages",
           loop_id: lid,
           namespace: [],
-          data: [{ type: "ai", content: "hi", phase: "direct_model" }, {}],
+          data: [{ type: "ai", content: "hi", phase: "text_completion" }, {}],
         }),
       );
       ws.send(
