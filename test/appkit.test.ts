@@ -13,7 +13,10 @@ import {
   EventClassifier,
   QueryGate,
   SSEBroadcaster,
+  TURN_END_IDLE,
+  TURN_END_STREAM_END,
   TimeoutPolicy,
+  TurnBoundary,
   TurnRunner,
   idleTimeoutForTurn,
   inputMessageForLoop,
@@ -160,6 +163,19 @@ function streamingChunkNext(content: string): Record<string, unknown> {
       namespace: ["soothe", "protocol", "message"],
       mode: "messages",
       data: [{ type: "AIMessageChunk", content }],
+      loop_id: "loop-1",
+    },
+  };
+}
+
+function streamEndNext(): Record<string, unknown> {
+  return {
+    proto: "1",
+    type: "next",
+    id: "sub-1",
+    payload: {
+      mode: "custom",
+      data: { type: "soothe.stream.end", scope: "turn" },
       loop_id: "loop-1",
     },
   };
@@ -358,7 +374,53 @@ describe("ConnectionPool", () => {
 // TurnRunner (end-to-end scripted)
 // ---------------------------------------------------------------------------
 
+describe("TurnBoundary", () => {
+  it("ignores pre-running idle", () => {
+    const b = new TurnBoundary();
+    expect(b.feed({ type: "status", state: "idle" })[0]).toBe(false);
+    b.feed({ type: "status", state: "running" });
+    b.feed(streamingChunkNext("progress"));
+    const [ended, reason] = b.feed({ type: "status", state: "idle" });
+    expect(ended).toBe(true);
+    expect(reason).toBe(TURN_END_IDLE);
+  });
+});
+
 describe("TurnRunner", () => {
+  it("stream.end soft-complete via TurnBoundary", async () => {
+    const store = new MemStore();
+    const fake = new FakeClient([
+      { type: "status", state: "running", loop_id: "loop-1" },
+      streamingChunkNext("enough accumulated reply text"),
+      streamEndNext(),
+    ]);
+    const pool = newTestPool(store, fake);
+    const tr = new TurnRunner(pool, new QueryGate(), triarchClassifier(), store, null, {
+      queryTimeout: 5_000,
+    });
+    await tr.execute("s1", "hi", "user-1", "ws-1", null, null);
+    const msgs = store.messages("s1");
+    expect(msgs[0]?.role).toBe("assistant");
+    expect(msgs[0]?.metadata?.completion_event).toBe(TURN_END_STREAM_END);
+  });
+
+  it("gated idle soft-complete via TurnBoundary", async () => {
+    const store = new MemStore();
+    const fake = new FakeClient([
+      { type: "status", state: "running", loop_id: "loop-1" },
+      streamingChunkNext("enough accumulated reply text"),
+      { type: "status", state: "idle", loop_id: "loop-1" },
+    ]);
+    const pool = newTestPool(store, fake);
+    const tr = new TurnRunner(pool, new QueryGate(), triarchClassifier(), store, null, {
+      queryTimeout: 5_000,
+    });
+    await tr.execute("s1", "hi", "user-1", "ws-1", null, null);
+    const msgs = store.messages("s1");
+    expect(msgs[0]?.role).toBe("assistant");
+    expect(msgs[0]?.metadata?.completion_event).toBe(TURN_END_IDLE);
+  });
+
   it("deliverable turn end-to-end", async () => {
     const store = new MemStore();
     const deliverable = deliverableNext("text_completion", "This is a substantive final answer.");

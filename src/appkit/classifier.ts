@@ -55,9 +55,8 @@ export interface ClassifierConfig {
   /** Optional app override of the default thinking-step event allowlist. */
   thinkingStepEvents?: ReadonlySet<string>;
   /**
-   * When true, a status frame with state=idle and non-empty accumulated
-   * assistant text is DeliverableComplete (typical for intent-hint turns).
-   * Default false keeps Continue-on-status behaviour.
+   * Standalone classify only. Prefer TurnRunner + TurnBoundary for turn end
+   * (DaemonSession contract). Default false.
    */
   treatStatusIdleAsComplete?: boolean;
 }
@@ -101,6 +100,8 @@ export class EventClassifier {
     if (!eventType) return false;
     switch (eventType) {
       case "status.idle":
+      case "status.stopped":
+      case "soothe.stream.end":
       case "idle_timeout":
       case "query_timeout":
       case "stream_closed":

@@ -2,11 +2,10 @@
  * Turn runner for appkit.
  *
  * Executes one query turn end-to-end: acquire a pooled connection, enforce
- * single-flight, send loop_input, consume the event stream, classify events,
- * resolve the deliverable, persist the reply, and broadcast completion.
+ * single-flight, send loop_input, consume the event stream, persist/broadcast.
  *
- * Supports lifecycle knobs: idle timeout, soft-complete
- * policies, attachment compaction, and stream-close soft-complete.
+ * Turn end is owned by TurnBoundary (DaemonSession.iterTurnChunks contract).
+ * EventClassifier selects content and may early-complete on deliverable phases.
  */
 
 import type { PooledConn } from "./pool.js";
@@ -19,6 +18,7 @@ import type { LoopInputIntentHint } from "../intent_hints.js";
 import { validateLoopInputIntentHint } from "../intent_hints.js";
 import type { DecodedMessage } from "../protocol.js";
 import { compactAttachments, type CompactImageOptions } from "./attachments.js";
+import { TurnBoundary, isDaemonTurnEndEvent } from "./turn_boundary.js";
 
 /** Returned when a turn exceeds the configured timeout and policy is Fail. */
 export class ErrQueryTimeout extends Error {
@@ -254,6 +254,7 @@ export class TurnRunner {
 
       let assistantContent = "";
       const startedAt = Date.now();
+      const boundary = new TurnBoundary();
       const idleForTurn = idleTimeoutForTurn(this.cfg, (attachments?.length ?? 0) > 0);
 
       type RaceTag = "timeout" | "caller" | "idle";
@@ -357,6 +358,7 @@ export class TurnRunner {
         idleRace = armIdle();
         const msg = res.value;
 
+        const [ended, endReason] = boundary.feed(msg);
         const eventResult = this.classifier.classify(msg, assistantContent);
         if (eventResult.err && eventResult.terminal === ChatEventTerminal.FailedComplete) {
           clearIdle();
@@ -381,7 +383,7 @@ export class TurnRunner {
           eventResult,
           assistantContent,
         );
-        if (deliverable) {
+        if (deliverable && !isDaemonTurnEndEvent(eventResult.completionEvent ?? "")) {
           clearIdle();
           await this.completeTurn(
             sessionID,
@@ -391,6 +393,25 @@ export class TurnRunner {
             eventResult.completionEvent ?? "",
           );
           return;
+        }
+
+        if (ended) {
+          clearIdle();
+          if (this.classifier.isSubstantiveAssistantReply(assistantContent)) {
+            await this.completeTurn(
+              sessionID,
+              loopID,
+              assistantContent.trim(),
+              startedAt,
+              endReason,
+            );
+            return;
+          }
+          const err = new Error(`turn ended (${endReason}) with no assistant content`);
+          await this.persistFailed(sessionID, loopID, err);
+          this.broadcastError(sessionID, err);
+          this.onError?.(sessionID, loopID, err);
+          throw err;
         }
       }
     } finally {

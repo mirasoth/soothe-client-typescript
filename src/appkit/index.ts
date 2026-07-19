@@ -58,6 +58,15 @@ export {
   type TurnConfig,
 } from "./turn_runner.js";
 
+export {
+  TURN_END_IDLE,
+  TURN_END_STOPPED,
+  TURN_END_STREAM_END,
+  TurnBoundary,
+  TurnLifecycleGate,
+  isDaemonTurnEndEvent,
+} from "./turn_boundary.js";
+
 // DaemonSession (dual-socket TUI/CLI surface).
 export {
   DEFAULT_POST_IDLE_DRAIN_MS,
