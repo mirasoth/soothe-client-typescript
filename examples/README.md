@@ -13,7 +13,7 @@ npm test -- examples/appkit
 | Path | What it shows |
 |------|----------------|
 | [`progressive/`](progressive/) | Ladder 01–06: hello → `DaemonSession` stream → multi-turn → pool → `CommandClient` jobs |
-| [`appkit/`](appkit/) | Pool, `TurnRunner`, classifier, query gate, SSE |
+| [`appkit/`](appkit/) | Pool, `TurnRunner` + `TurnBoundary`, classifier, query gate, SSE |
 | `connection_example.test.ts` | Raw `Client` connect / bootstrap / retries |
 | `job_cron_example.test.ts` | Jobs and cron RPCs |
 | `loop_management_example.test.ts` | Loop list / get / tree / prune / delete |

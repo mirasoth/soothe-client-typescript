@@ -14,12 +14,14 @@ import {
   QueryGate,
   SSEBroadcaster,
   TURN_END_IDLE,
+  TURN_END_STOPPED,
   TURN_END_STREAM_END,
   TimeoutPolicy,
   TurnBoundary,
   TurnRunner,
   idleTimeoutForTurn,
   inputMessageForLoop,
+  isDaemonTurnEndEvent,
   type SessionEntry,
   type SessionMessage,
   type SessionStore,
@@ -384,6 +386,32 @@ describe("TurnBoundary", () => {
     expect(ended).toBe(true);
     expect(reason).toBe(TURN_END_IDLE);
   });
+
+  it("stream.end requires running and progress", () => {
+    const b = new TurnBoundary();
+    const end = streamEndNext();
+    expect(b.feed(end)[0]).toBe(false);
+    b.feed({ type: "status", state: "running" });
+    expect(b.feed(end)[0]).toBe(false);
+    b.feed(streamingChunkNext("x"));
+    const [ended, reason] = b.feed(end);
+    expect(ended).toBe(true);
+    expect(reason).toBe(TURN_END_STREAM_END);
+  });
+
+  it("stopped after running", () => {
+    const b = new TurnBoundary();
+    expect(b.feed({ type: "status", state: "stopped" })[0]).toBe(false);
+    b.feed({ type: "status", state: "running" });
+    const [ended, reason] = b.feed({ type: "status", state: "stopped" });
+    expect(ended).toBe(true);
+    expect(reason).toBe(TURN_END_STOPPED);
+  });
+
+  it("isDaemonTurnEndEvent", () => {
+    expect(isDaemonTurnEndEvent(TURN_END_STREAM_END)).toBe(true);
+    expect(isDaemonTurnEndEvent("soothe.protocol.message.goal_completion")).toBe(false);
+  });
 });
 
 describe("TurnRunner", () => {
@@ -419,6 +447,28 @@ describe("TurnRunner", () => {
     const msgs = store.messages("s1");
     expect(msgs[0]?.role).toBe("assistant");
     expect(msgs[0]?.metadata?.completion_event).toBe(TURN_END_IDLE);
+  });
+
+  it("boundary empty content fails", async () => {
+    const store = new MemStore();
+    const fake = new FakeClient([
+      { type: "status", state: "running", loop_id: "loop-1" },
+      {
+        type: "next",
+        payload: {
+          mode: "custom",
+          data: { type: "soothe.cognition.strange_loop.step.started", step_id: "s1" },
+        },
+      },
+      streamEndNext(),
+    ]);
+    const pool = newTestPool(store, fake);
+    const tr = new TurnRunner(pool, new QueryGate(), triarchClassifier(), store, null, {
+      queryTimeout: 5_000,
+    });
+    await expect(tr.execute("s1", "hi", "user-1", "ws-1", null, null)).rejects.toThrow(
+      /no assistant content/,
+    );
   });
 
   it("deliverable turn end-to-end", async () => {

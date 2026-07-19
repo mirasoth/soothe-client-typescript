@@ -1,5 +1,5 @@
 /**
- * appkit examples: SSEBroadcaster, QueryGate,
+ * appkit examples: SSEBroadcaster, QueryGate, TurnBoundary,
  * EventClassifier, extractThinkingStep, ConnectionPool, and TurnRunner.
  *
  * Mirrors the Go client's `examples/appkit/appkit_example_test.go`.
@@ -18,15 +18,48 @@ import {
   DEFAULT_THINKING_STEP_EVENTS,
   ConnectionPool,
   defaultPoolConfig,
+  TurnBoundary,
   TurnRunner,
   ErrQueryTimeout,
   inputMessageForLoop,
+  isDaemonTurnEndEvent,
+  TURN_END_STREAM_END,
   type SessionStore,
   type SessionEntry,
   type SessionMessage,
 } from "../../src/appkit/index.js";
 import { DEFAULT_DELIVERABLE_PHASES } from "../../src/index.js";
 import { createMockDaemon } from "../helpers/mock-server.js";
+
+// ---------------------------------------------------------------------------
+// TurnBoundary (DaemonSession turn-end on the pool path)
+// ---------------------------------------------------------------------------
+
+describe("Example: TurnBoundary", () => {
+  it("gates stream.end after running + messages progress", () => {
+    const b = new TurnBoundary();
+
+    const [preIdle] = b.feed({ type: "status", state: "idle" });
+    console.log("pre-running idle: ended=", preIdle);
+    expect(preIdle).toBe(false);
+
+    b.feed({ type: "status", state: "running", loop_id: "L1" });
+    b.feed({
+      type: "event",
+      mode: "messages",
+      data: [{ type: "AIMessageChunk", content: "enough reply text here" }],
+    });
+    const [ended, reason] = b.feed({
+      type: "event",
+      mode: "custom",
+      data: { type: "soothe.stream.end", scope: "turn" },
+    });
+    console.log("stream.end: ended=", ended, "reason=", reason);
+    expect(ended).toBe(true);
+    expect(reason).toBe(TURN_END_STREAM_END);
+    expect(isDaemonTurnEndEvent(reason)).toBe(true);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // SSEBroadcaster

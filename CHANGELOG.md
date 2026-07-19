@@ -5,6 +5,14 @@ All notable changes to `@mirasoth/soothe-client` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-07-19
+
+### Added
+- Example `TurnBoundary` + expanded unit tests (stream.end gates, stopped, empty-content fail)
+
+### Changed
+- Handshake `CLIENT_VERSION` reports `0.5.3`
+
 ## [0.5.2] - 2026-07-19
 
 ### Changed
