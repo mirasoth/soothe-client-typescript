@@ -5,11 +5,9 @@ import {
   isCompletionEvent,
   isSubagentProgressEvent,
   EventPlanCreated,
-  EventExplorerStarted,
-  EventExplorerCompleted,
-  EventExplorerStepCompleted,
   EventDeepResearchStarted,
   EventDeepResearchCompleted,
+  EventDeepResearchStepCompleted,
   EventToolStarted,
   EventFinalReport,
   EventGeneralFailed,
@@ -54,14 +52,12 @@ describe("classifyEventVerbosity", () => {
   it("normal tier", () => {
     expect(classifyEventVerbosity(EventPlanCreated)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventStrangeLoopReasoned)).toBe(VerbosityTier.Normal);
-    expect(classifyEventVerbosity(EventExplorerStarted)).toBe(VerbosityTier.Normal);
-    expect(classifyEventVerbosity(EventExplorerCompleted)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventDeepResearchStarted)).toBe(VerbosityTier.Normal);
     expect(classifyEventVerbosity(EventDeepResearchCompleted)).toBe(VerbosityTier.Normal);
   });
 
   it("detailed tier", () => {
-    expect(classifyEventVerbosity(EventExplorerStepCompleted)).toBe(VerbosityTier.Detailed);
+    expect(classifyEventVerbosity(EventDeepResearchStepCompleted)).toBe(VerbosityTier.Detailed);
   });
 
   it("internal tier", () => {
@@ -72,27 +68,25 @@ describe("classifyEventVerbosity", () => {
 describe("isCompletionEvent", () => {
   it("completed actions", () => {
     expect(isCompletionEvent(EventStrangeLoopCompleted)).toBe(true);
-    expect(isCompletionEvent("soothe.subagent.explorer.completed")).toBe(true);
+    expect(isCompletionEvent("soothe.subagent.deep_research.completed")).toBe(true);
     expect(isCompletionEvent("soothe.cognition.plan.completed")).toBe(true);
   });
 
   it("non-completed events", () => {
     expect(isCompletionEvent(EventPlanCreated)).toBe(false);
-    expect(isCompletionEvent(EventExplorerStarted)).toBe(false);
+    expect(isCompletionEvent(EventDeepResearchStarted)).toBe(false);
     expect(isCompletionEvent("invalid")).toBe(false);
   });
 });
 
 describe("isSubagentProgressEvent", () => {
   it("subagent progress events", () => {
-    expect(isSubagentProgressEvent(EventExplorerStarted)).toBe(true);
-    expect(isSubagentProgressEvent(EventExplorerCompleted)).toBe(true);
     expect(isSubagentProgressEvent(EventDeepResearchStarted)).toBe(true);
     expect(isSubagentProgressEvent(EventDeepResearchCompleted)).toBe(true);
   });
 
   it("non-progress events", () => {
-    expect(isSubagentProgressEvent(EventExplorerStepCompleted)).toBe(false);
+    expect(isSubagentProgressEvent(EventDeepResearchStepCompleted)).toBe(false);
     expect(isSubagentProgressEvent(EventPlanCreated)).toBe(false);
   });
 });

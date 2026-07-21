@@ -91,7 +91,7 @@ describe("Example: sendInput variants", () => {
 
       await client.sendInput("Explore the codebase structure", {
         loopID: "loop-1",
-        subagent: "explorer",
+        subagent: "deep_research",
       });
       console.log("Subagent input sent");
 

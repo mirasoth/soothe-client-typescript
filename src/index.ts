@@ -91,10 +91,6 @@ export {
 // Events
 export {
   EventPlanCreated,
-  EventExplorerStarted,
-  EventExplorerMilestone,
-  EventExplorerStepCompleted,
-  EventExplorerCompleted,
   EventDeepResearchStarted,
   EventDeepResearchProgress,
   EventDeepResearchStepCompleted,

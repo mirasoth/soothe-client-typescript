@@ -12,12 +12,6 @@ import { VerbosityTier } from "./verbosity.js";
 // Plan events (client UX)
 export const EventPlanCreated = "soothe.cognition.plan.created";
 
-// Explorer subagent events
-export const EventExplorerStarted = "soothe.subagent.explorer.started";
-export const EventExplorerMilestone = "soothe.subagent.explorer.milestone";
-export const EventExplorerStepCompleted = "soothe.subagent.explorer.step.completed";
-export const EventExplorerCompleted = "soothe.subagent.explorer.completed";
-
 // Deep research subagent events
 export const EventDeepResearchStarted = "soothe.subagent.deep_research.started";
 export const EventDeepResearchProgress = "soothe.subagent.deep_research.progress";
