@@ -101,6 +101,8 @@ export {
   EventLoopReattachedWire,
   EventCardReplayBegin,
   EventCardCreated,
+  EventCardUpdated,
+  EventCardFinalized,
   EventCardReplayEnd,
   EventStrangeLoopStarted,
   EventStrangeLoopCompleted,
@@ -205,6 +207,11 @@ export {
   TurnEventStats,
   DEFAULT_POST_IDLE_DRAIN_MS,
 } from "./appkit/index.js";
+export {
+  CardProjection,
+  parseCardCustomPayload,
+} from "./display/cardProjection.js";
+export type { CardWireDict, ParsedCardFrame } from "./display/cardProjection.js";
 export type {
   SessionStore,
   SessionEntry,

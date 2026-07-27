@@ -24,10 +24,12 @@ export const EventDeepResearchCompleted = "soothe.subagent.deep_research.complet
 export const EventReplayComplete = "replay_complete";
 export const EventLoopReattachedWire = "loop_reattached";
 
-// Card ledger replay frames
-export const EventCardReplayBegin = "card.replay_begin";
-export const EventCardCreated = "card.created";
-export const EventCardReplayEnd = "card.replay_end";
+// Display card ledger frames (UI source of truth)
+export const EventCardCreated = "soothe.card.created";
+export const EventCardUpdated = "soothe.card.updated";
+export const EventCardFinalized = "soothe.card.finalized";
+export const EventCardReplayBegin = "soothe.card.replay.begin";
+export const EventCardReplayEnd = "soothe.card.replay.end";
 
 // Tool events
 export const EventToolStarted = "soothe.tool.execution.started";

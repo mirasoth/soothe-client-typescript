@@ -7,8 +7,10 @@
 
 import {
   EventCardCreated,
+  EventCardFinalized,
   EventCardReplayBegin,
   EventCardReplayEnd,
+  EventCardUpdated,
   EventPlanCreated,
   EventStrangeLoopCompleted,
   EventStrangeLoopStepCompleted,
@@ -29,6 +31,9 @@ const TURN_PROGRESS_CUSTOM_TYPES: ReadonlySet<string> = new Set([
   EventStrangeLoopStepStarted,
   EventStrangeLoopStepQueued,
   EventStrangeLoopStepCompleted,
+  EventCardCreated,
+  EventCardUpdated,
+  EventCardFinalized,
 ]);
 
 /** Handshake / card-replay / subscription leftovers safe to drop at turn start. */
