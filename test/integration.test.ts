@@ -300,18 +300,6 @@ describe.skipIf(skip())("Integration", () => {
     client.close();
   });
 
-  it("fetch loop cards", async () => {
-    const client = new Client(cfg.daemonURL, cfg);
-    await client.connect();
-
-    mkdtempSync(join(tmpdir(), "soothe-test-"));
-    const loopID = await bootstrapLoopSession(client, null, cfg);
-
-    const resp = await client.fetchLoopCards(loopID, 15_000);
-    expect(resp).toBeDefined();
-    client.close();
-  });
-
   it("get mcp status", async () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();

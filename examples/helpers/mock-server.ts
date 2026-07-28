@@ -226,12 +226,6 @@ function handler(ws: WebSocket): void {
       case "loop_state_update":
         sendResponse(ws, id, { success: true, loop_id: params.loop_id });
         return;
-      case "loop_cards_fetch":
-        sendResponse(ws, id, {
-          loop_id: params.loop_id,
-          cards: [{ id: "card-1", type: "info", content: "summary" }],
-        });
-        return;
       case "loop_history_fetch":
         sendResponse(ws, id, {
           loop_id: params.loop_id,

@@ -129,15 +129,6 @@ export async function refreshAuthToken(
   );
 }
 
-/** Fetch bound display-card snapshot for a loop. */
-export async function fetchLoopCards(
-  client: Client,
-  loopID: string,
-  timeout?: number,
-): Promise<Record<string, unknown>> {
-  return client.fetchLoopCards(loopID, timeout);
-}
-
 /** Fetch persisted conversation/activity rows for a loop. */
 export async function fetchLoopMessages(
   client: Client,

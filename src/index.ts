@@ -149,7 +149,6 @@ export {
   fetchSkillsCatalog,
   fetchConfigSection,
   fetchLoopHistory,
-  fetchLoopCards,
   fetchLoopMessages,
   authenticate,
   refreshAuthToken,

@@ -1064,11 +1064,6 @@ export class Client extends EventEmitter {
     return this.sendMessage(requestEnvelope("loop_state_update", params));
   }
 
-  /** Requests display card ledger snapshot. */
-  sendLoopCardsFetch(loopID: string): Promise<void> {
-    return this.sendMessage(requestEnvelope("loop_cards_fetch", { loop_id: loopID }));
-  }
-
  /** Requests the full loop history. */
   sendLoopHistoryFetch(loopID: string): Promise<void> {
     return this.sendMessage(requestEnvelope("loop_history_fetch", { loop_id: loopID }));
@@ -1134,16 +1129,6 @@ export class Client extends EventEmitter {
       "loop_state_update",
       params,
       "loop_state_update",
-      timeout ?? 15_000,
-    );
-  }
-
-  /** Requests display cards and waits for response. */
-  fetchLoopCards(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "loop_cards_fetch",
-      { loop_id: loopID },
-      "loop_cards_fetch",
       timeout ?? 15_000,
     );
   }

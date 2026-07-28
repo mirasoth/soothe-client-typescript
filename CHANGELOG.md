@@ -83,7 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DaemonSession` dual-socket session with `iterTurnChunks`, post-idle drain, reconnect/reattach
 - `stream_terminal` helpers: turn-end detection, stale-frame peel labels, turn-progress gating
 - `Client.peelStalePendingControlEvents` and `isConnectionAlive`
-- Oneshoot helpers `connectedWebsocket` / `protocol1Rpc`; `fetchLoopCards` / `fetchLoopMessages`
+- Oneshoot helpers `connectedWebsocket` / `protocol1Rpc`; `fetchLoopMessages`
 - Appkit `unwrapNext`, `shouldDropStreamChunkEarly`, `TurnEventStats`
 
 ### Changed

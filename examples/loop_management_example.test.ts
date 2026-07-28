@@ -204,40 +204,7 @@ describe("Example: loop state", () => {
   });
 });
 
-describe("Example: loop cards", () => {
-  it("fetchLoopCards: requests display card ledger snapshot", async () => {
-    const md = createMockDaemon();
-    try {
-      const client = new Client(md.url);
-      await client.connect();
 
-      const cards = await client.fetchLoopCards("loop-1", 15_000);
-      console.log("Cards:", cards);
-
-      client.close();
-      expect(cards).toMatchObject({ loop_id: "loop-1" });
-      expect(cards.cards).toBeInstanceOf(Array);
-    } finally {
-      await md.close();
-    }
-  });
-
-  it("sendLoopCardsFetch: fire-and-forget cards request", async () => {
-    const md = createMockDaemon();
-    try {
-      const client = new Client(md.url);
-      await client.connect();
-
-      await client.sendLoopCardsFetch("loop-1");
-      console.log("Cards request sent");
-
-      client.close();
-      expect(true).toBe(true);
-    } finally {
-      await md.close();
-    }
-  });
-});
 
 describe("Example: loop history", () => {
   it("fetchLoopHistory: blocking helper returns full history", async () => {

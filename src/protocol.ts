@@ -54,7 +54,6 @@ export type MethodName =
   | "loop_messages"
   | "loop_state_get"
   | "loop_state_update"
-  | "loop_cards_fetch"
   | "loop_history_fetch"
   | "loop_events"
   | "autopilot_events"

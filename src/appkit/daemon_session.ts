@@ -268,34 +268,6 @@ export class DaemonSession {
     });
   }
 
-  async fetchLoopCards(loopId: string): Promise<{
-    cards: unknown[];
-    seq: number;
-    contextTokens: number;
-    success: boolean;
-  }> {
-    const lid = String(loopId || "").trim();
-    if (!lid) return { cards: [], seq: 0, contextTokens: 0, success: false };
-    return this.withRpcLock(async () => {
-      await this.ensureRpcConnected();
-      try {
-        const resp = await this.rpcClient.fetchLoopCards(lid, 30_000);
-        const rawCards = resp.cards;
-        return {
-          cards: Array.isArray(rawCards) ? rawCards : [],
-          seq: Number(resp.seq ?? 0),
-          contextTokens:
-            typeof resp.context_tokens === "number" && resp.context_tokens >= 0
-              ? resp.context_tokens
-              : 0,
-          success: true,
-        };
-      } catch {
-        return { cards: [], seq: 0, contextTokens: 0, success: false };
-      }
-    });
-  }
-
   async fetchLoopHistory(loopId: string): Promise<{
     goals: unknown[];
     liveCards: unknown[];
