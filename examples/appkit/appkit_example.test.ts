@@ -24,8 +24,8 @@ import {
   inputMessageForLoop,
   isDaemonTurnEndEvent,
   TURN_END_STREAM_END,
-  type SessionStore,
-  type SessionEntry,
+  type LoopSessionStore,
+  type LoopSessionEntry,
   type SessionMessage,
 } from "../../src/appkit/index.js";
 import { DEFAULT_DELIVERABLE_PHASES } from "../../src/index.js";
@@ -291,13 +291,13 @@ describe("Example: extractThinkingStep", () => {
 // ConnectionPool
 // ---------------------------------------------------------------------------
 
-/** In-memory SessionStore implementation for examples. */
-function makeMemoryStore(): SessionStore & {
-  _entries: Map<string, SessionEntry>;
+/** In-memory LoopSessionStore implementation for examples. */
+function makeMemoryStore(): LoopSessionStore & {
+  _entries: Map<string, LoopSessionEntry>;
 } {
-  const entries = new Map<string, SessionEntry>();
-  const store: SessionStore & {
-    _entries: Map<string, SessionEntry>;
+  const entries = new Map<string, LoopSessionEntry>();
+  const store: LoopSessionStore & {
+    _entries: Map<string, LoopSessionEntry>;
   } = {
     _entries: entries,
     async getSession(sessionID) {

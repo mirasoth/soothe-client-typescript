@@ -1,6 +1,6 @@
 {
   "name": "@mirasoth/soothe-client",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "WebSocket client in TypeScript for soothe-daemon",
   "publishConfig": {
     "access": "public"

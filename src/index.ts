@@ -212,8 +212,8 @@ export {
 } from "./display/cardProjection.js";
 export type { CardWireDict, ParsedCardFrame } from "./display/cardProjection.js";
 export type {
-  SessionStore,
-  SessionEntry,
+  LoopSessionStore,
+  LoopSessionEntry,
   SessionMessage,
   SSEEvent,
   ChatEventResult,

@@ -1,7 +1,7 @@
 /**
  * Persistence seam for appkit.
  *
- * SessionStore abstracts per-application storage: the session↔loop-id mapping
+ * LoopSessionStore abstracts per-application storage: the session↔loop-id mapping
  * that ConnectionPool consults to decide bootstrap vs reattach, and the
  * message rows TurnRunner writes back when a turn completes. Applications
  * implement this against their own store (Postgres, Redis, in-memory, …).
@@ -10,7 +10,7 @@
  */
 
 /** Persisted mapping between an application session id and the daemon loop id. */
-export interface SessionEntry {
+export interface LoopSessionEntry {
   workspaceID: string;
   sessionID: string;
   loopID: string;
@@ -41,9 +41,9 @@ export interface SessionMessage {
  * loop id once bootstrapped. TurnRunner persists the final assistant reply
  * and error rows via appendMessage.
  */
-export interface SessionStore {
+export interface LoopSessionStore {
   /** Returns the persisted entry for sessionID, or null if no record exists. */
-  getSession(sessionID: string): Promise<SessionEntry | null>;
+  getSession(sessionID: string): Promise<LoopSessionEntry | null>;
 
   /** Persists a new session↔loop mapping. */
   createSession(

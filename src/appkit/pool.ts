@@ -5,7 +5,7 @@
  * active connection when still live, otherwise bootstraps a fresh loop
  * (loop_new + subscribe) or reattaches an existing one (loop_reattach +
  * subscribe + reattachAndProbe). Persistence of session↔loop mappings is
- * abstracted behind SessionStore.
+ * abstracted behind LoopSessionStore.
  *
  * The app-agnostic successor to triarch's SoothePoolManager connection
  * mechanics.
@@ -15,7 +15,7 @@ import { StaleLoopError } from "../errors.js";
 import type { Config } from "../config.js";
 import { defaultConfig } from "../config.js";
 import type { DecodedMessage } from "../protocol.js";
-import type { SessionStore } from "./session_store.js";
+import type { LoopSessionStore } from "./loop_session_store.js";
 import {
   type BootstrapFunc,
   type ClientFactory,
@@ -91,7 +91,7 @@ export class ConnectionPool {
   private scfg: Config;
   private factory: ClientFactory;
   private bootstrap: BootstrapFunc;
-  private store: SessionStore;
+  private store: LoopSessionStore;
   private pool: PooledConn[] = [];
   private activeSlots = new Map<string, PooledConn>();
   private nextSlotID = 1;
@@ -104,7 +104,7 @@ export class ConnectionPool {
    */
   constructor(
     url: string,
-    store: SessionStore,
+    store: LoopSessionStore,
     cfg?: PoolConfig | null,
     scfg?: Config | null,
     factory?: ClientFactory | null,

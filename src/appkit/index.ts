@@ -7,7 +7,7 @@
  */
 
 // Persistence seam.
-export { type SessionEntry, type SessionMessage, type SessionStore } from "./session_store.js";
+export { type LoopSessionEntry, type SessionMessage, type LoopSessionStore } from "./loop_session_store.js";
 
 // SSE fan-out.
 export { type SSEEvent, SSEBroadcaster } from "./broadcaster.js";

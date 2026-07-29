@@ -4,7 +4,7 @@ import { INTENT_HINT_TEXT_COMPLETION } from "../../src/intent_hints.js";
 import { defaultPoolConfig } from "../../src/appkit/index.js";
 import { createTestServer } from "../../test/helpers/ws-server.js";
 import type { WebSocket } from "ws";
-import type { SessionStore, SessionEntry, SessionMessage } from "../../src/appkit/session_store.js";
+import type { LoopSessionStore, LoopSessionEntry, SessionMessage } from "../../src/appkit/loop_session_store.js";
 
 function handshakeAndRpc(ws: WebSocket, opts?: { turn?: boolean; jobs?: boolean }) {
   const turn = opts?.turn ?? false;
@@ -100,9 +100,9 @@ function handshakeAndRpc(ws: WebSocket, opts?: { turn?: boolean; jobs?: boolean 
   });
 }
 
-class MemStore implements SessionStore {
+class MemStore implements LoopSessionStore {
   private loops = new Map<string, string>();
-  async getSession(): Promise<SessionEntry | null> {
+  async getSession(): Promise<LoopSessionEntry | null> {
     return null;
   }
   async createSession(_w: string, sessionID: string, loopID: string): Promise<void> {

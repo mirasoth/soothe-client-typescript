@@ -13,7 +13,7 @@ import { type ConnectionPool } from "./pool.js";
 import { type EventClassifier, ChatEventTerminal } from "./classifier.js";
 import { type QueryGate } from "./query_gate.js";
 import { type SSEBroadcaster, SSEEvent } from "./broadcaster.js";
-import type { SessionStore, SessionMessage } from "./session_store.js";
+import type { LoopSessionStore, SessionMessage } from "./loop_session_store.js";
 import type { LoopInputIntentHint } from "../intent_hints.js";
 import { validateLoopInputIntentHint } from "../intent_hints.js";
 import type { DecodedMessage } from "../protocol.js";
@@ -140,7 +140,7 @@ export class TurnRunner {
   private pool: ConnectionPool;
   private gate: QueryGate;
   private classifier: EventClassifier;
-  private store: SessionStore;
+  private store: LoopSessionStore;
   private broadcaster: SSEBroadcaster | null;
   private cfg: TurnConfig;
   private buildInput: typeof inputMessageForLoop = inputMessageForLoop;
@@ -151,7 +151,7 @@ export class TurnRunner {
     pool: ConnectionPool,
     gate: QueryGate,
     classifier: EventClassifier,
-    store: SessionStore,
+    store: LoopSessionStore,
     broadcaster: SSEBroadcaster | null,
     cfg: TurnConfig,
   ) {

@@ -22,9 +22,9 @@ import {
   idleTimeoutForTurn,
   inputMessageForLoop,
   isDaemonTurnEndEvent,
-  type SessionEntry,
+  type LoopSessionEntry,
   type SessionMessage,
-  type SessionStore,
+  type LoopSessionStore,
   type Attachment,
   type InputOpts,
 } from "../src/appkit/index.js";
@@ -34,13 +34,13 @@ import type { ManagedClient } from "../src/appkit/client.js";
 // Test fakes
 // ---------------------------------------------------------------------------
 
-/** In-memory SessionStore for tests. */
-class MemStore implements SessionStore {
-  private sessions = new Map<string, SessionEntry>();
+/** In-memory LoopSessionStore for tests. */
+class MemStore implements LoopSessionStore {
+  private sessions = new Map<string, LoopSessionEntry>();
   private msgs = new Map<string, SessionMessage[]>();
   failCreate = false;
 
-  async getSession(id: string): Promise<SessionEntry | null> {
+  async getSession(id: string): Promise<LoopSessionEntry | null> {
     const e = this.sessions.get(id);
     return e ? { ...e } : null;
   }
