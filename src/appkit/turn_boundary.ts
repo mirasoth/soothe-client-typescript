@@ -5,6 +5,13 @@
  */
 
 import { STREAM_END, isTurnEndCustomData, isTurnProgressChunk } from "../stream_terminal.js";
+import {
+  frameTurnId,
+  isIdleTerminalAllowed,
+  isTurnTerminalAllowed,
+  parseTurnGeneration,
+  turnIdsMatch,
+} from "../turn_boundary.js";
 import type { DecodedMessage } from "../protocol.js";
 
 export const TURN_END_STREAM_END = STREAM_END;
@@ -13,8 +20,9 @@ export const TURN_END_STOPPED = "status.stopped";
 
 export class TurnLifecycleGate {
   sawRunning = false;
-  sawStreamPayload = false;
   sawTurnProgress = false;
+  expectedTurnId: string | null = null;
+  cancellationSeen = false;
 
   observe(msg: unknown): void {
     const frame = normalizeFrame(msg);
@@ -27,11 +35,24 @@ export class TurnLifecycleGate {
           .toLowerCase() === "running"
       ) {
         this.sawRunning = true;
+        const statusTurn = frameTurnId(frame);
+        if (statusTurn) {
+          const newGen = parseTurnGeneration(statusTurn);
+          const oldGen = parseTurnGeneration(this.expectedTurnId);
+          if (
+            this.expectedTurnId === null ||
+            (newGen !== null && (oldGen === null || newGen >= oldGen))
+          ) {
+            if (this.expectedTurnId && statusTurn !== this.expectedTurnId) {
+              this.sawTurnProgress = false;
+            }
+            this.expectedTurnId = statusTurn;
+          }
+        }
       }
       return;
     }
     if (typ === "event") {
-      this.sawStreamPayload = true;
       const mode = String(frame.mode ?? "");
       if (isTurnProgressChunk(mode, frame.data)) {
         this.sawTurnProgress = true;
@@ -39,12 +60,23 @@ export class TurnLifecycleGate {
     }
   }
 
-  allowStreamEnd(): boolean {
-    return this.sawRunning && this.sawTurnProgress;
+  allowStreamEnd(frameTurn: string | null): boolean {
+    return isTurnTerminalAllowed({
+      expectedTurnId: this.expectedTurnId,
+      frameTurnId: frameTurn,
+      queryStarted: this.sawRunning,
+      turnProgressSeen: this.sawTurnProgress,
+    });
   }
 
-  allowIdleComplete(): boolean {
-    return this.sawRunning && this.sawStreamPayload;
+  allowIdleComplete(frameTurn: string | null): boolean {
+    return isIdleTerminalAllowed({
+      expectedTurnId: this.expectedTurnId,
+      frameTurnId: frameTurn,
+      queryStarted: this.sawRunning,
+      turnProgressSeen: this.sawTurnProgress,
+      cancellationSeen: this.cancellationSeen,
+    });
   }
 }
 
@@ -64,10 +96,14 @@ export class TurnBoundary {
       const state = String(frame.state ?? "")
         .trim()
         .toLowerCase();
+      const frameTurn = frameTurnId(frame);
       if (state === "stopped" && this.gate.sawRunning) {
+        if (this.gate.expectedTurnId && !turnIdsMatch(this.gate.expectedTurnId, frameTurn)) {
+          return [false, ""];
+        }
         return this.mark(TURN_END_STOPPED);
       }
-      if (state === "idle" && this.gate.allowIdleComplete()) {
+      if (state === "idle" && this.gate.allowIdleComplete(frameTurn)) {
         return this.mark(TURN_END_IDLE);
       }
       return [false, ""];
@@ -75,7 +111,10 @@ export class TurnBoundary {
 
     if (typ === "event") {
       const mode = String(frame.mode ?? "");
-      if (mode === "custom" && isTurnEndCustomData(frame.data) && this.gate.allowStreamEnd()) {
+      const data = frame.data;
+      const dataTurn =
+        frameTurnId(data as Record<string, unknown> | null) || frameTurnId(frame);
+      if (mode === "custom" && isTurnEndCustomData(data) && this.gate.allowStreamEnd(dataTurn)) {
         return this.mark(TURN_END_STREAM_END);
       }
     }
@@ -104,20 +143,26 @@ function normalizeFrame(msg: unknown): Record<string, unknown> | null {
       return inner;
     }
     if (inner && typeof inner === "object" && inner.mode) {
-      return {
+      const out: Record<string, unknown> = {
         type: "event",
         mode: inner.mode,
         data: inner.data,
         namespace: inner.namespace ?? payload.namespace,
       };
+      const tid = inner.turn_id ?? payload.turn_id ?? m.turn_id;
+      if (tid) out.turn_id = tid;
+      return out;
     }
     if (payload.mode) {
-      return {
+      const out: Record<string, unknown> = {
         type: "event",
         mode: payload.mode,
         data: payload.data,
         namespace: payload.namespace,
       };
+      const tid = payload.turn_id ?? m.turn_id;
+      if (tid) out.turn_id = tid;
+      return out;
     }
     return null;
   }

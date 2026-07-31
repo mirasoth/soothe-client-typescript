@@ -43,16 +43,18 @@ describe("Example: TurnBoundary", () => {
     console.log("pre-running idle: ended=", preIdle);
     expect(preIdle).toBe(false);
 
-    b.feed({ type: "status", state: "running", loop_id: "L1" });
+    b.feed({ type: "status", state: "running", loop_id: "L1", turn_id: "L1:1" });
     b.feed({
       type: "event",
       mode: "messages",
+      turn_id: "L1:1",
       data: [{ type: "AIMessageChunk", content: "enough reply text here" }],
     });
     const [ended, reason] = b.feed({
       type: "event",
       mode: "custom",
-      data: { type: "soothe.stream.end", scope: "turn" },
+      turn_id: "L1:1",
+      data: { type: "soothe.stream.end", scope: "turn", turn_id: "L1:1" },
     });
     console.log("stream.end: ended=", ended, "reason=", reason);
     expect(ended).toBe(true);

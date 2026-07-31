@@ -173,6 +173,17 @@ export {
   inboundNeedsDeliveryAck,
 } from "./stream_terminal.js";
 
+// Turn boundary / turn_id demux helpers
+export {
+  formatTurnId,
+  parseTurnGeneration,
+  frameTurnId,
+  frameSeq,
+  turnIdsMatch,
+  isTurnTerminalAllowed,
+  isIdleTerminalAllowed,
+} from "./turn_boundary.js";
+
 // appkit — slim surface matching Python
 export {
   DaemonSession,

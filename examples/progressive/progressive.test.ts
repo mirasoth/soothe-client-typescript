@@ -62,12 +62,16 @@ function handshakeAndRpc(ws: WebSocket, opts?: { turn?: boolean; jobs?: boolean 
     }
     if (typ === "notification" && method === "loop_input" && turn) {
       const lid = params.loop_id;
-      ws.send(JSON.stringify({ type: "status", state: "running", loop_id: lid }));
+      const turnId = `${lid}:1`;
+      ws.send(
+        JSON.stringify({ type: "status", state: "running", loop_id: lid, turn_id: turnId }),
+      );
       ws.send(
         JSON.stringify({
           type: "event",
           mode: "messages",
           loop_id: lid,
+          turn_id: turnId,
           namespace: [],
           data: [{ type: "ai", content: "hi", phase: "text_completion" }, {}],
         }),
@@ -77,8 +81,9 @@ function handshakeAndRpc(ws: WebSocket, opts?: { turn?: boolean; jobs?: boolean 
           type: "event",
           mode: "custom",
           loop_id: lid,
+          turn_id: turnId,
           namespace: [],
-          data: { type: "soothe.stream.end", scope: "turn" },
+          data: { type: "soothe.stream.end", scope: "turn", turn_id: turnId },
         }),
       );
       return;

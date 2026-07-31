@@ -155,6 +155,8 @@ function deliverableNext(phase: string, content: string): Record<string, unknown
   };
 }
 
+const TEST_TURN_ID = "loop-1:1";
+
 /** Builds a streaming-chunk `next` frame. */
 function streamingChunkNext(content: string): Record<string, unknown> {
   return {
@@ -166,6 +168,7 @@ function streamingChunkNext(content: string): Record<string, unknown> {
       mode: "messages",
       data: [{ type: "AIMessageChunk", content }],
       loop_id: "loop-1",
+      turn_id: TEST_TURN_ID,
     },
   };
 }
@@ -177,10 +180,23 @@ function streamEndNext(): Record<string, unknown> {
     id: "sub-1",
     payload: {
       mode: "custom",
-      data: { type: "soothe.stream.end", scope: "turn" },
+      data: { type: "soothe.stream.end", scope: "turn", turn_id: TEST_TURN_ID },
       loop_id: "loop-1",
+      turn_id: TEST_TURN_ID,
     },
   };
+}
+
+function runningStatus(): Record<string, unknown> {
+  return { type: "status", state: "running", loop_id: "loop-1", turn_id: TEST_TURN_ID };
+}
+
+function idleStatus(): Record<string, unknown> {
+  return { type: "status", state: "idle", loop_id: "loop-1", turn_id: TEST_TURN_ID };
+}
+
+function stoppedStatus(): Record<string, unknown> {
+  return { type: "status", state: "stopped", loop_id: "loop-1", turn_id: TEST_TURN_ID };
 }
 
 // ---------------------------------------------------------------------------
@@ -380,9 +396,9 @@ describe("TurnBoundary", () => {
   it("ignores pre-running idle", () => {
     const b = new TurnBoundary();
     expect(b.feed({ type: "status", state: "idle" })[0]).toBe(false);
-    b.feed({ type: "status", state: "running" });
+    b.feed(runningStatus());
     b.feed(streamingChunkNext("progress"));
-    const [ended, reason] = b.feed({ type: "status", state: "idle" });
+    const [ended, reason] = b.feed(idleStatus());
     expect(ended).toBe(true);
     expect(reason).toBe(TURN_END_IDLE);
   });
@@ -391,7 +407,7 @@ describe("TurnBoundary", () => {
     const b = new TurnBoundary();
     const end = streamEndNext();
     expect(b.feed(end)[0]).toBe(false);
-    b.feed({ type: "status", state: "running" });
+    b.feed(runningStatus());
     expect(b.feed(end)[0]).toBe(false);
     b.feed(streamingChunkNext("x"));
     const [ended, reason] = b.feed(end);
@@ -401,11 +417,26 @@ describe("TurnBoundary", () => {
 
   it("stopped after running", () => {
     const b = new TurnBoundary();
-    expect(b.feed({ type: "status", state: "stopped" })[0]).toBe(false);
-    b.feed({ type: "status", state: "running" });
-    const [ended, reason] = b.feed({ type: "status", state: "stopped" });
+    expect(b.feed(stoppedStatus())[0]).toBe(false);
+    b.feed(runningStatus());
+    const [ended, reason] = b.feed(stoppedStatus());
     expect(ended).toBe(true);
     expect(reason).toBe(TURN_END_STOPPED);
+  });
+
+  it("rejects stream.end with absent turn_id", () => {
+    const b = new TurnBoundary();
+    b.feed(runningStatus());
+    b.feed(streamingChunkNext("x"));
+    const [ended] = b.feed({
+      type: "next",
+      payload: {
+        mode: "custom",
+        data: { type: "soothe.stream.end", scope: "turn" },
+        loop_id: "loop-1",
+      },
+    });
+    expect(ended).toBe(false);
   });
 
   it("isDaemonTurnEndEvent", () => {
@@ -418,7 +449,7 @@ describe("TurnRunner", () => {
   it("stream.end soft-complete via TurnBoundary", async () => {
     const store = new MemStore();
     const fake = new FakeClient([
-      { type: "status", state: "running", loop_id: "loop-1" },
+      runningStatus(),
       streamingChunkNext("enough accumulated reply text"),
       streamEndNext(),
     ]);
@@ -435,9 +466,9 @@ describe("TurnRunner", () => {
   it("gated idle soft-complete via TurnBoundary", async () => {
     const store = new MemStore();
     const fake = new FakeClient([
-      { type: "status", state: "running", loop_id: "loop-1" },
+      runningStatus(),
       streamingChunkNext("enough accumulated reply text"),
-      { type: "status", state: "idle", loop_id: "loop-1" },
+      idleStatus(),
     ]);
     const pool = newTestPool(store, fake);
     const tr = new TurnRunner(pool, new QueryGate(), triarchClassifier(), store, null, {
@@ -452,11 +483,12 @@ describe("TurnRunner", () => {
   it("boundary empty content fails", async () => {
     const store = new MemStore();
     const fake = new FakeClient([
-      { type: "status", state: "running", loop_id: "loop-1" },
+      runningStatus(),
       {
         type: "next",
         payload: {
           mode: "custom",
+          turn_id: TEST_TURN_ID,
           data: { type: "soothe.cognition.strange_loop.step.started", step_id: "s1" },
         },
       },

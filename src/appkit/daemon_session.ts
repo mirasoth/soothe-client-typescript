@@ -11,6 +11,13 @@ import { defaultConfig, type Config } from "../config.js";
 import { StaleLoopError } from "../errors.js";
 import { bootstrapLoopSession, connectWithRetries } from "../session.js";
 import { STREAM_END, isTurnEndCustomData, isTurnProgressChunk } from "../stream_terminal.js";
+import {
+  frameTurnId,
+  isIdleTerminalAllowed,
+  isTurnTerminalAllowed,
+  parseTurnGeneration,
+  turnIdsMatch,
+} from "../turn_boundary.js";
 import { shouldDropStreamChunkEarly } from "./chunk_filter.js";
 import { unwrapNext } from "./events.js";
 import { TurnEventStats } from "./observability.js";
@@ -334,7 +341,7 @@ export class DaemonSession {
 
     let queryStarted = false;
     let expectedLoopId = this.loopId;
-    let streamPayloadSeen = false;
+    let expectedTurnId: string | null = null;
     let turnProgressSeen = false;
     this.streaming = true;
     const absoluteDeadline =
@@ -379,6 +386,18 @@ export class DaemonSession {
           continue;
         }
 
+        const evTurnId = frameTurnId(frame);
+        const statusState = eventType === "status" ? String(frame.state ?? "") : "";
+        const isRunningStatus = statusState === "running";
+        const isTerminalStatus = statusState === "idle" || statusState === "stopped";
+        if (expectedTurnId && (eventType === "event" || eventType === "status") && !isRunningStatus) {
+          if (isTerminalStatus) {
+            if (evTurnId && !turnIdsMatch(expectedTurnId, evTurnId)) continue;
+          } else if (!turnIdsMatch(expectedTurnId, evTurnId)) {
+            continue;
+          }
+        }
+
         if (eventType === "error") {
           const errObj = (frame.error as { message?: string }) ?? {};
           throw new Error(String(errObj.message || frame.message || "daemon error"));
@@ -390,16 +409,42 @@ export class DaemonSession {
             this.loopId = loopEv;
             expectedLoopId = loopEv;
           }
-          const state = String(frame.state ?? "");
-          if (state === "running") {
+          if (statusState === "running") {
             queryStarted = true;
-          } else if (queryStarted && state === "stopped") {
-            this.lastTurnEndState = state;
+            const statusTurn = frameTurnId(frame);
+            if (statusTurn) {
+              const newGen = parseTurnGeneration(statusTurn);
+              const oldGen = parseTurnGeneration(expectedTurnId);
+              if (
+                expectedTurnId === null ||
+                (newGen !== null && (oldGen === null || newGen >= oldGen))
+              ) {
+                if (expectedTurnId && statusTurn !== expectedTurnId) {
+                  turnProgressSeen = false;
+                }
+                expectedTurnId = statusTurn;
+              }
+            }
+          } else if (queryStarted && statusState === "stopped") {
+            const stopTurn = frameTurnId(frame);
+            if (expectedTurnId && !turnIdsMatch(expectedTurnId, stopTurn)) continue;
+            this.lastTurnEndState = statusState;
             yield* this.drainStreamEventsAfterIdle(expectedLoopId);
             break;
-          } else if (queryStarted && state === "idle") {
-            if (!streamPayloadSeen && !this.lastTurnCancellationSeen) continue;
-            this.lastTurnEndState = state;
+          } else if (queryStarted && statusState === "idle") {
+            const idleTurn = frameTurnId(frame);
+            if (
+              !isIdleTerminalAllowed({
+                expectedTurnId,
+                frameTurnId: idleTurn,
+                queryStarted,
+                turnProgressSeen,
+                cancellationSeen: this.lastTurnCancellationSeen,
+              })
+            ) {
+              continue;
+            }
+            this.lastTurnEndState = statusState;
             yield* this.drainStreamEventsAfterIdle(expectedLoopId);
             break;
           }
@@ -425,10 +470,20 @@ export class DaemonSession {
         }
 
         if (mode === "custom" && isTurnEndCustomData(data)) {
-          if (!queryStarted || !turnProgressSeen) continue;
+          const dataTurn =
+            frameTurnId(data as Record<string, unknown> | null) || evTurnId;
+          if (
+            !isTurnTerminalAllowed({
+              expectedTurnId,
+              frameTurnId: dataTurn,
+              queryStarted,
+              turnProgressSeen,
+            })
+          ) {
+            continue;
+          }
         }
 
-        streamPayloadSeen = true;
         if (isTurnProgressChunk(mode, data)) turnProgressSeen = true;
         yield [namespace, mode, data];
 
