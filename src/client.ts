@@ -1338,6 +1338,16 @@ export class Client extends EventEmitter {
     );
   }
 
+  /** Active-only jobs → goals → loops snapshot for CLI top. */
+  autopilotTop(timeout?: number): Promise<Record<string, unknown>> {
+    return this.requestResponse(
+      "autopilot_top",
+      {},
+      "autopilot_top",
+      timeout ?? 15_000,
+    );
+  }
+
   /** Subscribes to autopilot worker events. */
   autopilotSubscribe(timeout?: number): Promise<string> {
     return this.subscribe("autopilot_events", {}, timeout ?? 15_000);

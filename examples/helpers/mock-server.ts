@@ -384,6 +384,15 @@ function handler(ws: WebSocket): void {
           source: "autopilot_service",
         });
         return;
+      case "autopilot_top":
+        sendResponse(ws, id, {
+          running: true,
+          dreaming: false,
+          loop_pool: { active: 0, idle: 0, total: 0, max: 4 },
+          generated_at: new Date().toISOString(),
+          jobs: [],
+        });
+        return;
 
  // Cron IPC
       case "cron_add":

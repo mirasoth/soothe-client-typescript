@@ -75,6 +75,7 @@ export type MethodName =
   | "autopilot_resume"
   | "autopilot_list_jobs"
   | "autopilot_get_job"
+  | "autopilot_top"
   | "daemon_status"
   | "daemon_shutdown"
   | "config_get"
