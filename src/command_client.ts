@@ -116,9 +116,9 @@ export class CommandClient {
     return this.request("autopilot_get_job", { job_id: jobId });
   }
 
-  /** Active-only jobs → goals → loops snapshot for CLI top. */
-  async autopilotTop(): Promise<Record<string, unknown>> {
-    return this.request("autopilot_top");
+  /** Jobs → goals → loops snapshot for CLI top. */
+  async autopilotTop(includeTerminal = false): Promise<Record<string, unknown>> {
+    return this.request("autopilot_top", { include_terminal: includeTerminal });
   }
 
   async cronAdd(text: string, priority = 0): Promise<Record<string, unknown>> {

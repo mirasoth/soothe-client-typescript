@@ -1338,13 +1338,19 @@ export class Client extends EventEmitter {
     );
   }
 
-  /** Active-only jobs → goals → loops snapshot for CLI top. */
-  autopilotTop(timeout?: number): Promise<Record<string, unknown>> {
+  /** Jobs → goals → loops snapshot for CLI top. */
+  autopilotTop(
+    timeoutOrOptions?: number | { includeTerminal?: boolean; timeout?: number },
+  ): Promise<Record<string, unknown>> {
+    const options =
+      typeof timeoutOrOptions === "number"
+        ? { timeout: timeoutOrOptions }
+        : timeoutOrOptions;
     return this.requestResponse(
       "autopilot_top",
-      {},
+      { include_terminal: options?.includeTerminal ?? false },
       "autopilot_top",
-      timeout ?? 15_000,
+      options?.timeout ?? 15_000,
     );
   }
 
