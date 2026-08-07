@@ -1,5 +1,5 @@
 /**
- * Input options examples: sendInput variants — basic, autonomous, model
+ * Input options examples: sendInput variants — basic, model
  * override, intent hints, and structured-output JSON schema.
  *
  * Mirrors the Go client's `input_options_example_test.go`.
@@ -30,29 +30,6 @@ describe("Example: sendInput variants", () => {
       // options.loopID is mandatory; other options are optional.
       await client.sendInput("Explain how goroutines work in Go", { loopID: loopId });
       console.log("Input sent");
-
-      client.close();
-      expect(true).toBe(true);
-    } finally {
-      await md.close();
-    }
-  });
-
-  it("sendInputAutonomous: enables autonomous mode with max-iterations cap", async () => {
-    const md = createMockDaemon();
-    try {
-      const client = new Client(md.url);
-      await client.connect();
-
-      const loopId = "existing-loop-id";
-
-      // The daemon runs the agent graph without streaming intermediate steps.
-      await client.sendInput("Refactor the auth module for better testability", {
-        loopID: loopId,
-        autonomous: true,
-        maxIterations: 10,
-      });
-      console.log("Autonomous input sent");
 
       client.close();
       expect(true).toBe(true);

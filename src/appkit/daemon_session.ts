@@ -176,8 +176,6 @@ export class DaemonSession {
   async sendTurn(
     text: string,
     options?: {
-      autonomous?: boolean;
-      maxIterations?: number;
       preferredSubagent?: string;
       model?: string;
       modelParams?: Record<string, unknown>;
@@ -190,8 +188,6 @@ export class DaemonSession {
     if (!this.loopId) throw new Error("No active loop session");
     await this.client.sendInput(text, {
       loopID: this.loopId,
-      autonomous: options?.autonomous,
-      maxIterations: options?.maxIterations,
       subagent: options?.preferredSubagent,
       model: options?.model,
       modelParams: options?.modelParams,

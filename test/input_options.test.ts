@@ -88,8 +88,6 @@ describe("InputOptions", () => {
   it("accepts multiple options together", () => {
     const opts: InputOptions = {
       loopID: "test-loop-id",
-      autonomous: true,
-      maxIterations: 10,
       subagent: "coder",
       model: "openai:gpt-4",
       intentHint: INTENT_HINT_TEXT_COMPLETION,
@@ -99,8 +97,6 @@ describe("InputOptions", () => {
     };
 
     expect(opts.loopID).toBe("test-loop-id");
-    expect(opts.autonomous).toBe(true);
-    expect(opts.maxIterations).toBe(10);
     expect(opts.subagent).toBe("coder");
     expect(opts.model).toBe("openai:gpt-4");
     expect(opts.intentHint).toBe(INTENT_HINT_TEXT_COMPLETION);
@@ -112,19 +108,13 @@ describe("InputOptions", () => {
   it("accepts standard options", () => {
     const opts: InputOptions = {
       loopID: "test-loop-id",
-      autonomous: true,
-      maxIterations: 5,
       subagent: "researcher",
-      interactive: true,
       model: "claude:claude-3",
       modelParams: { temperature: 0.7 },
       attachments: [{ mime_type: "image/png", data: "base64..." }],
     };
 
-    expect(opts.autonomous).toBe(true);
-    expect(opts.maxIterations).toBe(5);
     expect(opts.subagent).toBe("researcher");
-    expect(opts.interactive).toBe(true);
     expect(opts.model).toBe("claude:claude-3");
     expect(opts.modelParams).toEqual({ temperature: 0.7 });
     expect(opts.attachments).toHaveLength(1);

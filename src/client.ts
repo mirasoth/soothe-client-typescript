@@ -46,11 +46,7 @@ import {
 export interface InputOptions {
   /** Subscribed StrangeLoop id (required for loop_input). */
   loopID?: string;
-  autonomous?: boolean;
-  maxIterations?: number;
   subagent?: string;
-  /** @deprecated Ignored by daemon; loop_input always uses non-interactive autonomous mode. */
-  interactive?: boolean;
   model?: string;
   modelParams?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
@@ -909,9 +905,7 @@ export class Client extends EventEmitter {
     const params: Record<string, unknown> = {
       loop_id: loopId,
       content: text,
-      autonomous: options?.autonomous ?? false,
     };
-    if (options?.maxIterations !== undefined) params.max_iterations = options.maxIterations;
     if (options?.subagent) params.preferred_subagent = options.subagent;
     if (options?.model) params.model = options.model;
     if (options?.modelParams) params.model_params = options.modelParams;

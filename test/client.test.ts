@@ -214,20 +214,18 @@ describe("Client", () => {
     }
   });
 
-  it("sendInput autonomous", async () => {
+  it("sendInput preferred_subagent", async () => {
     const server = createTestServer(echoHandler);
     try {
       const client = new Client(server.url);
       await client.connect();
       await client.sendInput("do stuff", {
         loopID: "L1",
-        autonomous: true,
-        maxIterations: 5,
+        subagent: "planner",
       });
       const ev = await client.readEvent();
       const params = ev!.params as Record<string, unknown>;
-      expect(params.autonomous).toBe(true);
-      expect(params.max_iterations).toBe(5);
+      expect(params.preferred_subagent).toBe("planner");
       client.close();
     } finally {
       await server.close();

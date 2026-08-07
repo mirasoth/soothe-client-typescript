@@ -255,11 +255,7 @@ export type DecodedMessage =
 export interface LoopInputParams {
   loop_id: string;
   content: string;
-  autonomous?: boolean;
-  max_iterations?: number;
   preferred_subagent?: string;
-  /** @deprecated Ignored by daemon; loop_input always uses non-interactive autonomous mode. */
-  interactive?: boolean;
   model?: string;
   model_params?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
@@ -518,7 +514,6 @@ export function newLoopInputMessage(loopID: string, content: string): Notificati
   return notificationEnvelope("loop_input", {
     loop_id: loopID,
     content,
-    autonomous: false,
   });
 }
 

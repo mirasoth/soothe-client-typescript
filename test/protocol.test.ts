@@ -316,8 +316,6 @@ describe("factory functions", () => {
     const params: LoopInputParams = {
       loop_id: "L1",
       content: "hi",
-      autonomous: true,
-      max_iterations: 5,
       preferred_subagent: "coder",
       model: "openai:gpt-4",
       intent_hint: INTENT_HINT_TEXT_COMPLETION,
