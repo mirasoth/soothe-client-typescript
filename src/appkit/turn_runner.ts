@@ -72,6 +72,7 @@ export interface TurnConfig {
 export interface InputOpts {
   intentHint?: LoopInputIntentHint;
   preferredSubagent?: string;
+  intakeScope?: "trivial" | "simple" | "complex";
   responseSchema?: Record<string, unknown>;
   responseSchemaName?: string;
   responseSchemaStrict?: boolean;
@@ -98,6 +99,7 @@ export function inputMessageForLoop(
       msg.intent_hint = opts.intentHint.trim();
     }
     if (opts.preferredSubagent?.trim()) msg.preferred_subagent = opts.preferredSubagent.trim();
+    if (opts.intakeScope?.trim()) msg.intake_scope = opts.intakeScope.trim();
     if (opts.responseSchema && Object.keys(opts.responseSchema).length > 0) {
       msg.response_schema = opts.responseSchema;
     }

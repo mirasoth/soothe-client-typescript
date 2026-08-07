@@ -256,6 +256,7 @@ export interface LoopInputParams {
   loop_id: string;
   content: string;
   preferred_subagent?: string;
+  intake_scope?: "trivial" | "simple" | "complex";
   model?: string;
   model_params?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];

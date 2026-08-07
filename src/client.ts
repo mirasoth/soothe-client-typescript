@@ -46,6 +46,8 @@ export interface InputOptions {
   /** Subscribed StrangeLoop id (required for loop_input). */
   loopID?: string;
   subagent?: string;
+  /** Forced StrangeLoop intake scope (trivial|simple|complex). */
+  intakeScope?: "trivial" | "simple" | "complex";
   model?: string;
   modelParams?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
@@ -906,6 +908,7 @@ export class Client extends EventEmitter {
       content: text,
     };
     if (options?.subagent) params.preferred_subagent = options.subagent;
+    if (options?.intakeScope) params.intake_scope = options.intakeScope;
     if (options?.model) params.model = options.model;
     if (options?.modelParams) params.model_params = options.modelParams;
     if (options?.attachments) params.attachments = options.attachments;

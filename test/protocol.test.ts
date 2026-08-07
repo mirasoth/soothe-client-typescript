@@ -317,6 +317,7 @@ describe("factory functions", () => {
       loop_id: "L1",
       content: "hi",
       preferred_subagent: "coder",
+      intake_scope: "simple",
       model: "openai:gpt-4",
       intent_hint: INTENT_HINT_TEXT_COMPLETION,
       clarification_mode: "manual",
@@ -324,6 +325,7 @@ describe("factory functions", () => {
       clarification_answers: ["a", "b"],
     };
     expect(params.loop_id).toBe("L1");
+    expect(params.intake_scope).toBe("simple");
     expect(params.clarification_answers).toEqual(["a", "b"]);
   });
 });
