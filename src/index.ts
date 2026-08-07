@@ -75,7 +75,6 @@ export type {
   IntentHint,
   LoopAssistantOutputPhase,
   LoopInputIntentHint,
-  RemovedIntentHint,
 } from "./intent_hints.js";
 export {
   DEFAULT_DELIVERABLE_PHASES,
@@ -84,8 +83,6 @@ export {
   INTENT_HINT_OCR,
   INTENT_HINT_TEXT_COMPLETION,
   LOOP_ASSISTANT_OUTPUT_PHASES,
-  REMOVED_INTENT_HINTS,
-  validateLoopInputIntentHint,
 } from "./intent_hints.js";
 
 // Events

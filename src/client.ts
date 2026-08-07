@@ -13,7 +13,6 @@ import { defaultConfig } from "./config.js";
 import { DaemonError, DisconnectCause, ReconnectError, StaleLoopError } from "./errors.js";
 import { Multiplexer } from "./multiplexer.js";
 import type { LoopInputIntentHint } from "./intent_hints.js";
-import { validateLoopInputIntentHint } from "./intent_hints.js";
 import { extractLoopIdFromInbound, inboundNeedsDeliveryAck, stalePendingFrameLabel } from "./stream_terminal.js";
 import {
   DEFAULT_INBOUND_MAX_SIZE,
@@ -911,10 +910,6 @@ export class Client extends EventEmitter {
     if (options?.modelParams) params.model_params = options.modelParams;
     if (options?.attachments) params.attachments = options.attachments;
     if (options?.intentHint) {
-      const hintError = validateLoopInputIntentHint(options.intentHint);
-      if (hintError) {
-        return Promise.reject(new Error(hintError));
-      }
       params.intent_hint = options.intentHint;
     }
     if (options?.responseSchema) params.response_schema = options.responseSchema;

@@ -15,7 +15,6 @@ import { type QueryGate } from "./query_gate.js";
 import { type SSEBroadcaster, SSEEvent } from "./broadcaster.js";
 import type { LoopSessionStore, SessionMessage } from "./loop_session_store.js";
 import type { LoopInputIntentHint } from "../intent_hints.js";
-import { validateLoopInputIntentHint } from "../intent_hints.js";
 import type { DecodedMessage } from "../protocol.js";
 import { compactAttachments, type CompactImageOptions } from "./attachments.js";
 import { TurnBoundary, isDaemonTurnEndEvent } from "./turn_boundary.js";
@@ -96,10 +95,6 @@ export function inputMessageForLoop(
   if (attachments && attachments.length > 0) msg.attachments = attachments;
   if (opts) {
     if (opts.intentHint?.trim()) {
-      const hintError = validateLoopInputIntentHint(opts.intentHint);
-      if (hintError) {
-        throw new Error(hintError);
-      }
       msg.intent_hint = opts.intentHint.trim();
     }
     if (opts.preferredSubagent?.trim()) msg.preferred_subagent = opts.preferredSubagent.trim();

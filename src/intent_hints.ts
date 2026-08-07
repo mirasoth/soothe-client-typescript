@@ -21,34 +21,11 @@ export type IntentHint =
   | typeof INTENT_HINT_OCR
   | typeof INTENT_HINT_EMBED;
 
-/** Legacy intent_hint values removed from the daemon wire contract. */
-export const REMOVED_INTENT_HINTS = ["direct_llm", "quiz", "direct_model"] as const;
-
-export type RemovedIntentHint = (typeof REMOVED_INTENT_HINTS)[number];
-
-const REMOVED_INTENT_HINT_MESSAGES: Record<RemovedIntentHint, string> = {
-  direct_llm:
-    "intent_hint direct_llm is removed; use text_completion (text-only) or image_to_text (with attachments)",
-  quiz: "intent_hint quiz is removed; omit intent_hint and let intake classify the turn",
-  direct_model:
-    "intent_hint direct_model is removed; use text_completion, image_to_text, ocr, or embed",
-};
-
 /**
  * Wire ``loop_input.intent_hint``: intent-hint values or agent-path pass-through
- * (e.g. ``resume_clarification``, ``skill:foo``). Legacy ``direct_llm``, ``quiz``,
- * and ``direct_model`` are rejected before send.
+ * (e.g. ``resume_clarification``, ``skill:foo``).
  */
 export type LoopInputIntentHint = IntentHint | (string & {});
-
-/** Returns an error message when ``hint`` is a removed legacy value; otherwise null. */
-export function validateLoopInputIntentHint(hint: string): string | null {
-  const key = hint.trim().toLowerCase() as RemovedIntentHint;
-  if (key in REMOVED_INTENT_HINT_MESSAGES) {
-    return REMOVED_INTENT_HINT_MESSAGES[key];
-  }
-  return null;
-}
 
 /** Phases emitted on ``mode=messages`` for user-visible loop assistant output. */
 export const LOOP_ASSISTANT_OUTPUT_PHASES = [

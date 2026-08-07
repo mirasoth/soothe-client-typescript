@@ -12,8 +12,6 @@ import {
   INTENT_HINT_IMAGE_TO_TEXT,
   INTENT_HINT_OCR,
   INTENT_HINT_EMBED,
-  REMOVED_INTENT_HINTS,
-  validateLoopInputIntentHint,
 } from "../src/index.js";
 import { createMockDaemon } from "./helpers/mock-server.js";
 
@@ -169,52 +167,6 @@ describe("Example: intent hints (non-agent turns)", () => {
 
       client.close();
       expect(true).toBe(true);
-    } finally {
-      await md.close();
-    }
-  });
-});
-
-describe("Example: removed intent hints", () => {
-  it("removedIntentHints: direct_llm, quiz, and direct_model are rejected", () => {
-    console.log("Removed hints:", REMOVED_INTENT_HINTS.join(", "));
-    expect(REMOVED_INTENT_HINTS).toContain("direct_llm");
-    expect(REMOVED_INTENT_HINTS).toContain("quiz");
-    expect(REMOVED_INTENT_HINTS).toContain("direct_model");
-  });
-
-  it("validateLoopInputIntentHint: rejects direct_llm", () => {
-    const err = validateLoopInputIntentHint("direct_llm");
-    console.log("direct_llm error:", err);
-    expect(err).not.toBeNull();
-    expect(err).toContain("text_completion");
-  });
-
-  it("validateLoopInputIntentHint: rejects quiz", () => {
-    const err = validateLoopInputIntentHint("quiz");
-    console.log("quiz error:", err);
-    expect(err).not.toBeNull();
-    expect(err).toContain("quiz is removed");
-  });
-
-  it("validateLoopInputIntentHint: accepts valid hints (returns null)", () => {
-    expect(validateLoopInputIntentHint("text_completion")).toBeNull();
-    expect(validateLoopInputIntentHint("skill:foo")).toBeNull();
-    expect(validateLoopInputIntentHint("resume_clarification")).toBeNull();
-  });
-
-  it("sendInput rejects removed intent_hint before send", async () => {
-    const md = createMockDaemon();
-    try {
-      const client = new Client(md.url);
-      await client.connect();
-
-      // sendInput should reject the removed "direct_llm" hint locally.
-      await expect(
-        client.sendInput("test", { loopID: "loop-1", intentHint: "direct_llm" as never }),
-      ).rejects.toThrow();
-
-      client.close();
     } finally {
       await md.close();
     }

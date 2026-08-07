@@ -1,34 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { Client } from "../src/client.js";
 import { inputMessageForLoop } from "../src/appkit/turn_runner.js";
-import { INTENT_HINT_TEXT_COMPLETION, validateLoopInputIntentHint } from "../src/intent_hints.js";
+import { INTENT_HINT_TEXT_COMPLETION } from "../src/intent_hints.js";
 
-describe("validateLoopInputIntentHint", () => {
-  it("rejects removed legacy hints", () => {
-    expect(validateLoopInputIntentHint("direct_llm")).toMatch(/removed/);
-    expect(validateLoopInputIntentHint("DIRECT_LLM")).toMatch(/removed/);
-    expect(validateLoopInputIntentHint(" quiz ")).toMatch(/removed/);
-    expect(validateLoopInputIntentHint("direct_model")).toMatch(/removed/);
-  });
-
-  it("allows intent hints and agent pass-through", () => {
-    expect(validateLoopInputIntentHint(INTENT_HINT_TEXT_COMPLETION)).toBeNull();
-    expect(validateLoopInputIntentHint("resume_clarification")).toBeNull();
-    expect(validateLoopInputIntentHint("skill:search")).toBeNull();
-  });
-});
-
-describe("legacy intent_hint rejection", () => {
-  it("sendInput rejects direct_llm before wire", async () => {
+describe("intent_hint wire forwarding", () => {
+  it("sendInput forwards daemon and pass-through hints", async () => {
     const client = new Client("ws://localhost:8765");
-    await expect(
-      client.sendInput("hello", { loopID: "loop-1", intentHint: "direct_llm" }),
-    ).rejects.toThrow(/direct_llm is removed/);
-  });
+    // sendInput builds params without local legacy rejection.
+    const msg = inputMessageForLoop("hello", "loop-1", undefined, {
+      intentHint: INTENT_HINT_TEXT_COMPLETION,
+    });
+    expect(msg.intent_hint).toBe(INTENT_HINT_TEXT_COMPLETION);
 
-  it("inputMessageForLoop rejects quiz", () => {
-    expect(() => inputMessageForLoop("hello", "loop-1", undefined, { intentHint: "quiz" })).toThrow(
-      /quiz is removed/,
-    );
+    const passThrough = inputMessageForLoop("hello", "loop-1", undefined, {
+      intentHint: "resume_clarification",
+    });
+    expect(passThrough.intent_hint).toBe("resume_clarification");
+    expect(client).toBeTruthy();
   });
 });
