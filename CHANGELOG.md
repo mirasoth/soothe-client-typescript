@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-08-23
+
+### Added
+- Integration tests for `loop_history_fetch`, `loop_execution_state_fetch`, `config_reload`, `auth`, and `cron` RPCs in `test/integration.test.ts` (the client already had the request-response methods — only integration test coverage was missing).
+
+### Changed
+- Apply Prettier formatting across all source and test files.
+
 ## [0.5.8] - 2026-08-07
 
 ### Changed

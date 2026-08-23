@@ -180,7 +180,7 @@ describe("Client", () => {
   });
 
   // ---------------------------------------------------------------------------
- // High-level API method tests
+  // High-level API method tests
   // ---------------------------------------------------------------------------
 
   it("sendInput emits loop_input notification with params", async () => {
@@ -494,7 +494,7 @@ describe("Client", () => {
   });
 
   // ---------------------------------------------------------------------------
- // Client: disconnect signal + reconnect/reattach
+  // Client: disconnect signal + reconnect/reattach
   // ---------------------------------------------------------------------------
 
   it("emits 'disconnected' with Clean cause on peer disconnect notification", async () => {

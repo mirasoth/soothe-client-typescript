@@ -12,7 +12,9 @@ export const DROP_PRIORITY_NORMAL = 2;
 export const DEFAULT_INBOUND_MAX_SIZE = 20_000;
 
 /** Return drop priority for an inbound frame. */
-export function inboundFrameDropPriority(event: Record<string, unknown> | null | undefined): number {
+export function inboundFrameDropPriority(
+  event: Record<string, unknown> | null | undefined,
+): number {
   if (!event) return DROP_PRIORITY_CRITICAL;
   let eventType = String(event.type ?? "");
   if (eventType === "event_batch" || eventType === "tool_call_updates_batch") {

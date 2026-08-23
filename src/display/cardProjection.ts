@@ -13,7 +13,11 @@ import {
   EventCardUpdated,
 } from "../events.js";
 
-export type CardWireDict = Record<string, unknown> & { id?: string; type?: string; content?: string };
+export type CardWireDict = Record<string, unknown> & {
+  id?: string;
+  type?: string;
+  content?: string;
+};
 
 const CARD_MUTATION_TYPES = new Set([
   EventCardCreated,
@@ -24,9 +28,17 @@ const CARD_MUTATION_TYPES = new Set([
 ]);
 
 export type ParsedCardFrame =
-  | { wireType: typeof EventCardReplayBegin | typeof EventCardReplayEnd; card: null; patch: Record<string, unknown> }
+  | {
+      wireType: typeof EventCardReplayBegin | typeof EventCardReplayEnd;
+      card: null;
+      patch: Record<string, unknown>;
+    }
   | { wireType: typeof EventCardCreated; card: CardWireDict; patch: Record<string, unknown> }
-  | { wireType: typeof EventCardUpdated | typeof EventCardFinalized; card: null; patch: Record<string, unknown> };
+  | {
+      wireType: typeof EventCardUpdated | typeof EventCardFinalized;
+      card: null;
+      patch: Record<string, unknown>;
+    };
 
 /** Parse a custom-mode card frame, or null if not a card frame. */
 export function parseCardCustomPayload(data: unknown): ParsedCardFrame | null {
@@ -40,7 +52,9 @@ export function parseCardCustomPayload(data: unknown): ParsedCardFrame | null {
   }
 
   const payload =
-    d.data && typeof d.data === "object" ? ({ ...(d.data as Record<string, unknown>) } as CardWireDict) : ({} as CardWireDict);
+    d.data && typeof d.data === "object"
+      ? ({ ...(d.data as Record<string, unknown>) } as CardWireDict)
+      : ({} as CardWireDict);
   const cardId = String(d.card_id ?? payload.id ?? "").trim();
 
   if (wireType === EventCardCreated) {

@@ -54,6 +54,7 @@ export type MethodName =
   | "loop_messages"
   | "loop_state_get"
   | "loop_state_update"
+  | "loop_execution_state_fetch"
   | "loop_history_fetch"
   | "loop_events"
   | "autopilot_events"
@@ -125,7 +126,7 @@ export interface NotificationEnvelope extends BaseEnvelope {
   type: "notification";
   method: MethodName;
   params?: Record<string, unknown>;
- /** Optional receipt id for delivery confirmation. */
+  /** Optional receipt id for delivery confirmation. */
   receipt?: string;
 }
 

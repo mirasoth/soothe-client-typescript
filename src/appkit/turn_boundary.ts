@@ -112,8 +112,7 @@ export class TurnBoundary {
     if (typ === "event") {
       const mode = String(frame.mode ?? "");
       const data = frame.data;
-      const dataTurn =
-        frameTurnId(data as Record<string, unknown> | null) || frameTurnId(frame);
+      const dataTurn = frameTurnId(data as Record<string, unknown> | null) || frameTurnId(frame);
       if (mode === "custom" && isTurnEndCustomData(data) && this.gate.allowStreamEnd(dataTurn)) {
         return this.mark(TURN_END_STREAM_END);
       }

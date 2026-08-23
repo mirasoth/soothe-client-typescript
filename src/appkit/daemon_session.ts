@@ -386,7 +386,11 @@ export class DaemonSession {
         const statusState = eventType === "status" ? String(frame.state ?? "") : "";
         const isRunningStatus = statusState === "running";
         const isTerminalStatus = statusState === "idle" || statusState === "stopped";
-        if (expectedTurnId && (eventType === "event" || eventType === "status") && !isRunningStatus) {
+        if (
+          expectedTurnId &&
+          (eventType === "event" || eventType === "status") &&
+          !isRunningStatus
+        ) {
           if (isTerminalStatus) {
             if (evTurnId && !turnIdsMatch(expectedTurnId, evTurnId)) continue;
           } else if (!turnIdsMatch(expectedTurnId, evTurnId)) {
@@ -466,8 +470,7 @@ export class DaemonSession {
         }
 
         if (mode === "custom" && isTurnEndCustomData(data)) {
-          const dataTurn =
-            frameTurnId(data as Record<string, unknown> | null) || evTurnId;
+          const dataTurn = frameTurnId(data as Record<string, unknown> | null) || evTurnId;
           if (
             !isTurnTerminalAllowed({
               expectedTurnId,

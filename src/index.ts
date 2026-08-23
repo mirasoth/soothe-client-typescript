@@ -71,11 +71,7 @@ export type {
   LoopNewOptions,
   StreamEventPayload,
 } from "./protocol.js";
-export type {
-  IntentHint,
-  LoopAssistantOutputPhase,
-  LoopInputIntentHint,
-} from "./intent_hints.js";
+export type { IntentHint, LoopAssistantOutputPhase, LoopInputIntentHint } from "./intent_hints.js";
 export {
   DEFAULT_DELIVERABLE_PHASES,
   INTENT_HINT_EMBED,
@@ -214,10 +210,7 @@ export {
   TurnEventStats,
   DEFAULT_POST_IDLE_DRAIN_MS,
 } from "./appkit/index.js";
-export {
-  CardProjection,
-  parseCardCustomPayload,
-} from "./display/cardProjection.js";
+export { CardProjection, parseCardCustomPayload } from "./display/cardProjection.js";
 export type { CardWireDict, ParsedCardFrame } from "./display/cardProjection.js";
 export type {
   LoopSessionStore,

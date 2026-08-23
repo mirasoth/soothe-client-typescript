@@ -187,7 +187,7 @@ describe.skipIf(skip())("Integration", () => {
   });
 
   // ---------------------------------------------------------------------------
- // Job IPC Integration Tests
+  // Job IPC Integration Tests
   // ---------------------------------------------------------------------------
 
   it("create job", async () => {
@@ -273,7 +273,7 @@ describe.skipIf(skip())("Integration", () => {
   });
 
   // ---------------------------------------------------------------------------
- // Loop Extensions Integration Tests
+  // Loop Extensions Integration Tests
   // ---------------------------------------------------------------------------
 
   it("get loop messages", async () => {
@@ -310,7 +310,7 @@ describe.skipIf(skip())("Integration", () => {
   });
 
   // ---------------------------------------------------------------------------
- // Clarification Options Tests
+  // Clarification Options Tests
   // ---------------------------------------------------------------------------
 
   it("send input with clarification mode", async () => {
@@ -355,5 +355,84 @@ describe.skipIf(skip())("Integration", () => {
       eventCount++;
     }
     client.close();
+  });
+
+  // ---------------------------------------------------------------------------
+  // History / Execution State / Config / Auth / Cron RPC Tests
+  // ---------------------------------------------------------------------------
+
+  it("fetch loop history", async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    mkdtempSync(join(tmpdir(), "soothe-test-"));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+
+    const resp = await client.fetchLoopHistory(loopID, 15_000);
+    expect(resp).toBeDefined();
+    client.close();
+  });
+
+  it("get loop execution state", async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    mkdtempSync(join(tmpdir(), "soothe-test-"));
+    const loopID = await bootstrapLoopSession(client, null, cfg);
+
+    const resp = await client.getLoopExecutionState(loopID, 15_000);
+    expect(resp).toBeDefined();
+    client.close();
+  });
+
+  it("reload config", async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    const resp = await client.reloadConfig(15_000);
+    expect(resp).toBeDefined();
+    client.close();
+  });
+
+  it("authenticate and refresh auth token", async () => {
+    const client = new Client(cfg.daemonURL, cfg);
+    await client.connect();
+
+    // Auth may fail if daemon has no auth backend; only assert it completes.
+    try {
+      const resp = await client.authenticate("test-key", "test-secret", 10_000);
+      expect(resp).toBeDefined();
+    } catch {
+      // Daemon may reject credentials — acceptable for integration smoke.
+    }
+    try {
+      const refresh = await client.refreshAuthToken("dummy-token", 10_000);
+      expect(refresh).toBeDefined();
+    } catch {
+      // Daemon may reject token — acceptable for integration smoke.
+    }
+    client.close();
+  });
+
+  it("cron add list show cancel", async () => {
+    const { CommandClient } = await import("../src/command_client.js");
+    const cc = new CommandClient(cfg.daemonURL, { timeoutMs: 30_000 });
+
+    const addResp = await cc.cronAdd("remind me to test in 1 minute", 50);
+    expect(addResp).toBeDefined();
+
+    const listResp = await cc.cronList();
+    expect(listResp).toBeDefined();
+
+    const jobId =
+      (addResp.job?.id as string | undefined) ??
+      (addResp.job_id as string | undefined) ??
+      (addResp.id as string | undefined);
+    if (jobId) {
+      const showResp = await cc.cronShow(jobId);
+      expect(showResp).toBeDefined();
+      const cancelResp = await cc.cronCancel(jobId);
+      expect(cancelResp).toBeDefined();
+    }
   });
 });

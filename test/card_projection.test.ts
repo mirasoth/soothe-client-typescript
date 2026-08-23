@@ -11,7 +11,12 @@ import { isTurnProgressChunk, stalePendingFrameLabel } from "../src/stream_termi
 
 describe("cardProjection", () => {
   it("rejects legacy bare card.* types", () => {
-    expect(parseCardCustomPayload({ type: "card.created", data: { id: "x", type: "user", content: "hi" } })).toBeNull();
+    expect(
+      parseCardCustomPayload({
+        type: "card.created",
+        data: { id: "x", type: "user", content: "hi" },
+      }),
+    ).toBeNull();
   });
 
   it("applies soothe.card.* create/update/finalize", () => {
@@ -24,7 +29,9 @@ describe("cardProjection", () => {
       }),
     ).toBe(true);
     expect(proj.get("a1")?.content).toBe("hel");
-    expect(proj.apply({ type: EventCardUpdated, card_id: "a1", data: { content: "hello" } })).toBe(true);
+    expect(proj.apply({ type: EventCardUpdated, card_id: "a1", data: { content: "hello" } })).toBe(
+      true,
+    );
     expect(proj.get("a1")?.content).toBe("hello");
     expect(proj.apply({ type: EventCardFinalized, card_id: "a1", data: {} })).toBe(true);
   });
@@ -43,7 +50,7 @@ describe("cardProjection", () => {
       data: { id: "new", type: "user", content: "y" },
     });
     expect(proj.apply({ type: EventCardReplayEnd })).toBe(true);
-    expect(proj.snapshot().map((c) => c.id)).toEqual(["new"]);
+    expect(proj.snapshot().map(c => c.id)).toEqual(["new"]);
   });
 });
 

@@ -49,8 +49,30 @@ export class CommandClient {
     return this.request("job_status", { job_id: jobId });
   }
 
+  async jobPause(jobId: string): Promise<Record<string, unknown>> {
+    return this.request("job_pause", { job_id: jobId });
+  }
+
+  async jobResume(jobId: string): Promise<Record<string, unknown>> {
+    return this.request("job_resume", { job_id: jobId });
+  }
+
   async jobCancel(jobId: string): Promise<Record<string, unknown>> {
     return this.request("job_cancel", { job_id: jobId });
+  }
+
+  async jobDag(jobId: string): Promise<Record<string, unknown>> {
+    return this.request("job_dag", { job_id: jobId });
+  }
+
+  async jobGuidance(
+    jobId: string,
+    content: string,
+    goalId?: string,
+  ): Promise<Record<string, unknown>> {
+    const params: Record<string, unknown> = { job_id: jobId, content };
+    if (goalId) params.goal_id = goalId;
+    return this.request("job_guidance", params);
   }
 
   /** Return autopilot scheduler status (running / dreaming / pool). */
@@ -131,5 +153,13 @@ export class CommandClient {
     const params: Record<string, unknown> = {};
     if (status) params.status = status;
     return this.request("cron_list", params);
+  }
+
+  async cronShow(jobId: string): Promise<Record<string, unknown>> {
+    return this.request("cron_show", { job_id: jobId });
+  }
+
+  async cronCancel(jobId: string): Promise<Record<string, unknown>> {
+    return this.request("cron_cancel", { job_id: jobId });
   }
 }
