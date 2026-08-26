@@ -183,6 +183,7 @@ export class DaemonSession {
       clarificationMode?: string;
       clarificationAnswer?: boolean;
       intentHint?: string;
+      interactionMode?: "agent" | "ask";
     },
   ): Promise<void> {
     if (!this.loopId) throw new Error("No active loop session");
@@ -196,11 +197,29 @@ export class DaemonSession {
       clarificationAnswer: options?.clarificationAnswer,
       intentHint: options?.intentHint as
         import("../intent_hints.js").LoopInputIntentHint | undefined,
+      interactionMode: options?.interactionMode,
     });
   }
 
   async cancelActiveTurn(): Promise<void> {
     await this.client.notify("slash_command", { cmd: "/cancel" });
+  }
+
+  /** Invokes a skill on the stream socket (required for turn enqueue). */
+  async invokeSkill(
+    skill: string,
+    args = "",
+    options?: {
+      clarificationMode?: string;
+      interactionMode?: "agent" | "ask";
+    },
+  ): Promise<Record<string, unknown>> {
+    return this.withReadLock(() =>
+      this.client.invokeSkill(skill, args, 120_000, {
+        clarificationMode: options?.clarificationMode,
+        interactionMode: options?.interactionMode,
+      }),
+    );
   }
 
   private async *drainStreamEventsAfterIdle(
@@ -255,6 +274,18 @@ export class DaemonSession {
       return await fn();
     } finally {
       this.rpcBusy = false;
+    }
+  }
+
+  private async withReadLock<T>(fn: () => Promise<T>): Promise<T> {
+    while (this.readBusy) {
+      await new Promise(r => setTimeout(r, 5));
+    }
+    this.readBusy = true;
+    try {
+      return await fn();
+    } finally {
+      this.readBusy = false;
     }
   }
 
@@ -334,6 +365,8 @@ export class DaemonSession {
     this.lastTurnEndState = null;
     this.lastTurnCancellationSeen = false;
     this.lastTurnErrorMessage = null;
+
+    const inboundDroppedBaseline = this.client.inboundDropped();
 
     let queryStarted = false;
     let expectedLoopId = this.loopId;
@@ -499,6 +532,10 @@ export class DaemonSession {
     } finally {
       this.streaming = false;
       this.readBusy = false;
+      this.turnEventStats.inboundDropped = Math.max(
+        0,
+        this.client.inboundDropped() - inboundDroppedBaseline,
+      );
     }
   }
 }

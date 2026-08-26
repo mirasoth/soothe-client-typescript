@@ -69,6 +69,16 @@ export interface InputOptions {
   clarificationAnswer?: boolean;
   /** Per-question answers for multi-question clarifications. */
   clarificationAnswers?: string[];
+  /** CoreAgent interaction mode for this turn ("agent" / "ask"). */
+  interactionMode?: "agent" | "ask";
+}
+
+/** Options for `invokeSkill` (daemon-side synthetic turn hints). */
+export interface InvokeSkillOptions {
+  /** Clarification relay mode for the synthetic turn ("auto" / "manual"). */
+  clarificationMode?: string;
+  /** CoreAgent interaction mode for the synthetic turn ("agent" / "ask"). */
+  interactionMode?: "agent" | "ask";
 }
 
 /** Capability set negotiated with the daemon. */
@@ -926,6 +936,7 @@ export class Client extends EventEmitter {
     if (options?.clarificationMode) params.clarification_mode = options.clarificationMode;
     if (options?.clarificationAnswer) params.clarification_answer = true;
     if (options?.clarificationAnswers) params.clarification_answers = options.clarificationAnswers;
+    if (options?.interactionMode) params.interaction_mode = options.interactionMode;
     return this.notify("loop_input", params);
   }
 
@@ -998,8 +1009,15 @@ export class Client extends EventEmitter {
   }
 
   /** Invokes a skill on the daemon host and receives echo. */
-  invokeSkill(skill: string, args?: string, timeout?: number): Promise<Record<string, unknown>> {
+  invokeSkill(
+    skill: string,
+    args?: string,
+    timeout?: number,
+    options?: InvokeSkillOptions,
+  ): Promise<Record<string, unknown>> {
     const params: Record<string, unknown> = { skill, args: args ?? "" };
+    if (options?.clarificationMode) params.clarification_mode = options.clarificationMode;
+    if (options?.interactionMode) params.interaction_mode = options.interactionMode;
     return this.requestResponse("invoke_skill", params, "invoke_skill", timeout ?? 120_000);
   }
 

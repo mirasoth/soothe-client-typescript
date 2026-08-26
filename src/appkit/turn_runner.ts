@@ -76,6 +76,7 @@ export interface InputOpts {
   responseSchema?: Record<string, unknown>;
   responseSchemaName?: string;
   responseSchemaStrict?: boolean;
+  interactionMode?: "agent" | "ask";
 }
 
 /** Optional attachment shape ({mime_type, data(base64)}). */
@@ -106,6 +107,7 @@ export function inputMessageForLoop(
     if (opts.responseSchemaName?.trim()) msg.response_schema_name = opts.responseSchemaName.trim();
     if (opts.responseSchemaStrict !== undefined)
       msg.response_schema_strict = opts.responseSchemaStrict;
+    if (opts.interactionMode) msg.interaction_mode = opts.interactionMode;
   }
   return msg;
 }

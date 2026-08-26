@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.10] - 2026-08-26
+
+### Added
+- `interactionMode?: "agent" | "ask"` option (Feature Set B parity with the Python client) on `InputOptions` (`Client.sendInput`), `InvokeSkillOptions` (`Client.invokeSkill`), `DaemonSession.sendTurn` options, the new `DaemonSession.invokeSkill` method, and `InputOpts` (`inputMessageForLoop`). When set, the wire param `interaction_mode` is emitted on `loop_input` / `invoke_skill` so a turn or synthetic skill turn forces a CoreAgent interaction mode; `undefined` lets the daemon fall back to its configured default.
+- `DaemonSession.invokeSkill(skill, args?, options?)` — invokes a skill on the stream socket under a read lock (matching Python `DaemonSession.invoke_skill`), forwarding `clarificationMode` and `interactionMode` to `Client.invokeSkill`.
+
+### Changed
+- `iterTurnChunks` now mirrors `client.inboundDropped()` into `turnEventStats.inboundDropped` in its `finally` block, capturing a baseline at turn start so the count reflects drops that occurred during the turn (Feature Set C gap).
+
 ## [0.5.9] - 2026-08-23
 
 ### Added
