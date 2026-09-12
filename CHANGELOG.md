@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-09-13
+
+### Added
+- `autopilotRailId?: string` option on `InputOptions` (`Client.sendInput`), `DaemonSession.sendTurn` options, and the `sendInput` wire param (`autopilot_rail_id` on `loop_input`). When set, the turn is pinned to a specific autopilot rail; `undefined` lets the daemon use its default rail selection.
+
 ## [0.5.11] - 2026-09-08
 
 ### Added

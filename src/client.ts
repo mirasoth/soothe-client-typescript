@@ -71,6 +71,8 @@ export interface InputOptions {
   clarificationAnswers?: string[];
   /** CoreAgent interaction mode for this turn ("agent" / "ask"). */
   interactionMode?: "agent" | "ask";
+  /** Autopilot rail id to pin this turn to a specific autopilot rail. */
+  autopilotRailId?: string;
 }
 
 /** Options for `invokeSkill` (daemon-side synthetic turn hints). */
@@ -917,6 +919,7 @@ export class Client extends EventEmitter {
     if (options?.clarificationAnswer) params.clarification_answer = true;
     if (options?.clarificationAnswers) params.clarification_answers = options.clarificationAnswers;
     if (options?.interactionMode) params.interaction_mode = options.interactionMode;
+    if (options?.autopilotRailId) params.autopilot_rail_id = options.autopilotRailId;
     return this.notify("loop_input", params);
   }
 

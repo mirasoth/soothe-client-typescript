@@ -184,6 +184,7 @@ export class DaemonSession {
       clarificationAnswer?: boolean;
       intentHint?: string;
       interactionMode?: "agent" | "ask";
+      autopilotRailId?: string;
     },
   ): Promise<void> {
     if (!this.loopId) throw new Error("No active loop session");
@@ -198,6 +199,7 @@ export class DaemonSession {
       intentHint: options?.intentHint as
         import("../intent_hints.js").LoopInputIntentHint | undefined,
       interactionMode: options?.interactionMode,
+      autopilotRailId: options?.autopilotRailId,
     });
   }
 
