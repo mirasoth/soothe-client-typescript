@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.13] - 2026-09-27
+
+### Fixed
+- `interactionMode` type widened from `"agent" | "ask"` to `"agent" | "ask" | "plan" | "bypass"` across `InputOptions`, `InvokeSkillOptions`, `DaemonSession.sendTurn`, `DaemonSession.invokeSkill`, and `InputOpts`, matching the daemon's accepted CoreAgent interaction modes.
+
 ## [0.5.12] - 2026-09-13
 
 ### Added

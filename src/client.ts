@@ -69,8 +69,8 @@ export interface InputOptions {
   clarificationAnswer?: boolean;
   /** Per-question answers for multi-question clarifications. */
   clarificationAnswers?: string[];
-  /** CoreAgent interaction mode for this turn ("agent" / "ask"). */
-  interactionMode?: "agent" | "ask";
+  /** CoreAgent interaction mode for this turn ("agent" / "ask" / "plan" / "bypass"). */
+  interactionMode?: "agent" | "ask" | "plan" | "bypass";
   /** Autopilot rail id to pin this turn to a specific autopilot rail. */
   autopilotRailId?: string;
 }
@@ -80,7 +80,7 @@ export interface InvokeSkillOptions {
   /** Clarification relay mode for the synthetic turn. */
   clarificationMode?: string;
   /** CoreAgent interaction mode for the synthetic turn. */
-  interactionMode?: "agent" | "ask";
+  interactionMode?: "agent" | "ask" | "plan" | "bypass";
 }
 
 /** Capability set negotiated with the daemon. */

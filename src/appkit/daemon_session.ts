@@ -183,7 +183,7 @@ export class DaemonSession {
       clarificationMode?: string;
       clarificationAnswer?: boolean;
       intentHint?: string;
-      interactionMode?: "agent" | "ask";
+      interactionMode?: "agent" | "ask" | "plan" | "bypass";
       autopilotRailId?: string;
     },
   ): Promise<void> {
@@ -213,7 +213,7 @@ export class DaemonSession {
     args = "",
     options?: {
       clarificationMode?: string;
-      interactionMode?: "agent" | "ask";
+      interactionMode?: "agent" | "ask" | "plan" | "bypass";
     },
   ): Promise<Record<string, unknown>> {
     return this.withReadLock(() =>

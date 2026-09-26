@@ -76,7 +76,7 @@ export interface InputOpts {
   responseSchema?: Record<string, unknown>;
   responseSchemaName?: string;
   responseSchemaStrict?: boolean;
-  interactionMode?: "agent" | "ask";
+  interactionMode?: "agent" | "ask" | "plan" | "bypass";
 }
 
 /** Optional attachment shape ({mime_type, data(base64)}). */
