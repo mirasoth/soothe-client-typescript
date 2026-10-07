@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.14] - 2026-10-07
+
+### Removed
+- Drop autopilot event constants from `events.ts` and their re-exports from `index.ts`; remove the autopilot domain arm from the verbosity classifier, aligning the TypeScript client with the autopilot cleansing.
+
 ## [0.5.13] - 2026-09-27
 
 ### Fixed
