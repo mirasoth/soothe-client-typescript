@@ -13,7 +13,6 @@
  */
 
 import { DaemonError } from "../errors.js";
-import { EventFinalReport } from "../events.js";
 import { DEFAULT_THINKING_STEP_EVENTS, extractThinkingStep } from "./thinking_step.js";
 
 /** How a processed event should end the query loop. */
@@ -104,7 +103,6 @@ export class EventClassifier {
       case "stream_closed":
         return true;
     }
-    if (eventType === EventFinalReport) return true;
     if (eventType.startsWith("soothe.protocol.message.")) {
       const phase = eventType.slice("soothe.protocol.message.".length);
       return this.isDeliverableLoopPhase(phase);

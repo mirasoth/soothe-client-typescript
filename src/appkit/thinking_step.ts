@@ -10,16 +10,12 @@ const MAX_THINKING_STEP_RUNES = 280;
 
 /** Default thinking-step event allowlist. */
 export const DEFAULT_THINKING_STEP_EVENTS: ReadonlySet<string> = new Set([
-  "soothe.cognition.plan.step.started",
-  "soothe.cognition.plan.step.completed",
-  "soothe.cognition.plan.step.failed",
-  "soothe.lifecycle.iteration.started",
-  "soothe.agent.loop.step.started",
-  "soothe.agent.loop.started",
-  "soothe.cognition.plan.batch.started",
+  "soothe.cognition.strange_loop.step.started",
+  "soothe.cognition.strange_loop.step.completed",
   "soothe.cognition.plan.created",
   "soothe.cognition.goal.created",
-  "soothe.tool.execution.started",
+  "soothe.tool.invocation.started",
+  "soothe.tool.invocation.completed",
 ]);
 
 /**
@@ -41,30 +37,13 @@ export function extractThinkingStep(
 
   let line = "";
   switch (et) {
-    case "soothe.cognition.plan.step.started":
-      line = formatPlanStepLine(data, "");
+    case "soothe.cognition.strange_loop.step.started":
+      line = formatStepLine(data, strField(data, "description"));
       break;
-    case "soothe.cognition.plan.step.completed":
-      line = formatPlanStepLine(data, "done");
+    case "soothe.cognition.strange_loop.step.completed":
+      line = formatStepLine(data, strField(data, "summary"));
       break;
-    case "soothe.cognition.plan.step.failed": {
-      const stepID = strField(data, "step_id");
-      const errMsg = strField(data, "error");
-      if (stepID && errMsg) line = `Step ${stepID} failed: ${errMsg}`;
-      else if (stepID) line = `Step ${stepID} failed`;
-      else if (errMsg) line = `Step failed: ${errMsg}`;
-      break;
-    }
-    case "soothe.agent.loop.step.started":
-      line = formatAgentStepLine(data, "");
-      break;
-    case "soothe.cognition.plan.batch.started": {
-      const n = data["parallel_count"];
-      if (typeof n === "number" && n > 0) line = `Running ${Math.floor(n)} steps in parallel`;
-      break;
-    }
-    case "soothe.cognition.plan.created":
-    case "soothe.agent.loop.started": {
+    case "soothe.cognition.plan.created": {
       const g = strField(data, "goal");
       if (g) line = "Goal: " + g;
       break;
@@ -74,12 +53,8 @@ export function extractThinkingStep(
       if (g) line = "Goal: " + g;
       break;
     }
-    case "soothe.lifecycle.iteration.started": {
-      const g = strField(data, "goal_description");
-      if (g) line = "Iteration: " + g;
-      break;
-    }
-    case "soothe.tool.execution.started": {
+    case "soothe.tool.invocation.started":
+    case "soothe.tool.invocation.completed": {
       const name = strField(data, "tool_name", "name");
       if (name) line = "Tool: " + name;
       break;
@@ -97,24 +72,11 @@ export function extractThinkingStep(
   return [line, true];
 }
 
-function formatPlanStepLine(data: Record<string, unknown>, suffix: string): string {
+function formatStepLine(data: Record<string, unknown>, desc: string): string {
   const stepID = strField(data, "step_id");
-  const desc = strField(data, "description");
-  if (stepID && suffix) return `Step ${stepID}: ${suffix}`;
   if (stepID && desc) return `Step ${stepID}: ${desc}`;
   if (stepID) return `Step ${stepID}`;
-  if (desc && suffix) return `Step: ${suffix}`;
-  if (desc) return `Step: ${desc}`;
-  if (suffix) return "Step: " + suffix;
-  return "";
-}
-
-function formatAgentStepLine(data: Record<string, unknown>, suffix: string): string {
-  const stepID = strField(data, "step_id");
-  const desc = strField(data, "description");
-  if (stepID && desc) return `Step ${stepID}: ${desc}`;
-  if (desc) return suffix ? `Step: ${suffix}` : `Step: ${desc}`;
-  if (stepID) return `Step ${stepID}`;
+  if (desc) return "Step: " + desc;
   return "";
 }
 

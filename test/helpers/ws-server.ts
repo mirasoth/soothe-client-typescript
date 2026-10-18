@@ -176,7 +176,7 @@ export function ndjsonHandler(ws: WebSocket): void {
       // Trigger the NDJSON payload on the next message.
       ws.once("message", () => {
         ws.send(
-          `{"proto":"1","type":"next","payload":{"namespace":["soothe","output"],"mode":"event","data":{"type":"soothe.output.autonomous.final_report.reported","text":"hello"}}}\n` +
+          `{"proto":"1","type":"next","payload":{"namespace":["soothe","cognition"],"mode":"custom","data":{"type":"soothe.cognition.plan.created","goal":"hello"}}}\n` +
             `{"proto":"1","type":"status","state":"idle","loop_id":"ndjson-loop-123"}`,
         );
       });

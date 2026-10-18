@@ -31,7 +31,6 @@ import {
   decodeMessage,
   disconnectEnvelope,
   newLoopNewMessage,
-  newRequestID,
   notificationEnvelope,
   pingEnvelope,
   pongEnvelope,
@@ -51,7 +50,7 @@ export interface InputOptions {
   loopID?: string;
   subagent?: string;
   /** Forced StrangeLoop intake scope. */
-  intakeScope?: "trivial" | "simple" | "complex";
+  intakeScope?: "minimal" | "simple" | "complex";
   model?: string;
   modelParams?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
@@ -767,25 +766,6 @@ export class Client extends EventEmitter {
     }
   }
 
-  /**
-   * Sends a pre-built envelope (e.g. `unsubscribe`) that carries an `id` and
-   * waits for the matching `response`/`error`.
-   */
-  private async _requestResponseForEnvelope(
-    env: { id: string; proto?: string; type?: string },
-    label: string,
-    timeout: number,
-  ): Promise<Record<string, unknown>> {
-    const rid = env.id;
-    const { call, unregister } = this.mux.registerRPC(rid);
-    try {
-      await this.sendMessage(env);
-      return await this._raceRPC(call, timeout, label);
-    } finally {
-      unregister();
-    }
-  }
-
   /** Sends a fire-and-forget `notification` envelope (no response expected). */
   notify(method: MethodName, params: Record<string, unknown>): Promise<void> {
     return this.sendMessage(notificationEnvelope(method, params));
@@ -829,7 +809,7 @@ export class Client extends EventEmitter {
    * carrying the same `id`.
    */
   async subscribe(
-    method: "loop_events" | "autopilot_events",
+    method: "loop_events",
     params: Record<string, unknown>,
     timeout: number = 5_000,
   ): Promise<string> {
@@ -1014,21 +994,6 @@ export class Client extends EventEmitter {
   /** Requests loop details and waits for response. */
   getLoop(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
     return this.requestResponse("loop_get", { loop_id: loopID }, "loop_get", timeout ?? 15_000);
-  }
-
-  /** Requests loop tree and waits for response. */
-  getLoopTree(loopID: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("loop_tree", { loop_id: loopID }, "loop_tree", timeout ?? 15_000);
-  }
-
-  /** Prunes old checkpoint branches for a loop and waits for response. */
-  pruneLoop(loopID: string, keepLatest = 1, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "loop_prune",
-      { loop_id: loopID, keep_latest: keepLatest },
-      "loop_prune",
-      timeout ?? 15_000,
-    );
   }
 
   /** Requests loop deletion and waits for response. */
@@ -1245,189 +1210,21 @@ export class Client extends EventEmitter {
   // Job IPC methods
   // ---------------------------------------------------------------------------
 
-  /** Creates an autopilot job and waits for the response. */
+  /** Creates a job (rail-pinned loop submission) and waits for the response. */
   createJob(
     goal: string,
+    railId: string,
     verificationRules?: string,
     workspace?: string,
     timeout?: number,
   ): Promise<Record<string, unknown>> {
-    const params: Record<string, unknown> = { goal };
+    if (!railId || !railId.trim()) {
+      return Promise.reject(new Error("createJob requires railId"));
+    }
+    const params: Record<string, unknown> = { goal, rail_id: railId.trim() };
     if (verificationRules) params.verification_rules = verificationRules;
     if (workspace) params.workspace = workspace;
     return this.requestResponse("job_create", params, "job_create", timeout ?? 15_000);
-  }
-
-  /** Queries job status and waits for the response. */
-  getJobStatus(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("job_status", { job_id: jobId }, "job_status", timeout ?? 15_000);
-  }
-
-  /** Pauses a running job. */
-  pauseJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("job_pause", { job_id: jobId }, "job_pause", timeout ?? 15_000);
-  }
-
-  /** Resumes a paused job. */
-  resumeJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("job_resume", { job_id: jobId }, "job_resume", timeout ?? 15_000);
-  }
-
-  /** Cancels a job. */
-  cancelJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("job_cancel", { job_id: jobId }, "job_cancel", timeout ?? 15_000);
-  }
-
-  /** Requests the DAG visualization for a job. */
-  getJobDag(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("job_dag", { job_id: jobId }, "job_dag", timeout ?? 15_000);
-  }
-
-  /** Sends guidance to a job or specific goal. */
-  sendJobGuidance(
-    jobId: string,
-    text: string,
-    goalId?: string,
-    timeout?: number,
-  ): Promise<Record<string, unknown>> {
-    const params: Record<string, unknown> = { job_id: jobId, content: text };
-    if (goalId) params.goal_id = goalId;
-    return this.requestResponse("job_guidance", params, "job_guidance", timeout ?? 30_000);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Autopilot goal RPCs (protocol-1 request methods)
-  // ---------------------------------------------------------------------------
-
-  /** Return autopilot scheduler status (running / dreaming / pool). */
-  autopilotStatus(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("autopilot_status", {}, "autopilot_status", timeout ?? 15_000);
-  }
-
-  /** Submit a new autopilot goal (returns goal_id). */
-  autopilotSubmit(
-    description: string,
-    opts?: { priority?: number; workspace?: string; timeout?: number },
-  ): Promise<Record<string, unknown>> {
-    const params: Record<string, unknown> = {
-      description,
-      priority: opts?.priority ?? 50,
-    };
-    if (opts?.workspace) params.workspace = opts.workspace;
-    return this.requestResponse(
-      "autopilot_submit",
-      params,
-      "autopilot_submit",
-      opts?.timeout ?? 15_000,
-    );
-  }
-
-  /** List all goals (including non-root children). */
-  autopilotListGoals(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "autopilot_list_goals",
-      {},
-      "autopilot_list_goals",
-      timeout ?? 15_000,
-    );
-  }
-
-  /** Fetch one goal by id. */
-  autopilotGetGoal(goalId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "autopilot_get_goal",
-      { goal_id: goalId },
-      "autopilot_get_goal",
-      timeout ?? 15_000,
-    );
-  }
-
-  /** Cancel a goal and its non-terminal descendants. */
-  autopilotCancelGoal(goalId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "autopilot_cancel_goal",
-      { goal_id: goalId },
-      "autopilot_cancel_goal",
-      timeout ?? 15_000,
-    );
-  }
-
-  /** Cancel every open (non-terminal) goal. */
-  autopilotCancelAll(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "autopilot_cancel_all",
-      {},
-      "autopilot_cancel_all",
-      timeout ?? 15_000,
-    );
-  }
-
-  /** Exit dreaming mode and resume scheduling. */
-  autopilotWake(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("autopilot_wake", {}, "autopilot_wake", timeout ?? 15_000);
-  }
-
-  /** Force dreaming mode. */
-  autopilotDream(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse("autopilot_dream", {}, "autopilot_dream", timeout ?? 15_000);
-  }
-
-  /** Resume a suspended or blocked goal. */
-  autopilotResume(goalId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "autopilot_resume",
-      { goal_id: goalId },
-      "autopilot_resume",
-      timeout ?? 15_000,
-    );
-  }
-
-  /** List root goals only (jobs). Prefer createJob / getJobStatus for job control. */
-  autopilotListJobs(timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "autopilot_list_jobs",
-      {},
-      "autopilot_list_jobs",
-      timeout ?? 15_000,
-    );
-  }
-
-  /** Get a root job with DAG snapshot. Prefer getJobStatus / getJobDag. */
-  autopilotGetJob(jobId: string, timeout?: number): Promise<Record<string, unknown>> {
-    return this.requestResponse(
-      "autopilot_get_job",
-      { job_id: jobId },
-      "autopilot_get_job",
-      timeout ?? 15_000,
-    );
-  }
-
-  /** Jobs → goals → loops snapshot for CLI top. */
-  autopilotTop(
-    timeoutOrOptions?: number | { includeTerminal?: boolean; timeout?: number },
-  ): Promise<Record<string, unknown>> {
-    const options =
-      typeof timeoutOrOptions === "number" ? { timeout: timeoutOrOptions } : timeoutOrOptions;
-    return this.requestResponse(
-      "autopilot_top",
-      { include_terminal: options?.includeTerminal ?? false },
-      "autopilot_top",
-      options?.timeout ?? 15_000,
-    );
-  }
-
-  /** Subscribes to autopilot worker events. */
-  autopilotSubscribe(timeout?: number): Promise<string> {
-    return this.subscribe("autopilot_events", {}, timeout ?? 15_000);
-  }
-
-  /** Unsubscribes from autopilot worker events. */
-  autopilotUnsubscribe(timeout?: number): Promise<Record<string, unknown>> {
-    // Send an unsubscribe envelope (no loop_id in params → daemon infers
-    // autopilot_unsubscribe). The daemon sends a `response` correlated by
-    // the envelope id; wait for it via requestResponse semantics.
-    const req = unsubscribeEnvelope(newRequestID());
-    return this._requestResponseForEnvelope(req, "autopilot_unsubscribe", timeout ?? 15_000);
   }
 
   // ---------------------------------------------------------------------------

@@ -251,9 +251,9 @@ function triarchClassifier(): EventClassifier {
 describe("EventClassifier", () => {
   it("deliverable phase (triarch set) → DeliverableComplete", () => {
     const cl = triarchClassifier();
-    const r = cl.classify(deliverableNext("quiz", "Hello, this is the answer."), "");
+    const r = cl.classify(deliverableNext("goal_completion", "Hello, this is the answer."), "");
     expect(r.terminal).toBe(ChatEventTerminal.DeliverableComplete);
-    expect(r.completionEvent).toContain("quiz");
+    expect(r.completionEvent).toContain("goal_completion");
   });
 
   it("phase not in config → not deliverable", () => {
@@ -271,7 +271,7 @@ describe("EventClassifier", () => {
 
   it("substantive-reply guard (stub ACK not deliverable)", () => {
     const cl = triarchClassifier();
-    const r = cl.classify(deliverableNext("quiz", "..."), "");
+    const r = cl.classify(deliverableNext("goal_completion", "..."), "");
     expect(r.terminal).not.toBe(ChatEventTerminal.DeliverableComplete);
   });
 

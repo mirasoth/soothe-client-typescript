@@ -1,7 +1,6 @@
 /**
- * Job & Cron IPC examples: full job lifecycle
- * (create → status → pause → resume → cancel → DAG → guidance),
- * autopilot subscribe/unsubscribe, and cron add/list/show/cancel.
+ * Job & Cron IPC examples: job create (rail-pinned submission)
+ * and cron add/list/show/cancel.
  *
  * Mirrors the Go client's `job_cron_example_test.go`.
  */
@@ -11,15 +10,16 @@ import { Client } from "../src/index.js";
 import { createMockDaemon } from "./helpers/mock-server.js";
 
 describe("Example: job lifecycle", () => {
-  it("jobLifecycle: create → status → DAG → pause → resume → guidance → cancel", async () => {
+  it("jobCreate: rail-pinned job submission", async () => {
     const md = createMockDaemon();
     try {
       const client = new Client(md.url);
       await client.connect();
 
-      // 1. Create a job with a root goal and workspace.
+      // Create a rail-pinned job; the daemon requires rail_id.
       const createResp = await client.createJob(
         "Build a REST API with tests",
+        "rail-default",
         undefined,
         "/tmp/workspace",
         15_000,
@@ -27,62 +27,9 @@ describe("Example: job lifecycle", () => {
       const jobId = createResp.job_id as string;
       console.log("Created job:", jobId);
 
-      // 2. Query job status (goal status, counts, assigned workers).
-      const status = await client.getJobStatus(jobId, 15_000);
-      console.log("Job status:", status);
-
-      // 3. Get the GoalEngine DAG snapshot for visualization.
-      const dag = await client.getJobDag(jobId, 15_000);
-      console.log("Job DAG:", dag);
-
-      // 4. Pause goal execution.
-      await client.pauseJob(jobId, 15_000);
-      console.log("JobPause: ok");
-
-      // 5. Resume paused goal execution.
-      await client.resumeJob(jobId, 15_000);
-      console.log("JobResume: ok");
-
-      // 6. Send user guidance to the job's root goal.
-      await client.sendJobGuidance(
-        jobId,
-        "Prioritize authentication and security",
-        undefined,
-        30_000,
-      );
-      console.log("JobGuidance: ok");
-
-      // 7. Cancel the job.
-      await client.cancelJob(jobId, 15_000);
-      console.log("JobCancel: ok");
-
       client.close();
 
       expect(jobId).toMatch(/^job-\d+$/);
-      expect(status).toMatchObject({ job_id: jobId, goal_status: "in_progress" });
-      expect(dag).toMatchObject({ job_id: jobId });
-    } finally {
-      await md.close();
-    }
-  });
-});
-
-describe("Example: autopilot events", () => {
-  it("autopilotSubscribe: subscribes to autopilot worker events", async () => {
-    const md = createMockDaemon();
-    try {
-      const client = new Client(md.url);
-      await client.connect();
-
-      const subId = await client.autopilotSubscribe(15_000);
-      console.log("Autopilot subscription:", subId);
-
-      // Unsubscribe from autopilot events.
-      await client.autopilotUnsubscribe(15_000);
-      console.log("Autopilot unsubscribed");
-
-      client.close();
-      expect(subId).toBeTruthy();
     } finally {
       await md.close();
     }

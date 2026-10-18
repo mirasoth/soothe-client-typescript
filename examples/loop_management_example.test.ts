@@ -204,8 +204,6 @@ describe("Example: loop state", () => {
   });
 });
 
-
-
 describe("Example: loop history", () => {
   it("fetchLoopHistory: blocking helper returns full history", async () => {
     const md = createMockDaemon();
@@ -251,25 +249,6 @@ describe("Example: loop history", () => {
 
       client.close();
       expect(history).toMatchObject({ loop_id: "loop-1" });
-    } finally {
-      await md.close();
-    }
-  });
-});
-
-describe("Example: loop tree", () => {
-  it("getLoopTree: requests loop tree visualization", async () => {
-    const md = createMockDaemon();
-    try {
-      const client = new Client(md.url);
-      await client.connect();
-
-      const tree = await client.getLoopTree("loop-1", 15_000);
-      console.log("Loop tree:", tree);
-
-      client.close();
-      expect(tree).toMatchObject({ loop_id: "loop-1" });
-      expect(tree.tree).toBeDefined();
     } finally {
       await md.close();
     }

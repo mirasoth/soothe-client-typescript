@@ -1,5 +1,5 @@
 /**
- * Ephemeral one-shot RPC client for jobs / cron / autopilot.
+ * Ephemeral one-shot RPC client for jobs / cron.
  */
 
 import { Client } from "./client.js";
@@ -38,108 +38,11 @@ export class CommandClient {
     );
   }
 
-  async jobCreate(goal: string, workspace = ""): Promise<Record<string, unknown>> {
-    const params: Record<string, unknown> = { goal };
+  /** Creates a job (rail-pinned loop submission); the daemon requires rail_id. */
+  async jobCreate(goal: string, railId: string, workspace = ""): Promise<Record<string, unknown>> {
+    const params: Record<string, unknown> = { goal, rail_id: railId };
     if (workspace) params.workspace = workspace;
     return this.request("job_create", params);
-  }
-
-  async jobStatus(jobId: string): Promise<Record<string, unknown>> {
-    return this.request("job_status", { job_id: jobId });
-  }
-
-  async jobPause(jobId: string): Promise<Record<string, unknown>> {
-    return this.request("job_pause", { job_id: jobId });
-  }
-
-  async jobResume(jobId: string): Promise<Record<string, unknown>> {
-    return this.request("job_resume", { job_id: jobId });
-  }
-
-  async jobCancel(jobId: string): Promise<Record<string, unknown>> {
-    return this.request("job_cancel", { job_id: jobId });
-  }
-
-  async jobDag(jobId: string): Promise<Record<string, unknown>> {
-    return this.request("job_dag", { job_id: jobId });
-  }
-
-  async jobGuidance(
-    jobId: string,
-    content: string,
-    goalId?: string,
-  ): Promise<Record<string, unknown>> {
-    const params: Record<string, unknown> = { job_id: jobId, content };
-    if (goalId) params.goal_id = goalId;
-    return this.request("job_guidance", params);
-  }
-
-  /** Return autopilot scheduler status (running / dreaming / pool). */
-  async autopilotStatus(): Promise<Record<string, unknown>> {
-    return this.request("autopilot_status");
-  }
-
-  /** Submit a new autopilot goal (returns goal_id). */
-  async autopilotSubmit(
-    description: string,
-    opts?: { priority?: number; workspace?: string },
-  ): Promise<Record<string, unknown>> {
-    const params: Record<string, unknown> = {
-      description,
-      priority: opts?.priority ?? 50,
-    };
-    if (opts?.workspace) params.workspace = opts.workspace;
-    return this.request("autopilot_submit", params);
-  }
-
-  /** List all goals (including non-root children). */
-  async autopilotListGoals(): Promise<Record<string, unknown>> {
-    return this.request("autopilot_list_goals");
-  }
-
-  /** Fetch one goal by id. */
-  async autopilotGetGoal(goalId: string): Promise<Record<string, unknown>> {
-    return this.request("autopilot_get_goal", { goal_id: goalId });
-  }
-
-  /** Cancel a goal and its non-terminal descendants. */
-  async autopilotCancelGoal(goalId: string): Promise<Record<string, unknown>> {
-    return this.request("autopilot_cancel_goal", { goal_id: goalId });
-  }
-
-  /** Cancel every open (non-terminal) goal. */
-  async autopilotCancelAll(): Promise<Record<string, unknown>> {
-    return this.request("autopilot_cancel_all");
-  }
-
-  /** Exit dreaming mode and resume scheduling. */
-  async autopilotWake(): Promise<Record<string, unknown>> {
-    return this.request("autopilot_wake");
-  }
-
-  /** Force dreaming mode. */
-  async autopilotDream(): Promise<Record<string, unknown>> {
-    return this.request("autopilot_dream");
-  }
-
-  /** Resume a suspended or blocked goal. */
-  async autopilotResume(goalId: string): Promise<Record<string, unknown>> {
-    return this.request("autopilot_resume", { goal_id: goalId });
-  }
-
-  /** List root goals only (jobs). Prefer job* for job control. */
-  async autopilotListJobs(): Promise<Record<string, unknown>> {
-    return this.request("autopilot_list_jobs");
-  }
-
-  /** Get a root job with DAG snapshot. Prefer jobStatus / getJobDag. */
-  async autopilotGetJob(jobId: string): Promise<Record<string, unknown>> {
-    return this.request("autopilot_get_job", { job_id: jobId });
-  }
-
-  /** Jobs → goals → loops snapshot for CLI top. */
-  async autopilotTop(includeTerminal = false): Promise<Record<string, unknown>> {
-    return this.request("autopilot_top", { include_terminal: includeTerminal });
   }
 
   async cronAdd(text: string, priority = 0): Promise<Record<string, unknown>> {

@@ -2,6 +2,7 @@
  * Inbound drop priorities (lower = keep). Python WebSocketClient parity.
  */
 
+import { EventToolCallUpdatesBatch } from "./events.js";
 import { STREAM_END, isTurnEndCustomData } from "./stream_terminal.js";
 
 export const DROP_PRIORITY_CRITICAL = 0;
@@ -61,7 +62,7 @@ export function inboundFrameDropPriority(
         if (customType.startsWith("soothe.error.") || customType === "stream_degraded") {
           return DROP_PRIORITY_CRITICAL;
         }
-        if (customType === "soothe.ux.stream_tool_wire.tool_call_updates_batch") {
+        if (customType === EventToolCallUpdatesBatch) {
           return DROP_PRIORITY_HIGH;
         }
       }

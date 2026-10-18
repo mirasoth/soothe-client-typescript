@@ -7,7 +7,7 @@ import type { VerbosityLevel } from "./verbosity.js";
 export interface Config {
   /** WebSocket URL for Soothe daemon */
   daemonURL: string;
-  /** Event verbosity: quiet/minimal/normal/detailed/debug */
+  /** Event verbosity: quiet/normal/debug */
   verbosityLevel: VerbosityLevel;
   /** Maximum connection retry attempts */
   maxRetries: number;

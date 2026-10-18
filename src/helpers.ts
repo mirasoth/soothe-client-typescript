@@ -190,11 +190,7 @@ export async function protocol1Rpc(
           return {};
         }
         if (mode === "subscribe") {
-          const subId = await client.subscribe(
-            method as "loop_events" | "autopilot_events",
-            params ?? {},
-            timeoutMs,
-          );
+          const subId = await client.subscribe(method as "loop_events", params ?? {}, timeoutMs);
           return { subscription_id: subId };
         }
         const result = await client.requestResponse(

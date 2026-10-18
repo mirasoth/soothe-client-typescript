@@ -32,9 +32,9 @@ export const EventCardReplayBegin = "soothe.card.replay.begin";
 export const EventCardReplayEnd = "soothe.card.replay.end";
 
 // Tool events
-export const EventToolStarted = "soothe.tool.execution.started";
-export const EventToolCompleted = "soothe.tool.execution.completed";
-export const EventToolError = "soothe.tool.execution.error";
+export const EventToolStarted = "soothe.tool.invocation.started";
+export const EventToolCompleted = "soothe.tool.invocation.completed";
+export const EventToolError = "soothe.error.tool";
 
 // Stream tool call events
 export const EventStreamToolCallUpdate = "soothe.stream.tool_call.update";
@@ -49,13 +49,6 @@ export const EventStrangeLoopStepStarted = "soothe.cognition.strange_loop.step.s
 export const EventStrangeLoopStepQueued = "soothe.cognition.strange_loop.step.queued";
 export const EventStrangeLoopStepCompleted = "soothe.cognition.strange_loop.step.completed";
 export const EventStrangeLoopContextCompacted = "soothe.cognition.strange_loop.context.compacted";
-
-// Message protocol events (client stream metadata)
-export const EventMessageReceived = "soothe.protocol.message.received";
-export const EventMessageSent = "soothe.protocol.message.sent";
-
-// Output events
-export const EventFinalReport = "soothe.output.autonomous.final_report.reported";
 
 // Error events
 export const EventGeneralFailed = "soothe.error.general.failed";
@@ -139,7 +132,7 @@ function classifySubagentEvent(full: string): VerbosityTier {
 }
 
 function classifyByEventTypeString(eventType: string): VerbosityTier {
-  if (eventType === EventFinalReport || eventType === EventGeneralFailed) {
+  if (eventType === EventGeneralFailed) {
     return VerbosityTier.Quiet;
   }
   if (eventType === EventToolStarted) {

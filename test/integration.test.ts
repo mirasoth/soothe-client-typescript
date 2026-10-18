@@ -194,81 +194,8 @@ describe.skipIf(skip())("Integration", () => {
     const client = new Client(cfg.daemonURL, cfg);
     await client.connect();
 
-    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
-    const resp = await client.createJob("echo hello", undefined, undefined, 60_000);
+    const resp = await client.createJob("echo hello", "rail-default", undefined, undefined, 60_000);
     expect(resp.job_id).toBeDefined();
-    client.close();
-  });
-
-  it("get job status", async () => {
-    const client = new Client(cfg.daemonURL, cfg);
-    await client.connect();
-
-    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
-    const createResp = await client.createJob("echo test", undefined, undefined, 60_000);
-    const jobId = createResp.job_id as string;
-
-    const resp = await client.getJobStatus(jobId, 15_000);
-    expect(resp.job_id).toBe(jobId);
-
-    await client.cancelJob(jobId, 15_000);
-    client.close();
-  });
-
-  it("pause and resume job", async () => {
-    const client = new Client(cfg.daemonURL, cfg);
-    await client.connect();
-
-    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
-    const createResp = await client.createJob("echo one", undefined, undefined, 60_000);
-    const jobId = createResp.job_id as string;
-
-    const pauseResp = await client.pauseJob(jobId, 15_000);
-    expect(pauseResp.status).toBeDefined();
-
-    const resumeResp = await client.resumeJob(jobId, 15_000);
-    expect(resumeResp.status).toBeDefined();
-
-    await client.cancelJob(jobId, 15_000);
-    client.close();
-  });
-
-  it("cancel job", async () => {
-    const client = new Client(cfg.daemonURL, cfg);
-    await client.connect();
-
-    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
-    const createResp = await client.createJob("echo cancel", undefined, undefined, 60_000);
-    const jobId = createResp.job_id as string;
-
-    const cancelResp = await client.cancelJob(jobId, 15_000);
-    expect(cancelResp.job_id).toBe(jobId);
-    client.close();
-  });
-
-  it("get job dag", async () => {
-    const client = new Client(cfg.daemonURL, cfg);
-    await client.connect();
-
-    // OPTIMIZED: Increased timeout from 30s to 60s, simpler goal
-    const createResp = await client.createJob("echo dag", undefined, undefined, 60_000);
-    const jobId = createResp.job_id as string;
-
-    const dagResp = await client.getJobDag(jobId, 15_000);
-    expect(dagResp.dag).toBeDefined();
-
-    await client.cancelJob(jobId, 15_000);
-    client.close();
-  });
-
-  it("autopilot subscribe/unsubscribe", async () => {
-    const client = new Client(cfg.daemonURL, cfg);
-    await client.connect();
-
-    const subId = await client.autopilotSubscribe(15_000);
-    expect(subId).toBeTruthy();
-
-    await client.unsubscribe(subId);
     client.close();
   });
 

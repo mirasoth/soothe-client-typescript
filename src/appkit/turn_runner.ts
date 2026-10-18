@@ -72,7 +72,7 @@ export interface TurnConfig {
 export interface InputOpts {
   intentHint?: LoopInputIntentHint;
   preferredSubagent?: string;
-  intakeScope?: "trivial" | "simple" | "complex";
+  intakeScope?: "minimal" | "simple" | "complex";
   responseSchema?: Record<string, unknown>;
   responseSchemaName?: string;
   responseSchemaStrict?: boolean;

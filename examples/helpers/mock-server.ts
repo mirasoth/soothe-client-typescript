@@ -81,6 +81,10 @@ function sendResponse(ws: WebSocket, id: unknown, result: Record<string, unknown
   ws.send(JSON.stringify({ proto: "1", type: "response", result, id }));
 }
 
+function sendError(ws: WebSocket, id: unknown, code: number, message: string): void {
+  ws.send(JSON.stringify({ proto: "1", type: "error", error: { code, message }, id }));
+}
+
 let loopCounter = 0;
 
 function nextLoopId(): string {
@@ -123,17 +127,6 @@ function handler(ws: WebSocket): void {
           type: "next",
           id,
           payload: { loop_id: loopId, event: "subscribed", success: true, client_id: "c1" },
-        }),
-      );
-      return;
-    }
-    if (typ === "subscribe" && method === "autopilot_events") {
-      ws.send(
-        JSON.stringify({
-          proto: "1",
-          type: "next",
-          id,
-          payload: { event: "subscribed", success: true },
         }),
       );
       return;
@@ -197,12 +190,6 @@ function handler(ws: WebSocket): void {
             { loop_id: "loop-2", state: "running" },
           ],
           total: 2,
-        });
-        return;
-      case "loop_tree":
-        sendResponse(ws, id, {
-          loop_id: params.loop_id,
-          tree: { root: "loop-1", children: ["loop-2", "loop-3"] },
         });
         return;
       case "loop_delete":
@@ -295,106 +282,16 @@ function handler(ws: WebSocket): void {
         });
         return;
 
- // Job IPC
+      // Job IPC
       case "job_create":
+        if (typeof params.rail_id !== "string" || !params.rail_id.trim()) {
+          sendError(ws, id, -32600, "rail_id is required (loop-native submission path)");
+          return;
+        }
         sendResponse(ws, id, { job_id: nextJobId(), goal: params.goal, status: "created" });
         return;
-      case "job_status":
-        sendResponse(ws, id, {
-          job_id: params.job_id,
-          goal_status: "in_progress",
-          completed: 0,
-          total: 5,
-          workers: 3,
-        });
-        return;
-      case "job_pause":
-        sendResponse(ws, id, { job_id: params.job_id, status: "paused" });
-        return;
-      case "job_resume":
-        sendResponse(ws, id, { job_id: params.job_id, status: "resumed" });
-        return;
-      case "job_cancel":
-        sendResponse(ws, id, { job_id: params.job_id, status: "cancelled" });
-        return;
-      case "job_dag":
-        sendResponse(ws, id, {
-          job_id: params.job_id,
-          dag: "root_goal\n  ├── subtask_1\n  ├── subtask_2\n  └── subtask_3",
-        });
-        return;
-      case "job_guidance":
-        sendResponse(ws, id, { job_id: params.job_id, status: "guidance_received" });
-        return;
 
-      // Autopilot goal RPCs
-      case "autopilot_status":
-        sendResponse(ws, id, {
-          state: "active",
-          running: true,
-          dreaming: false,
-          loop_pool: { active: 1, idle: 2 },
-        });
-        return;
-      case "autopilot_submit":
-        sendResponse(ws, id, { status: "submitted", goal_id: nextJobId() });
-        return;
-      case "autopilot_list_goals":
-        sendResponse(ws, id, { goals: [], source: "autopilot_service" });
-        return;
-      case "autopilot_get_goal":
-        sendResponse(ws, id, {
-          goal: { id: params.goal_id, status: "active" },
-          source: "autopilot_service",
-        });
-        return;
-      case "autopilot_cancel_goal":
-        sendResponse(ws, id, {
-          status: "cancelled",
-          goal_id: params.goal_id,
-          new_status: "cancelled",
-        });
-        return;
-      case "autopilot_cancel_all":
-        sendResponse(ws, id, { status: "cancelled", cancelled_count: 0, goal_ids: [] });
-        return;
-      case "autopilot_wake":
-        sendResponse(ws, id, { status: "wake_sent" });
-        return;
-      case "autopilot_dream":
-        sendResponse(ws, id, { status: "dream_sent" });
-        return;
-      case "autopilot_resume":
-        sendResponse(ws, id, {
-          status: "reactivated",
-          goal_id: params.goal_id,
-          new_status: "pending",
-        });
-        return;
-      case "autopilot_list_jobs":
-        sendResponse(ws, id, { jobs: [], source: "autopilot_service" });
-        return;
-      case "autopilot_get_job":
-        sendResponse(ws, id, {
-          job: { id: params.job_id, status: "active" },
-          dag: { nodes: [] },
-          active_goals: 0,
-          completed_goals: 0,
-          total_goals: 0,
-          source: "autopilot_service",
-        });
-        return;
-      case "autopilot_top":
-        sendResponse(ws, id, {
-          running: true,
-          dreaming: false,
-          loop_pool: { active: 0, idle: 0, total: 0, max: 4 },
-          generated_at: new Date().toISOString(),
-          jobs: [],
-        });
-        return;
-
- // Cron IPC
+      // Cron IPC
       case "cron_add":
         sendResponse(ws, id, { job_id: "cron-1", text: params.text, status: "scheduled" });
         return;
@@ -419,7 +316,7 @@ function handler(ws: WebSocket): void {
         sendResponse(ws, id, { job_id: params.job_id, status: "cancelled" });
         return;
 
- // Slash / RPC commands
+      // Slash / RPC commands
       case "slash_command":
         sendResponse(ws, id, { status: "ok", command: params.cmd });
         return;

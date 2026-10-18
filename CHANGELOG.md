@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.15] - 2026-10-18
+
+### Added
+- Golden wire contract test `test/wire_golden.test.ts` pinning the host `wire_golden.json` fixture (sha256 `ba5a5a408fc2c259b768eae2915289de1820a931da37aad30fdd410d52b16627`) and asserting decode round-trip of every case.
+- `minimal` intake-scope test case covering the v1.2.0 `IntakeScope` set (minimal | simple | complex).
+
+### Changed
+- `intake_scope` accepted values renamed from `trivial` to `minimal` (`InputOptions.intakeScope`, `LoopInputParams.intake_scope`, `InputOpts.intakeScope`), matching the host `IntakeScope` enum.
+- `Client.createJob` and `CommandClient.jobCreate` now require `rail_id` (the daemon rejects `job_create` without it); both take `railId` as the second parameter.
+- `EventToolStarted` / `EventToolCompleted` repointed to the host event types `soothe.tool.invocation.started` / `soothe.tool.invocation.completed`; `EventToolError` repointed to `soothe.error.tool`.
+- `LOOP_ASSISTANT_OUTPUT_PHASES` and `DEFAULT_DELIVERABLE_PHASES`: dropped `quiz`, added `goal_interrupted` (host `ux/loop_stream.py` parity).
+- `inbound_priority` custom-frame check now matches the live `tool_call_updates_batch` custom event type instead of the removed `soothe.ux.stream_tool_wire` namespace.
+- Thinking-step allowlist pruned to host-produced events: `strange_loop.step.started/completed`, `plan.created`, `goal.created`, `tool.invocation.started/completed`.
+- `CLIENT_VERSION` bumped to `0.5.15`.
+
+### Removed
+- Dead RPC surface with no daemon handlers (all answered with -32601): the `autopilot_*` method set and `autopilot_events` subscription, `loop_tree` / `loop_prune` (`Client.getLoopTree`, `Client.pruneLoop`), and the service-unavailable job stubs `job_status` / `job_pause` / `job_resume` / `job_cancel` / `job_dag` / `job_guidance` with their `CommandClient` equivalents.
+- Dead `EventMessageReceived` / `EventMessageSent` / `EventFinalReport` constants; client-side `soothe.protocol.message.<phase>` completion synthesis in the classifier is unchanged.
+
 ## [0.5.14] - 2026-10-07
 
 ### Removed

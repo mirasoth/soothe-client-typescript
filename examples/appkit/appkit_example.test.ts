@@ -230,7 +230,7 @@ describe("Example: EventClassifier", () => {
     const cl = makeClassifier();
 
     expect(cl.isDeliverableCompletionEvent("soothe.protocol.message.text_completion")).toBe(true);
-    expect(cl.isDeliverableCompletionEvent("soothe.protocol.message.quiz")).toBe(true);
+    expect(cl.isDeliverableCompletionEvent("soothe.protocol.message.goal_interrupted")).toBe(true);
     expect(cl.isDeliverableCompletionEvent("soothe.protocol.message.unknown_phase")).toBe(false);
     expect(cl.isDeliverableCompletionEvent("")).toBe(false);
   });
@@ -267,7 +267,7 @@ describe("Example: EventClassifier", () => {
 
 describe("Example: extractThinkingStep", () => {
   it("extractThinkingStep: maps an allowlisted progress event to a UI line", () => {
-    const [line, ok] = extractThinkingStep("soothe.tool.execution.started", {
+    const [line, ok] = extractThinkingStep("soothe.tool.invocation.started", {
       tool_name: "file_read",
     });
     console.log("Thinking step:", line, "ok=", ok);
@@ -284,7 +284,7 @@ describe("Example: extractThinkingStep", () => {
 
   it("DEFAULT_THINKING_STEP_EVENTS: contains expected allowlist", () => {
     expect(DEFAULT_THINKING_STEP_EVENTS.has("soothe.cognition.plan.created")).toBe(true);
-    expect(DEFAULT_THINKING_STEP_EVENTS.has("soothe.tool.execution.started")).toBe(true);
+    expect(DEFAULT_THINKING_STEP_EVENTS.has("soothe.tool.invocation.started")).toBe(true);
     expect(DEFAULT_THINKING_STEP_EVENTS.has("soothe.unknown.event")).toBe(false);
   });
 });

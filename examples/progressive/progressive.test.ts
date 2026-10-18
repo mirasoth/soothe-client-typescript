@@ -1,10 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { Client, CommandClient, DaemonSession, ConnectionPool, bootstrapLoopSession } from "../../src/index.js";
+import {
+  Client,
+  CommandClient,
+  DaemonSession,
+  ConnectionPool,
+  bootstrapLoopSession,
+} from "../../src/index.js";
 import { INTENT_HINT_TEXT_COMPLETION } from "../../src/intent_hints.js";
 import { defaultPoolConfig } from "../../src/appkit/index.js";
 import { createTestServer } from "../../test/helpers/ws-server.js";
 import type { WebSocket } from "ws";
-import type { LoopSessionStore, LoopSessionEntry, SessionMessage } from "../../src/appkit/loop_session_store.js";
+import type {
+  LoopSessionStore,
+  LoopSessionEntry,
+  SessionMessage,
+} from "../../src/appkit/loop_session_store.js";
 
 function handshakeAndRpc(ws: WebSocket, opts?: { turn?: boolean; jobs?: boolean }) {
   const turn = opts?.turn ?? false;
@@ -63,9 +73,7 @@ function handshakeAndRpc(ws: WebSocket, opts?: { turn?: boolean; jobs?: boolean 
     if (typ === "notification" && method === "loop_input" && turn) {
       const lid = params.loop_id;
       const turnId = `${lid}:1`;
-      ws.send(
-        JSON.stringify({ type: "status", state: "running", loop_id: lid, turn_id: turnId }),
-      );
+      ws.send(JSON.stringify({ type: "status", state: "running", loop_id: lid, turn_id: turnId }));
       ws.send(
         JSON.stringify({
           type: "event",
@@ -194,10 +202,8 @@ describe("progressive examples", () => {
     const { url, close } = createTestServer(ws => handshakeAndRpc(ws, { jobs: true }));
     try {
       const cc = new CommandClient(url, { timeoutMs: 5_000 });
-      const created = await cc.jobCreate("list files");
+      const created = await cc.jobCreate("list files", "rail-default");
       expect(created.job_id).toMatch(/^job-/);
-      await cc.jobStatus(String(created.job_id));
-      await cc.jobCancel(String(created.job_id));
     } finally {
       await close();
     }

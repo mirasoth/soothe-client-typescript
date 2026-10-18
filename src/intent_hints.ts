@@ -30,9 +30,9 @@ export type LoopInputIntentHint = IntentHint | (string & {});
 /** Phases emitted on ``mode=messages`` for user-visible loop assistant output. */
 export const LOOP_ASSISTANT_OUTPUT_PHASES = [
   "goal_completion",
-  "quiz",
-  "autonomous_goal",
+  "goal_interrupted",
   "chitchat",
+  "autonomous_goal",
   "text_completion",
   "image_to_text",
   "ocr",
@@ -44,8 +44,8 @@ export type LoopAssistantOutputPhase = (typeof LOOP_ASSISTANT_OUTPUT_PHASES)[num
 
 /** Default deliverable phases for triarch-style apps (intent hints + agent outputs). */
 export const DEFAULT_DELIVERABLE_PHASES: ReadonlySet<string> = new Set([
-  "quiz",
   "goal_completion",
+  "goal_interrupted",
   "chitchat",
   "text_completion",
   "image_to_text",

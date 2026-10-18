@@ -17,7 +17,7 @@ export const PROTO_VERSION = "1";
 export const DEFAULT_CLIENT_CAPABILITIES = ["streaming", "batch", "heartbeat", "receipts"];
 
 /** Client version reported in the connection_init handshake. */
-export const CLIENT_VERSION = "0.5.12";
+export const CLIENT_VERSION = "0.5.15";
 
 // ---------------------------------------------------------------------------
 // Envelope message classes
@@ -44,8 +44,6 @@ export type MessageType =
 export type MethodName =
   | "loop_list"
   | "loop_get"
-  | "loop_tree"
-  | "loop_prune"
   | "loop_delete"
   | "loop_new"
   | "loop_reattach"
@@ -58,26 +56,7 @@ export type MethodName =
   | "loop_history_fetch"
   | "loop_set_clarification_mode"
   | "loop_events"
-  | "autopilot_events"
   | "job_create"
-  | "job_status"
-  | "job_pause"
-  | "job_resume"
-  | "job_cancel"
-  | "job_dag"
-  | "job_guidance"
-  | "autopilot_status"
-  | "autopilot_submit"
-  | "autopilot_list_goals"
-  | "autopilot_get_goal"
-  | "autopilot_cancel_goal"
-  | "autopilot_cancel_all"
-  | "autopilot_wake"
-  | "autopilot_dream"
-  | "autopilot_resume"
-  | "autopilot_list_jobs"
-  | "autopilot_get_job"
-  | "autopilot_top"
   | "daemon_status"
   | "daemon_shutdown"
   | "config_get"
@@ -134,7 +113,7 @@ export interface NotificationEnvelope extends BaseEnvelope {
 /** Start a subscription stream (events arrive as `next`). */
 export interface SubscribeEnvelope extends BaseEnvelope {
   type: "subscribe";
-  method: "loop_events" | "autopilot_events";
+  method: "loop_events";
   params?: {
     loop_id?: string;
     verbosity?: string;
@@ -258,7 +237,7 @@ export interface LoopInputParams {
   loop_id: string;
   content: string;
   preferred_subagent?: string;
-  intake_scope?: "trivial" | "simple" | "complex";
+  intake_scope?: "minimal" | "simple" | "complex";
   model?: string;
   model_params?: Record<string, unknown>;
   attachments?: Record<string, unknown>[];
@@ -391,7 +370,7 @@ export function notificationEnvelope(
 
 /** Builds a `subscribe` envelope. */
 export function subscribeEnvelope(
-  method: "loop_events" | "autopilot_events",
+  method: "loop_events",
   params?: Record<string, unknown>,
   id?: string,
 ): SubscribeEnvelope {

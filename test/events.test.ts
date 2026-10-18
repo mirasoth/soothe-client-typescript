@@ -9,7 +9,6 @@ import {
   EventDeepResearchCompleted,
   EventDeepResearchStepCompleted,
   EventToolStarted,
-  EventFinalReport,
   EventGeneralFailed,
   EventStrangeLoopCompleted,
   EventStrangeLoopReasoned,
@@ -45,7 +44,6 @@ describe("parseNamespace", () => {
 
 describe("classifyEventVerbosity", () => {
   it("quiet tier", () => {
-    expect(classifyEventVerbosity(EventFinalReport)).toBe(VerbosityTier.Quiet);
     expect(classifyEventVerbosity(EventGeneralFailed)).toBe(VerbosityTier.Quiet);
   });
 

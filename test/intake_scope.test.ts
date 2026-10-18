@@ -10,6 +10,13 @@ describe("intake_scope wire forwarding", () => {
     expect(msg.intake_scope).toBe("simple");
   });
 
+  it("inputMessageForLoop forwards minimal intake_scope (v1.2.0 scope set)", () => {
+    const msg = inputMessageForLoop("fix typo", "loop-1", undefined, {
+      intakeScope: "minimal",
+    });
+    expect(msg.intake_scope).toBe("minimal");
+  });
+
   it("LoopInputParams accepts intake_scope", () => {
     const params: LoopInputParams = {
       loop_id: "L1",
