@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.16] - 2026-11-24
+
+### Changed
+- Wire-golden fixture refreshed with the host's optional step retry/recovery fields (`step_retry_attempt`, `step_retry_max`, `step_recovered`, `step_prior_tool_calls`, `step_prior_duration_ms` on `STEP_PROGRESS`); fixture sha256 pin updated.
+- Integration tests adapted to the loop-native job submission contract (cron soft-fail).
+- `CLIENT_VERSION` bumped to `0.5.16`.
+
 ## [0.5.15] - 2026-10-18
 
 ### Added
