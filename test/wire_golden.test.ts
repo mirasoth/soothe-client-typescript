@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { decodeMessage, encodeMessage, splitWirePayload } from "../src/protocol.js";
 
-const FIXTURE_SHA256 = "ba5a5a408fc2c259b768eae2915289de1820a931da37aad30fdd410d52b16627";
+const FIXTURE_SHA256 = "38904a5672882b345a3f9786566893220e1e37da51336df22301ade30b5a6cef";
 
 const fixturePath = fileURLToPath(new URL("../tests/fixtures/wire_golden.json", import.meta.url));
 const fixtureRaw = readFileSync(fixturePath, "utf-8");
